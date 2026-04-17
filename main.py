@@ -26,18 +26,28 @@ if os.path.exists(ROI_FILE):
 
 last_alert_time = 0
 
-def send_telegram_alert(message):
+def send_telegram_alert(message, frame):
     global last_alert_time
     current_time = time.time()
     if current_time - last_alert_time < COOLDOWN_SECONDS:
         return # Đang trong thời gian chờ
     
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
+    # Sử dụng endpoint sendPhoto của Telegram
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    
     try:
-        requests.post(url, json=payload, timeout=5)
+        # Mã hóa frame thành định dạng JPEG trong bộ nhớ
+        success, buffer = cv2.imencode(".jpg", frame)
+        if not success:
+            return
+
+        # Chuẩn bị file và nội dung
+        files = {"photo": ("alert.jpg", buffer.tobytes(), "image/jpeg")}
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "caption": message}
+        
+        requests.post(url, data=payload, files=files, timeout=10)
         last_alert_time = current_time
-        print("Đã gửi cảnh báo Telegram!")
+        print("Đã gửi hình ảnh cảnh báo Telegram!")
     except Exception as e:
         print(f"Lỗi gửi Telegram: {e}")
 
@@ -131,7 +141,7 @@ while True:
     if person_in_roi:
         cv2.putText(frame, "CANH BAO: CO NGUOI XAM NHAP!", (10, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        send_telegram_alert("⚠️ Cảnh báo! Phát hiện người đi vào khu vực cấm!")
+        send_telegram_alert("⚠️ Cảnh báo! Phát hiện người đi vào khu vực cấm!", frame)
     else:
         cv2.putText(frame, "Trang thai: Binh thuong", (10, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
