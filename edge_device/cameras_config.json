@@ -1,0 +1,11 @@
+[
+    {
+        "camera_id": "Main_Door_Camera",
+        "source": "0",
+        "line": [
+            [50, 300], 
+            [550, 300]
+        ],
+        "in_direction": "down" 
+    }
+]

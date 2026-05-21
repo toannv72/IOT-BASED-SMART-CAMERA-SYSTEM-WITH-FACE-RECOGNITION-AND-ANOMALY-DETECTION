@@ -9,7 +9,11 @@ import os
 # --- CÀI ĐẶT ---
 # Thay đổi Token và Chat ID của bạn ở đây
 TELEGRAM_TOKEN = "8788292129:AAG-BKlK_c9YbdArYQ4QoqyKZBD-29esw50"
-TELEGRAM_CHAT_ID = "8438973190"
+TELEGRAM_CHAT_IDS = [
+    "8438973190",
+    # "ID_NGUOI_THU_2",
+    # "ID_NGUOI_THU_3"
+]
 COOLDOWN_SECONDS = 10  # Thời gian chờ giữa các lần gửi cảnh báo (test video để ngắn hơn)
 
 # Đường dẫn file video của bạn (THAY ĐỔI ĐƯỜNG DẪN TẠI ĐÂY)
@@ -35,7 +39,6 @@ def send_telegram_alert(message, frame):
     if current_time - last_alert_time < COOLDOWN_SECONDS:
         return 
     
-    # Sử dụng endpoint sendPhoto của Telegram
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     
     try:
@@ -44,13 +47,15 @@ def send_telegram_alert(message, frame):
         if not success:
             return
 
-        # Chuẩn bị file và nội dung
-        files = {"photo": ("alert.jpg", buffer.tobytes(), "image/jpeg")}
-        payload = {"chat_id": TELEGRAM_CHAT_ID, "caption": message}
-        
-        requests.post(url, data=payload, files=files, timeout=10)
+        for chat_id in TELEGRAM_CHAT_IDS:
+            # Chuẩn bị file và nội dung
+            files = {"photo": ("alert.jpg", buffer.tobytes(), "image/jpeg")}
+            payload = {"chat_id": chat_id, "caption": message}
+            
+            requests.post(url, data=payload, files=files, timeout=10)
+            
         last_alert_time = current_time
-        print("Đã gửi hình ảnh cảnh báo Telegram!")
+        print("Đã gửi hình ảnh cảnh báo Telegram cho mọi người!")
     except Exception as e:
         print(f"Lỗi gửi Telegram: {e}")
 
