@@ -1,0 +1,29 @@
+# Cài đặt thư viện
+pip install -r requirements.txt
+
+# Chạy API Server (Bắt buộc chạy trước khi nhận diện khuôn mặt)
+python face_api.py
+
+# Đăng ký khuôn mặt mới (Webcam)
+python register_face.py
+
+# Nhận diện khuôn mặt từ Webcam
+python face_camera.py
+
+# Nhận diện khuôn mặt từ ảnh tĩnh
+python recognize_image.py test.jpg
+
+# Đếm người đa camera qua vạch kẻ (YOLOv8)
+python multi_cam_counter.py
+
+# Giám sát xâm nhập vùng ROI trên video (YOLOv5)
+python test_video.py
+
+# Xử lý hàng loạt video sự kiện xâm nhập
+python video_event_handler.py
+
+# Chạy Edge Node tích hợp (YOLOv8 + FaceNet + Cảnh báo Telegram)
+python edge_device/main_edge_node.py
+
+# Đăng ký khuôn mặt từ Edge Device
+python edge_device/register_face.py

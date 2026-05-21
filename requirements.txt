@@ -1,0 +1,11 @@
+opencv-python
+requests
+numpy
+torch
+torchvision
+fastapi
+uvicorn
+sqlalchemy
+facenet-pytorch
+Pillow
+ultralytics
