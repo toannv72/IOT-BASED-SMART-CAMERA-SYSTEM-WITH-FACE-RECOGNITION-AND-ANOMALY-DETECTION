@@ -18,7 +18,26 @@ pip install -r requirements.txt
 
 ---
 
-## 🚀 2. Phân Hệ Nhận Diện Khuôn Mặt (FaceNet)
+## 🌐 2. Khởi Chạy Hợp Nhất Bằng Web Dashboard (Mới & Khuyên Dùng)
+
+Thay vì chạy từng phân hệ bằng các lệnh riêng lẻ và hiển thị các cửa sổ OpenCV cục bộ, bạn có thể khởi chạy toàn bộ hệ thống (nhận diện khuôn mặt, cảnh báo xâm nhập ROI, đếm người đa kênh) thông qua một giao diện Web duy nhất, cực kỳ hiện đại và trực quan.
+
+* **Lệnh chạy:**
+  ```bash
+  python web_app.py
+  ```
+* **Cách hoạt động:**
+  1. Server uvicorn sẽ khởi chạy tại địa chỉ: `http://localhost:8000`.
+  2. Toàn bộ các AI Model (YOLOv5, YOLOv8, YOLOv8-pose, FaceNet) sẽ tự động được tải lên GPU NVIDIA (hoặc tự động chuyển sang CPU nếu không có GPU).
+  3. Hệ thống sẽ tự động mở trình duyệt mặc định trên máy của bạn và truy cập trực tiếp vào Web Dashboard.
+  4. Trên giao diện Web Dashboard, bạn có các Tab chức năng:
+     - **Giám Sát Live:** Xem luồng live nhận diện khuôn mặt thời gian thực (Webcam), camera giám sát xâm nhập vùng cấm ROI (YOLOv5), camera kép đếm người qua vạch (YOLOv8), và camera phát hiện ngã/nằm sàn (YOLOv8-pose). Cùng với bảng sự kiện nhật ký trực tuyến.
+     - **Cơ Sở Dữ Liệu:** Xem danh sách khuôn mặt đã đăng ký, thực hiện đăng ký khuôn mặt mới bằng Webcam hoặc tải lên file ảnh trực tiếp, xóa khuôn mặt khỏi cơ sở dữ liệu.
+     - **Cấu Hình Hệ Thống:** Thay đổi Token Telegram Bot và Chat ID nhanh chóng mà không cần sửa code.
+
+---
+
+## 🚀 3. Phân Hệ Nhận Diện Khuôn Mặt (FaceNet)
 
 Phân hệ này hoạt động dựa trên mô hình Client-Server. Bạn **BẮT BUỘC** phải chạy API Server trước khi chạy các client nhận diện.
 
@@ -70,7 +89,7 @@ Sử dụng hình ảnh có sẵn trong máy để nhận diện khuôn mặt.
 
 ---
 
-## 📈 3. Phân Hệ Giám Sát Xâm Nhập & Đếm Người (YOLO)
+## 📈 4. Phân Hệ Giám Sát Xâm Nhập & Đếm Người (YOLO)
 
 Phân hệ này sử dụng mô hình YOLOv5 hoặc YOLOv8 để phát hiện con người và thực hiện các phân tích hành vi nâng cao.
 
@@ -108,7 +127,7 @@ Quét thư mục chứa các video đầu vào, vẽ vùng ROI cho từng video.
 
 ---
 
-## 💻 4. Tích Hợp Trên Thiết Bị Biên (Edge Device)
+## 💻 5. Tích Hợp Trên Thiết Bị Biên (Edge Device)
 
 Thư mục `edge_device/` chứa các script tối ưu riêng cho việc chạy trên các thiết bị biên (Jetson Nano, Raspberry Pi, Máy tính trạm tại chỗ).
 
@@ -132,7 +151,7 @@ Edge Node sẽ thực hiện đồng thời:
 
 ---
 
-## 📲 5. Cấu Hình Cảnh Báo Telegram
+## 📲 6. Cấu Hình Cảnh Báo Telegram
 
 Để nhận được tin nhắn cảnh báo trực tiếp về điện thoại của bạn qua Telegram:
 1. Mở các file: `test_video.py`, `video_event_handler.py`, hoặc `edge_device/main_edge_node.py`.
@@ -141,7 +160,7 @@ Edge Node sẽ thực hiện đồng thời:
 
 ---
 
-## 🖱️ 6. Chạy Bằng Menu Điều Khiển (Khuyên Dùng Trên Windows)
+## 🖱️ 7. Chạy Bằng Menu Điều Khiển (Khuyên Dùng Trên Windows)
 
 Nếu bạn sử dụng hệ điều hành Windows, hãy sử dụng công cụ menu được đóng gói sẵn để chạy nhanh chóng mà không cần gõ lệnh:
 

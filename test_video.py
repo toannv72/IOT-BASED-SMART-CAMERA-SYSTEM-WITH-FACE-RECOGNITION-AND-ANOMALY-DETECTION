@@ -72,7 +72,9 @@ def handle_mouse(event, x, y, flags, param):
 
 # Load model YOLOv5
 print("Đang tải model YOLOv5...")
-model = torch.hub.load("ultralytics/yolov5", "yolov5s")
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Chạy YOLOv5 trên thiết bị: {device}")
+model = torch.hub.load("ultralytics/yolov5", "yolov5s").to(device)
 model.classes = [0] 
 model.conf = 0.3 # Tăng độ nhạy (ngưỡng 0.3)
 

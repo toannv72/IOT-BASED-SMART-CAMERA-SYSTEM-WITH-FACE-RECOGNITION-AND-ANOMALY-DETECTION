@@ -1,5 +1,16 @@
-# Cài đặt thư viện
-pip install -r requirements.txt
+# Cài đặt thư viện (Nếu chạy GPU NVIDIA, hãy chạy lệnh cài đặt PyTorch CUDA trước)
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# pip install -r requirements.txt
+
+# =========================================================================
+# LỆNH HỢP NHẤT CHẠY WEB DASHBOARD (Khuyên dùng - Gom tất cả tính năng vào 1 lệnh)
+# =========================================================================
+# Lệnh này sẽ tự động khởi động server và mở giao diện Web giám sát tại http://localhost:8000
+python web_app.py
+
+# =========================================================================
+# CÁC LỆNH CHẠY PHÂN HỆ ĐƠN LẺ (Chạy bằng cửa sổ OpenCV cũ)
+# =========================================================================
 
 # Chạy API Server (Bắt buộc chạy trước khi nhận diện khuôn mặt)
 python face_api.py
@@ -10,16 +21,19 @@ python register_face.py
 # Nhận diện khuôn mặt từ Webcam
 python face_camera.py
 
-# Nhận diện khuôn mặt từ ảnh tĩnh
-python recognize_image.py test.jpg
+# Nhận diện khuôn mặt từ ảnh tĩnh (sử dụng file ảnh zidane.jpg có sẵn)
+python recognize_image.py img/zidane.jpg
 
 # Đếm người đa camera qua vạch kẻ (YOLOv8)
+# Lưu ý: Cấu hình camera nằm ở file 'cameras_config.json'. Thay source thành "0" nếu muốn chạy Webcam.
 python multi_cam_counter.py
 
 # Giám sát xâm nhập vùng ROI trên video (YOLOv5)
+# Lưu ý: Mở file 'test_video.py' và đổi 'video_path = 0' nếu muốn chạy bằng Webcam.
 python test_video.py
 
 # Xử lý hàng loạt video sự kiện xâm nhập
+# Lưu ý: Cho các video cần xử lý vào thư mục 'input_videos/' trước khi chạy
 python video_event_handler.py
 
 # Chạy Edge Node tích hợp (YOLOv8 + FaceNet + Cảnh báo Telegram)

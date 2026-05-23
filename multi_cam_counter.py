@@ -3,6 +3,7 @@ import json
 import threading
 import queue
 import time
+import torch
 from ultralytics import YOLO
 
 # --- CÀI ĐẶT CHUNG ---
@@ -37,6 +38,8 @@ class CameraProcessor(threading.Thread):
         # Load model riêng cho từng luồng để tránh xung đột
         print(f"[{self.cam_id}] Đang tải model YOLOv8...")
         self.model = YOLO(MODEL_PATH)
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        print(f"[{self.cam_id}] Sử dụng thiết bị: {self.device}")
         
     def get_in_vector(self):
         if self.in_direction == "down": return (0, 1)
@@ -86,9 +89,12 @@ class CameraProcessor(threading.Thread):
             self.track_history[track_id] = curr_pt
 
     def run(self):
-        cap = cv2.VideoCapture(self.source)
+        source = self.source
+        if isinstance(source, str) and source.isdigit():
+            source = int(source)
+        cap = cv2.VideoCapture(source)
         if not cap.isOpened():
-            print(f"[{self.cam_id}] LỖI: Không thể mở camera/video {self.source}")
+            print(f"[{self.cam_id}] LỖI: Không thể mở camera/video {source}")
             self.running = False
             return
             
@@ -102,7 +108,7 @@ class CameraProcessor(threading.Thread):
                 continue
 
             # Tracking người
-            results = self.model.track(frame, persist=True, classes=[0], verbose=False)
+            results = self.model.track(frame, persist=True, classes=[0], verbose=False, device=self.device)
             
             self.process_tracking(results)
 

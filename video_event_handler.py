@@ -23,7 +23,9 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Load model YOLOv5
 print("Đang tải model YOLOv5...")
-model = torch.hub.load("ultralytics/yolov5", "yolov5s")
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Chạy YOLOv5 trên thiết bị: {device}")
+model = torch.hub.load("ultralytics/yolov5", "yolov5s").to(device)
 model.classes = [0] # Chỉ phát hiện người
 model.conf = 0.4    # Ngưỡng tin cậy
 

@@ -1,7 +1,7 @@
 [
     {
         "camera_id": "Cam_Cua_Chinh",
-        "source": "test.mp4",
+        "source": "video.mp4",
         "line": [
             [100, 300], 
             [800, 300]
@@ -10,7 +10,7 @@
     },
     {
         "camera_id": "Cam_Cua_Sau",
-        "source": "test.mp4",
+        "source": "video1.mp4",
         "line": [
             [200, 200], 
             [700, 200]
