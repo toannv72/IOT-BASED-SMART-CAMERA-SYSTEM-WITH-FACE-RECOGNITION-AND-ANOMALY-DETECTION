@@ -18,6 +18,7 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 from ultralytics import YOLO
 from PIL import Image
 import requests
+import supervision as sv
 
 # --- CẤU HÌNH HỆ THỐNG MẶC ĐỊNH ---
 SETTINGS_FILE = "settings.json"
@@ -420,96 +421,349 @@ def check_intersect(A, B, C, D):
 
 # 3. Generator đếm người qua vạch kẻ (YOLOv8 Multi-Camera)
 def gen_counter_stream():
-    # Tải 2 luồng video
-    v1_path = "video.mp4"
-    v2_path = "video1.mp4"
+    CONFIG_FILE = "cameras_config.json"
     
-    cap1 = cv2.VideoCapture(v1_path)
-    cap2 = cv2.VideoCapture(v2_path)
+    # Load camera configurations
+    try:
+        with open(CONFIG_FILE, "r") as f:
+            cameras = json.load(f)
+    except Exception as e:
+        print(f"[ERROR] Failed to load config in web app: {e}")
+        # Default fallback configurations
+        cameras = [
+            {
+                "camera_id": "Cam_Cua_Chinh",
+                "source": "video.mp4",
+                "line": [[154, 246], [437, 261]],
+                "in_direction": "down"
+            },
+            {
+                "camera_id": "Cam_Cua_Sau",
+                "source": "video1.mp4",
+                "line": [[0, 210], [579, 245]],
+                "in_direction": "up"
+            }
+        ]
+        
+    cam1_cfg = next((c for c in cameras if c["camera_id"] == "Cam_Cua_Chinh"), cameras[0])
+    cam2_cfg = next((c for c in cameras if c["camera_id"] == "Cam_Cua_Sau"), cameras[1])
     
-    # Thiết lập vạch kẻ
-    # Cam 1:
-    line1_A = (100, 300)
-    line1_B = (800, 300)
-    # Cam 2:
-    line2_A = (200, 200)
-    line2_B = (700, 200)
+    cap1 = cv2.VideoCapture(cam1_cfg["source"])
+    cap2 = cv2.VideoCapture(cam2_cfg["source"])
     
-    # Thống kê
+    # Helper to build double lines info
+    import math
+    
+    def get_cam_double_lines(cfg):
+        x1, y1 = cfg["line"][0]
+        x2, y2 = cfg["line"][1]
+        
+        dx = x2 - x1
+        dy = y2 - y1
+        length = math.sqrt(dx*dx + dy*dy)
+        if length == 0: length = 1.0
+        
+        nx = -dy / length
+        ny = dx / length
+        d = 30.0
+        
+        in_dir = cfg.get("in_direction", "down")
+        if in_dir == "down":
+            dot = ny
+        elif in_dir == "up":
+            dot = -ny
+        elif in_dir == "right":
+            dot = nx
+        elif in_dir == "left":
+            dot = -nx
+        else:
+            dot = 1.0
+            
+        if dot >= 0:
+            outside_reg = 1
+            inside_reg = 3
+            line_outer_A = (int(x1 - d * nx), int(y1 - d * ny))
+            line_outer_B = (int(x2 - d * nx), int(y2 - d * ny))
+            line_inner_A = (int(x1 + d * nx), int(y1 + d * ny))
+            line_inner_B = (int(x2 + d * nx), int(y2 + d * ny))
+        else:
+            outside_reg = 3
+            inside_reg = 1
+            line_outer_A = (int(x1 + d * nx), int(y1 + d * ny))
+            line_outer_B = (int(x2 + d * nx), int(y2 + d * ny))
+            line_inner_A = (int(x1 - d * nx), int(y1 - d * ny))
+            line_inner_B = (int(x2 - d * nx), int(y2 - d * ny))
+            
+        return nx, ny, outside_reg, inside_reg, line_outer_A, line_outer_B, line_inner_A, line_inner_B
+
+    # Initialize double-line setup for both cameras
+    nx_1, ny_1, outside_reg_1, inside_reg_1, l_out_A_1, l_out_B_1, l_in_A_1, l_in_B_1 = get_cam_double_lines(cam1_cfg)
+    nx_2, ny_2, outside_reg_2, inside_reg_2, l_out_A_2, l_out_B_2, l_in_A_2, l_in_B_2 = get_cam_double_lines(cam2_cfg)
+    
+    # Counts
     count_in_1, count_out_1 = 0, 0
     count_in_2, count_out_2 = 0, 0
-    track_history_1 = {}
-    track_history_2 = {}
     
-    print("[STREAM] Khởi tạo luồng ghép đôi đếm người đa kênh...")
+    # Cam 1 states
+    track_states1 = {}   # tid -> 'from_outside' | 'from_inside'
+    lost_tracks1 = {}    # tid -> (state, last_pos, frame_index)
+    active_tracks1 = {}  # tid -> bottom_center
+    frame_index1 = 0
+    
+    # Cam 2 states
+    track_states2 = {}   # tid -> 'from_outside' | 'from_inside'
+    lost_tracks2 = {}    # tid -> (state, last_pos, frame_index)
+    active_tracks2 = {}  # tid -> bottom_center
+    frame_index2 = 0
+    
+    # Annotators from supervision
+    box_annotator = sv.BoxAnnotator()
+    label_annotator = sv.LabelAnnotator()
+    
+    print("[STREAM] Khởi tạo luồng ghép đôi đếm người đa kênh (Supervision & Double-Line)...")
     
     while True:
         ret1, frame1 = cap1.read()
         ret2, frame2 = cap2.read()
         
         if not ret1 or not ret2:
-            # Lặp lại nếu hết video
-            if not ret1: cap1.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            if not ret2: cap2.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            track_history_1.clear()
-            track_history_2.clear()
+            # Re-read config dynamically so lines updated in GUI are updated here too!
+            try:
+                with open(CONFIG_FILE, "r") as f:
+                    new_cams = json.load(f)
+                cam1_cfg = next((c for c in new_cams if c["camera_id"] == "Cam_Cua_Chinh"), cam1_cfg)
+                cam2_cfg = next((c for c in new_cams if c["camera_id"] == "Cam_Cua_Sau"), cam2_cfg)
+            except Exception:
+                pass
+                
+            if not ret1:
+                cap1.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                nx_1, ny_1, outside_reg_1, inside_reg_1, l_out_A_1, l_out_B_1, l_in_A_1, l_in_B_1 = get_cam_double_lines(cam1_cfg)
+                track_states1.clear()
+                lost_tracks1.clear()
+                active_tracks1.clear()
+                frame_index1 = 0
+            if not ret2:
+                cap2.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                nx_2, ny_2, outside_reg_2, inside_reg_2, l_out_A_2, l_out_B_2, l_in_A_2, l_in_B_2 = get_cam_double_lines(cam2_cfg)
+                track_states2.clear()
+                lost_tracks2.clear()
+                active_tracks2.clear()
+                frame_index2 = 0
             continue
 
         # --- XỬ LÝ CAMERA 1 ---
-        results1 = yolov8_model.track(frame1, persist=True, classes=[0], verbose=False, device=device)
-        if results1[0].boxes.id is not None:
-            boxes = results1[0].boxes.xyxy.cpu().numpy()
-            track_ids = results1[0].boxes.id.int().cpu().tolist()
-            for box, track_id in zip(boxes, track_ids):
-                cx, cy = int((box[0] + box[2]) / 2), int(box[3])
-                curr_pt = (cx, cy)
+        frame_index1 += 1
+        results1 = yolov8_model.track(frame1, persist=True, tracker="custom_bytetrack.yaml", conf=0.25, classes=[0], verbose=False, device=device)
+        detections1 = sv.Detections.from_ultralytics(results1[0])
+        detections1 = detections1[detections1.class_id == 0]
+        
+        diff_in_1 = 0
+        diff_out_1 = 0
+        
+        x1_1, y1_1 = cam1_cfg["line"][0]
+        d = 30.0
+        
+        current_active_tids1 = set()
+        
+        if detections1.tracker_id is not None and len(detections1.tracker_id) == len(detections1):
+            for i, tid in enumerate(detections1.tracker_id):
+                current_active_tids1.add(tid)
+                bbox = detections1.xyxy[i]
+                curr_bc = ((bbox[0] + bbox[2]) / 2.0, bbox[3])
                 
-                if track_id in track_history_1:
-                    prev_pt = track_history_1[track_id]
-                    if check_intersect(line1_A, line1_B, prev_pt, curr_pt):
-                        # Giả định hướng đi xuống là IN
-                        if curr_pt[1] > prev_pt[1]:
-                            count_in_1 += 1
-                            SystemStatus.add_log("📥 CAM 1: Có người đi VÀO cửa chính", "success")
-                        else:
-                            count_out_1 += 1
-                            SystemStatus.add_log("📤 CAM 1: Có người đi RA cửa chính", "info")
-                track_history_1[track_id] = curr_pt
+                # 1. Lost track state inheritance
+                if tid not in track_states1 and tid not in active_tracks1:
+                    best_match_tid = None
+                    best_match_dist = float('inf')
+                    for lost_tid, (lost_state, lost_pos, lost_frame) in list(lost_tracks1.items()):
+                        if frame_index1 - lost_frame < 90:
+                            dist = math.dist(curr_bc, lost_pos)
+                            max_dist = max(120.0, 1.5 * max(bbox[2]-bbox[0], bbox[3]-bbox[1]))
+                            if dist < max_dist and dist < best_match_dist:
+                                best_match_tid = lost_tid
+                                best_match_dist = dist
+                    if best_match_tid is not None:
+                        lost_state, _, _ = lost_tracks1[best_match_tid]
+                        if lost_state is not None:
+                            track_states1[tid] = lost_state
+                            print(f"[CAM 1] [TRACK INHERIT] ID #{tid} inherited state '{lost_state}' from lost ID #{best_match_tid} (dist: {best_match_dist:.1f}px)")
+                        del lost_tracks1[best_match_tid]
+                        
+                active_tracks1[tid] = curr_bc
+                
+                # 2. Projection & Region check
+                x, y = curr_bc
+                v = (x - x1_1) * nx_1 + (y - y1_1) * ny_1
+                
+                if v < -d:
+                    region = 1
+                elif v > d:
+                    region = 3
+                else:
+                    region = 2
+                    
+                # 3. State machine
+                state = track_states1.get(tid)
+                if region == outside_reg_1:
+                    if state == 'from_inside':
+                        diff_out_1 += 1
+                        print(f"[CAM 1] ID #{tid} completed crossing: INSIDE -> OUTSIDE. Counted OUT.")
+                    track_states1[tid] = 'from_outside'
+                elif region == inside_reg_1:
+                    if state == 'from_outside':
+                        diff_in_1 += 1
+                        print(f"[CAM 1] ID #{tid} completed crossing: OUTSIDE -> INSIDE. Counted IN.")
+                    track_states1[tid] = 'from_inside'
+                    
+        # 4. Clean up active tracks & update lost tracks
+        for tid in list(active_tracks1.keys()):
+            if tid not in current_active_tids1:
+                last_pos = active_tracks1[tid]
+                state = track_states1.get(tid)
+                if state is not None:
+                    lost_tracks1[tid] = (state, last_pos, frame_index1)
+                del active_tracks1[tid]
+                if tid in track_states1:
+                    del track_states1[tid]
+                    
+        # 5. Clean up stale lost tracks
+        for tid in list(lost_tracks1.keys()):
+            state, pos, lost_frame = lost_tracks1[tid]
+            if frame_index1 - lost_frame > 150:
+                del lost_tracks1[tid]
+                
+        if diff_in_1 > 0 or diff_out_1 > 0:
+            count_in_1 += diff_in_1
+            count_out_1 += diff_out_1
+            if diff_in_1 > 0:
+                SystemStatus.add_log(f"📥 CAM 1: Có {diff_in_1} người đi VÀO cửa chính", "success")
+            if diff_out_1 > 0:
+                SystemStatus.add_log(f"📤 CAM 1: Có {diff_out_1} người đi RA cửa chính", "info")
         
         # --- XỬ LÝ CAMERA 2 ---
-        results2 = yolov8_model.track(frame2, persist=True, classes=[0], verbose=False, device=device)
-        if results2[0].boxes.id is not None:
-            boxes = results2[0].boxes.xyxy.cpu().numpy()
-            track_ids = results2[0].boxes.id.int().cpu().tolist()
-            for box, track_id in zip(boxes, track_ids):
-                cx, cy = int((box[0] + box[2]) / 2), int(box[3])
-                curr_pt = (cx, cy)
+        frame_index2 += 1
+        results2 = yolov8_model.track(frame2, persist=True, tracker="custom_bytetrack.yaml", conf=0.25, classes=[0], verbose=False, device=device)
+        detections2 = sv.Detections.from_ultralytics(results2[0])
+        detections2 = detections2[detections2.class_id == 0]
+        
+        diff_in_2 = 0
+        diff_out_2 = 0
+        
+        x1_2, y1_2 = cam2_cfg["line"][0]
+        
+        current_active_tids2 = set()
+        
+        if detections2.tracker_id is not None and len(detections2.tracker_id) == len(detections2):
+            for i, tid in enumerate(detections2.tracker_id):
+                current_active_tids2.add(tid)
+                bbox = detections2.xyxy[i]
+                curr_bc = ((bbox[0] + bbox[2]) / 2.0, bbox[3])
                 
-                if track_id in track_history_2:
-                    prev_pt = track_history_2[track_id]
-                    if check_intersect(line2_A, line2_B, prev_pt, curr_pt):
-                        # Hướng đi lên là IN
-                        if curr_pt[1] < prev_pt[1]:
-                            count_in_2 += 1
-                            SystemStatus.add_log("📥 CAM 2: Có người đi VÀO lối đi sau", "success")
-                        else:
-                            count_out_2 += 1
-                            SystemStatus.add_log("📤 CAM 2: Có người đi RA lối đi sau", "info")
-                track_history_2[track_id] = curr_pt
-
+                # 1. Lost track state inheritance
+                if tid not in track_states2 and tid not in active_tracks2:
+                    best_match_tid = None
+                    best_match_dist = float('inf')
+                    for lost_tid, (lost_state, lost_pos, lost_frame) in list(lost_tracks2.items()):
+                        if frame_index2 - lost_frame < 90:
+                            dist = math.dist(curr_bc, lost_pos)
+                            max_dist = max(120.0, 1.5 * max(bbox[2]-bbox[0], bbox[3]-bbox[1]))
+                            if dist < max_dist and dist < best_match_dist:
+                                best_match_tid = lost_tid
+                                best_match_dist = dist
+                    if best_match_tid is not None:
+                        lost_state, _, _ = lost_tracks2[best_match_tid]
+                        if lost_state is not None:
+                            track_states2[tid] = lost_state
+                            print(f"[CAM 2] [TRACK INHERIT] ID #{tid} inherited state '{lost_state}' from lost ID #{best_match_tid} (dist: {best_match_dist:.1f}px)")
+                        del lost_tracks2[best_match_tid]
+                        
+                active_tracks2[tid] = curr_bc
+                
+                # 2. Projection & Region check
+                x, y = curr_bc
+                v = (x - x1_2) * nx_2 + (y - y1_2) * ny_2
+                
+                if v < -d:
+                    region = 1
+                elif v > d:
+                    region = 3
+                else:
+                    region = 2
+                    
+                # 3. State machine
+                state = track_states2.get(tid)
+                if region == outside_reg_2:
+                    if state == 'from_inside':
+                        diff_out_2 += 1
+                        print(f"[CAM 2] ID #{tid} completed crossing: INSIDE -> OUTSIDE. Counted OUT.")
+                    track_states2[tid] = 'from_outside'
+                elif region == inside_reg_2:
+                    if state == 'from_outside':
+                        diff_in_2 += 1
+                        print(f"[CAM 2] ID #{tid} completed crossing: OUTSIDE -> INSIDE. Counted IN.")
+                    track_states2[tid] = 'from_inside'
+                    
+        # 4. Clean up active tracks & update lost tracks
+        for tid in list(active_tracks2.keys()):
+            if tid not in current_active_tids2:
+                last_pos = active_tracks2[tid]
+                state = track_states2.get(tid)
+                if state is not None:
+                    lost_tracks2[tid] = (state, last_pos, frame_index2)
+                del active_tracks2[tid]
+                if tid in track_states2:
+                    del track_states2[tid]
+                    
+        # 5. Clean up stale lost tracks
+        for tid in list(lost_tracks2.keys()):
+            state, pos, lost_frame = lost_tracks2[tid]
+            if frame_index2 - lost_frame > 150:
+                del lost_tracks2[tid]
+                
+        if diff_in_2 > 0 or diff_out_2 > 0:
+            count_in_2 += diff_in_2
+            count_out_2 += diff_out_2
+            if diff_in_2 > 0:
+                SystemStatus.add_log(f"📥 CAM 2: Có {diff_in_2} người đi VÀO lối đi sau", "success")
+            if diff_out_2 > 0:
+                SystemStatus.add_log(f"📤 CAM 2: Có {diff_out_2} người đi RA lối đi sau", "info")
+ 
         # --- VẼ UI VÀ GHÉP ẢNH ---
         # Cam 1 vẽ
-        ann1 = results1[0].plot()
-        cv2.line(ann1, line1_A, line1_B, (0, 255, 255), 3)
+        if detections1.tracker_id is not None and len(detections1.tracker_id) == len(detections1):
+            labels1 = [f"#{tid}" for tid in detections1.tracker_id]
+        else:
+            labels1 = ["" for _ in range(len(detections1))]
+        ann1 = frame1.copy()
+        ann1 = box_annotator.annotate(scene=ann1, detections=detections1)
+        ann1 = label_annotator.annotate(scene=ann1, detections=detections1, labels=labels1)
+        
+        cv2.line(ann1, l_out_A_1, l_out_B_1, (0, 165, 255), 2)  # Outer - Orange
+        cv2.putText(ann1, "Vach Ngoai (OUTER)", (l_out_A_1[0], l_out_A_1[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 1)
+        cv2.line(ann1, l_in_A_1, l_in_B_1, (255, 100, 0), 2)  # Inner - Teal
+        cv2.putText(ann1, "Vach Trong (INNER)", (l_in_A_1[0], l_in_A_1[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 100, 0), 1)
+        
         cv2.putText(ann1, f"CAM 1 (Cua Chinh) | IN: {count_in_1} | OUT: {count_out_1}", 
                     (15, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                     
         # Cam 2 vẽ
-        ann2 = results2[0].plot()
-        cv2.line(ann2, line2_A, line2_B, (0, 255, 255), 3)
+        if detections2.tracker_id is not None and len(detections2.tracker_id) == len(detections2):
+            labels2 = [f"#{tid}" for tid in detections2.tracker_id]
+        else:
+            labels2 = ["" for _ in range(len(detections2))]
+        ann2 = frame2.copy()
+        ann2 = box_annotator.annotate(scene=ann2, detections=detections2)
+        ann2 = label_annotator.annotate(scene=ann2, detections=detections2, labels=labels2)
+        
+        cv2.line(ann2, l_out_A_2, l_out_B_2, (0, 165, 255), 2)  # Outer - Orange
+        cv2.putText(ann2, "Vach Ngoai (OUTER)", (l_out_A_2[0], l_out_A_2[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 1)
+        cv2.line(ann2, l_in_A_2, l_in_B_2, (255, 100, 0), 2)  # Inner - Teal
+        cv2.putText(ann2, "Vach Trong (INNER)", (l_in_A_2[0], l_in_A_2[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 100, 0), 1)
+        
         cv2.putText(ann2, f"CAM 2 (Cua Sau)  | IN: {count_in_2} | OUT: {count_out_2}", 
                     (15, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
+ 
         # Thu nhỏ để ghép đôi cạnh nhau
         ann1_res = cv2.resize(ann1, (480, 270))
         ann2_res = cv2.resize(ann2, (480, 270))
@@ -522,7 +776,7 @@ def gen_counter_stream():
         
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-
+ 
     cap1.release()
     cap2.release()
 

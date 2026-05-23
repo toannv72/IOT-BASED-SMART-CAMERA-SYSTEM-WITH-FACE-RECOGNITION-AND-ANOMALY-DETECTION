@@ -3,17 +3,29 @@
         "camera_id": "Cam_Cua_Chinh",
         "source": "video.mp4",
         "line": [
-            [100, 300], 
-            [800, 300]
+            [
+                154,
+                218
+            ],
+            [
+                412,
+                214
+            ]
         ],
-        "in_direction": "down" 
+        "in_direction": "down"
     },
     {
         "camera_id": "Cam_Cua_Sau",
         "source": "video1.mp4",
         "line": [
-            [200, 200], 
-            [700, 200]
+            [
+                166,
+                211
+            ],
+            [
+                349,
+                265
+            ]
         ],
         "in_direction": "up"
     }

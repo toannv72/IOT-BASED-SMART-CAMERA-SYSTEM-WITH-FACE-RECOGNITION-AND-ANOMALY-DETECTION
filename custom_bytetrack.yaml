@@ -1,0 +1,9 @@
+# Ultralytics YOLO 🚀, AGPL-3.0 license
+# Custom YOLO tracker settings for ByteTrack tracker optimized for crowded/occluded scenes
+tracker_type: bytetrack  # Tracker backend: botsort|bytetrack
+track_high_thresh: 0.25  # First-stage match threshold; raise for cleaner tracks, lower to keep more
+track_low_thresh: 0.05   # Second-stage threshold for low-score matches; lowered to keep tracking partially occluded detections
+new_track_thresh: 0.25   # Start a new track if no match >= this
+track_buffer: 90         # Number of frames to buffer a track before removing it; increased to keep IDs alive during overlap
+match_thresh: 0.8        # Threshold for matching tracks
+fuse_score: True         # Whether to fuse confidence scores with the iou distances before matching
