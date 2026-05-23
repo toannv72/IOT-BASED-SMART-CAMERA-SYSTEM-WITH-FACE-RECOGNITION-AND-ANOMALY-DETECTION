@@ -76,8 +76,8 @@ yolov5_model.classes = [0] # Chỉ người
 yolov5_model.conf = 0.4
 
 # 3. YOLOv8 cho Counter
-print("[SYSTEM] Đang tải YOLOv8...")
-yolov8_model = YOLO("yolov8n.pt")
+print("[SYSTEM] Đang tải YOLOv8 (yolov8s.pt)...")
+yolov8_model = YOLO("yolov8s.pt")
 yolov8_model.to(device)
 
 # 4. YOLOv8-pose cho Fall Detection
@@ -132,19 +132,25 @@ def send_telegram_alert(message, frame, alert_type="intrusion"):
             return 
         last_fall_alert_time = current_time
     
-    url = f"https://api.telegram.org/bot{settings['telegram_token']}/sendPhoto"
-    try:
-        success, buffer = cv2.imencode(".jpg", frame)
-        if not success: return
-        
-        for chat_id in settings["telegram_chats"]:
-            files = {"photo": ("alert.jpg", buffer.tobytes(), "image/jpeg")}
-            payload = {"chat_id": chat_id, "caption": message}
-            requests.post(url, data=payload, files=files, timeout=10)
+    # Sao chép frame để tránh xung đột đa luồng khi thread chạy nền
+    frame_copy = frame.copy()
+    
+    def send_worker():
+        url = f"https://api.telegram.org/bot{settings['telegram_token']}/sendPhoto"
+        try:
+            success, buffer = cv2.imencode(".jpg", frame_copy)
+            if not success: return
             
-        print(f"[TELEGRAM] Đã gửi hình ảnh cảnh báo {alert_type} thành công!")
-    except Exception as e:
-        print(f"[TELEGRAM] Lỗi gửi tin nhắn {alert_type}: {e}")
+            for chat_id in settings["telegram_chats"]:
+                files = {"photo": ("alert.jpg", buffer.tobytes(), "image/jpeg")}
+                payload = {"chat_id": chat_id, "caption": message}
+                requests.post(url, data=payload, files=files, timeout=10)
+                
+            print(f"[TELEGRAM] Đã gửi hình ảnh cảnh báo {alert_type} thành công (chạy nền)!")
+        except Exception as e:
+            print(f"[TELEGRAM] Lỗi gửi tin nhắn {alert_type}: {e}")
+
+    threading.Thread(target=send_worker, daemon=True).start()
 
 # --- KHỞI TẠO FASTAPI APP ---
 app = FastAPI(title="Unified Smart Surveillance Dashboard")
@@ -573,24 +579,30 @@ def gen_counter_stream():
                 curr_bc = ((bbox[0] + bbox[2]) / 2.0, bbox[3])
                 
                 # 1. Lost track state inheritance
-                if tid not in track_states1 and tid not in active_tracks1:
+                if tid not in track_states1:
                     best_match_tid = None
                     best_match_dist = float('inf')
-                    for lost_tid, (lost_state, lost_pos, lost_frame) in list(lost_tracks1.items()):
-                        if frame_index1 - lost_frame < 90:
+                    bbox_dim = max(bbox[2]-bbox[0], bbox[3]-bbox[1])
+                    for lost_tid, (lost_state_tuple, lost_pos, lost_frame) in list(lost_tracks1.items()):
+                        if lost_tid != tid and frame_index1 - lost_frame < 45:
                             dist = math.dist(curr_bc, lost_pos)
-                            max_dist = max(120.0, 1.5 * max(bbox[2]-bbox[0], bbox[3]-bbox[1]))
+                            max_dist = min(150.0, 0.5 * bbox_dim + 3.5 * (frame_index1 - lost_frame))
                             if dist < max_dist and dist < best_match_dist:
                                 best_match_tid = lost_tid
                                 best_match_dist = dist
                     if best_match_tid is not None:
-                        lost_state, _, _ = lost_tracks1[best_match_tid]
-                        if lost_state is not None:
-                            track_states1[tid] = lost_state
-                            print(f"[CAM 1] [TRACK INHERIT] ID #{tid} inherited state '{lost_state}' from lost ID #{best_match_tid} (dist: {best_match_dist:.1f}px)")
-                        del lost_tracks1[best_match_tid]
+                        lost_state_tuple, _, _ = lost_tracks1[best_match_tid]
+                        if lost_state_tuple is not None:
+                            track_states1[tid] = lost_state_tuple
+                            print(f"[CAM 1] [TRACK INHERIT] ID #{tid} inherited state {lost_state_tuple} from lost ID #{best_match_tid} (dist: {best_match_dist:.1f}px)")
+                        if best_match_tid in lost_tracks1:
+                            del lost_tracks1[best_match_tid]
+                        if best_match_tid in track_states1:
+                            del track_states1[best_match_tid]
                         
                 active_tracks1[tid] = curr_bc
+                if tid in lost_tracks1:
+                    del lost_tracks1[tid]
                 
                 # 2. Projection & Region check
                 x, y = curr_bc
@@ -603,35 +615,49 @@ def gen_counter_stream():
                 else:
                     region = 2
                     
-                # 3. State machine
-                state = track_states1.get(tid)
+                # 3. State machine with Cooldown
+                state_tuple = track_states1.get(tid)
+                if state_tuple is not None:
+                    state, last_cross = state_tuple
+                else:
+                    state, last_cross = None, 0
+                    
                 if region == outside_reg_1:
                     if state == 'from_inside':
-                        diff_out_1 += 1
-                        print(f"[CAM 1] ID #{tid} completed crossing: INSIDE -> OUTSIDE. Counted OUT.")
-                    track_states1[tid] = 'from_outside'
+                        if frame_index1 - last_cross > 45:
+                            diff_out_1 += 1
+                            track_states1[tid] = ('from_outside', frame_index1)
+                            print(f"[CAM 1] ID #{tid} completed crossing: INSIDE -> OUTSIDE. Counted OUT.")
+                    else:
+                        track_states1[tid] = ('from_outside', last_cross)
                 elif region == inside_reg_1:
                     if state == 'from_outside':
-                        diff_in_1 += 1
-                        print(f"[CAM 1] ID #{tid} completed crossing: OUTSIDE -> INSIDE. Counted IN.")
-                    track_states1[tid] = 'from_inside'
+                        if frame_index1 - last_cross > 45:
+                            diff_in_1 += 1
+                            track_states1[tid] = ('from_inside', frame_index1)
+                            print(f"[CAM 1] ID #{tid} completed crossing: OUTSIDE -> INSIDE. Counted IN.")
+                    else:
+                        track_states1[tid] = ('from_inside', last_cross)
                     
-        # 4. Clean up active tracks & update lost tracks
+        # 4. Clean up active tracks & update lost tracks (DO NOT delete from track_states1 immediately)
         for tid in list(active_tracks1.keys()):
             if tid not in current_active_tids1:
                 last_pos = active_tracks1[tid]
-                state = track_states1.get(tid)
-                if state is not None:
-                    lost_tracks1[tid] = (state, last_pos, frame_index1)
+                state_tuple = track_states1.get(tid)
+                if state_tuple is not None:
+                    lost_tracks1[tid] = (state_tuple, last_pos, frame_index1)
                 del active_tracks1[tid]
-                if tid in track_states1:
-                    del track_states1[tid]
                     
-        # 5. Clean up stale lost tracks
-        for tid in list(lost_tracks1.keys()):
-            state, pos, lost_frame = lost_tracks1[tid]
-            if frame_index1 - lost_frame > 150:
-                del lost_tracks1[tid]
+        # 5. Clean up stale lost tracks and track states to avoid memory leaks
+        for tid in list(track_states1.keys()):
+            if tid not in current_active_tids1:
+                if tid in lost_tracks1:
+                    state_tuple, pos, lost_frame = lost_tracks1[tid]
+                    if frame_index1 - lost_frame > 150:
+                        del track_states1[tid]
+                        del lost_tracks1[tid]
+                else:
+                    del track_states1[tid]
                 
         if diff_in_1 > 0 or diff_out_1 > 0:
             count_in_1 += diff_in_1
@@ -661,24 +687,30 @@ def gen_counter_stream():
                 curr_bc = ((bbox[0] + bbox[2]) / 2.0, bbox[3])
                 
                 # 1. Lost track state inheritance
-                if tid not in track_states2 and tid not in active_tracks2:
+                if tid not in track_states2:
                     best_match_tid = None
                     best_match_dist = float('inf')
-                    for lost_tid, (lost_state, lost_pos, lost_frame) in list(lost_tracks2.items()):
-                        if frame_index2 - lost_frame < 90:
+                    bbox_dim = max(bbox[2]-bbox[0], bbox[3]-bbox[1])
+                    for lost_tid, (lost_state_tuple, lost_pos, lost_frame) in list(lost_tracks2.items()):
+                        if lost_tid != tid and frame_index2 - lost_frame < 45:
                             dist = math.dist(curr_bc, lost_pos)
-                            max_dist = max(120.0, 1.5 * max(bbox[2]-bbox[0], bbox[3]-bbox[1]))
+                            max_dist = min(150.0, 0.5 * bbox_dim + 3.5 * (frame_index2 - lost_frame))
                             if dist < max_dist and dist < best_match_dist:
                                 best_match_tid = lost_tid
                                 best_match_dist = dist
                     if best_match_tid is not None:
-                        lost_state, _, _ = lost_tracks2[best_match_tid]
-                        if lost_state is not None:
-                            track_states2[tid] = lost_state
-                            print(f"[CAM 2] [TRACK INHERIT] ID #{tid} inherited state '{lost_state}' from lost ID #{best_match_tid} (dist: {best_match_dist:.1f}px)")
-                        del lost_tracks2[best_match_tid]
+                        lost_state_tuple, _, _ = lost_tracks2[best_match_tid]
+                        if lost_state_tuple is not None:
+                            track_states2[tid] = lost_state_tuple
+                            print(f"[CAM 2] [TRACK INHERIT] ID #{tid} inherited state {lost_state_tuple} from lost ID #{best_match_tid} (dist: {best_match_dist:.1f}px)")
+                        if best_match_tid in lost_tracks2:
+                            del lost_tracks2[best_match_tid]
+                        if best_match_tid in track_states2:
+                            del track_states2[best_match_tid]
                         
                 active_tracks2[tid] = curr_bc
+                if tid in lost_tracks2:
+                    del lost_tracks2[tid]
                 
                 # 2. Projection & Region check
                 x, y = curr_bc
@@ -691,35 +723,49 @@ def gen_counter_stream():
                 else:
                     region = 2
                     
-                # 3. State machine
-                state = track_states2.get(tid)
+                # 3. State machine with Cooldown
+                state_tuple = track_states2.get(tid)
+                if state_tuple is not None:
+                    state, last_cross = state_tuple
+                else:
+                    state, last_cross = None, 0
+                    
                 if region == outside_reg_2:
                     if state == 'from_inside':
-                        diff_out_2 += 1
-                        print(f"[CAM 2] ID #{tid} completed crossing: INSIDE -> OUTSIDE. Counted OUT.")
-                    track_states2[tid] = 'from_outside'
+                        if frame_index2 - last_cross > 45:
+                            diff_out_2 += 1
+                            track_states2[tid] = ('from_outside', frame_index2)
+                            print(f"[CAM 2] ID #{tid} completed crossing: INSIDE -> OUTSIDE. Counted OUT.")
+                    else:
+                        track_states2[tid] = ('from_outside', last_cross)
                 elif region == inside_reg_2:
                     if state == 'from_outside':
-                        diff_in_2 += 1
-                        print(f"[CAM 2] ID #{tid} completed crossing: OUTSIDE -> INSIDE. Counted IN.")
-                    track_states2[tid] = 'from_inside'
+                        if frame_index2 - last_cross > 45:
+                            diff_in_2 += 1
+                            track_states2[tid] = ('from_inside', frame_index2)
+                            print(f"[CAM 2] ID #{tid} completed crossing: OUTSIDE -> INSIDE. Counted IN.")
+                    else:
+                        track_states2[tid] = ('from_inside', last_cross)
                     
-        # 4. Clean up active tracks & update lost tracks
+        # 4. Clean up active tracks & update lost tracks (DO NOT delete from track_states2 immediately)
         for tid in list(active_tracks2.keys()):
             if tid not in current_active_tids2:
                 last_pos = active_tracks2[tid]
-                state = track_states2.get(tid)
-                if state is not None:
-                    lost_tracks2[tid] = (state, last_pos, frame_index2)
+                state_tuple = track_states2.get(tid)
+                if state_tuple is not None:
+                    lost_tracks2[tid] = (state_tuple, last_pos, frame_index2)
                 del active_tracks2[tid]
-                if tid in track_states2:
-                    del track_states2[tid]
                     
-        # 5. Clean up stale lost tracks
-        for tid in list(lost_tracks2.keys()):
-            state, pos, lost_frame = lost_tracks2[tid]
-            if frame_index2 - lost_frame > 150:
-                del lost_tracks2[tid]
+        # 5. Clean up stale lost tracks and track states to avoid memory leaks
+        for tid in list(track_states2.keys()):
+            if tid not in current_active_tids2:
+                if tid in lost_tracks2:
+                    state_tuple, pos, lost_frame = lost_tracks2[tid]
+                    if frame_index2 - lost_frame > 150:
+                        del track_states2[tid]
+                        del lost_tracks2[tid]
+                else:
+                    del track_states2[tid]
                 
         if diff_in_2 > 0 or diff_out_2 > 0:
             count_in_2 += diff_in_2

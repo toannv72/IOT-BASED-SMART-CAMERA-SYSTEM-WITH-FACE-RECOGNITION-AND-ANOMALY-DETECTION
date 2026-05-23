@@ -163,19 +163,20 @@ class CameraProcessor(threading.Thread):
                 if tid not in self.track_states:
                     best_match_tid = None
                     best_match_dist = float('inf')
-                    for lost_tid, (lost_state, lost_pos, lost_frame) in list(self.lost_tracks.items()):
+                    bbox_dim = max(bbox[2]-bbox[0], bbox[3]-bbox[1])
+                    for lost_tid, (lost_state_tuple, lost_pos, lost_frame) in list(self.lost_tracks.items()):
                         # Only inherit from a different lost ID since same ID is naturally preserved in self.track_states
                         if lost_tid != tid and self.frame_index - lost_frame < 45:
                             dist = math.dist(curr_bc, lost_pos)
-                            max_dist = min(80.0, 1.2 * max(bbox[2]-bbox[0], bbox[3]-bbox[1]))
+                            max_dist = min(150.0, 0.5 * bbox_dim + 3.5 * (self.frame_index - lost_frame))
                             if dist < max_dist and dist < best_match_dist:
                                 best_match_tid = lost_tid
                                 best_match_dist = dist
                     if best_match_tid is not None:
-                        lost_state, _, _ = self.lost_tracks[best_match_tid]
-                        if lost_state is not None:
-                            self.track_states[tid] = lost_state
-                            print(f"[{self.cam_id}] [TRACK INHERIT] New ID #{tid} inherited state '{lost_state}' from lost ID #{best_match_tid} (dist: {best_match_dist:.1f}px)")
+                        lost_state_tuple, _, _ = self.lost_tracks[best_match_tid]
+                        if lost_state_tuple is not None:
+                            self.track_states[tid] = lost_state_tuple
+                            print(f"[{self.cam_id}] [TRACK INHERIT] New ID #{tid} inherited state {lost_state_tuple} from lost ID #{best_match_tid} (dist: {best_match_dist:.1f}px)")
                         if best_match_tid in self.lost_tracks:
                             del self.lost_tracks[best_match_tid]
                         if best_match_tid in self.track_states:
@@ -197,34 +198,44 @@ class CameraProcessor(threading.Thread):
                 else:
                     region = 2
                     
-                # 3. State machine for sequential double-line crossing
-                state = self.track_states.get(tid)
-                
+                # 3. State machine with Cooldown
+                state_tuple = self.track_states.get(tid)
+                if state_tuple is not None:
+                    state, last_cross = state_tuple
+                else:
+                    state, last_cross = None, 0
+                    
                 if region == outside_reg:
                     if state == 'from_inside':
-                        diff_out += 1
-                        print(f"[{self.cam_id}] ID #{tid} completed crossing: INSIDE -> OUTSIDE. Counted OUT.")
-                    self.track_states[tid] = 'from_outside'
+                        if self.frame_index - last_cross > 45:
+                            diff_out += 1
+                            self.track_states[tid] = ('from_outside', self.frame_index)
+                            print(f"[{self.cam_id}] ID #{tid} completed crossing: INSIDE -> OUTSIDE. Counted OUT.")
+                    else:
+                        self.track_states[tid] = ('from_outside', last_cross)
                 elif region == inside_reg:
                     if state == 'from_outside':
-                        diff_in += 1
-                        print(f"[{self.cam_id}] ID #{tid} completed crossing: OUTSIDE -> INSIDE. Counted IN.")
-                    self.track_states[tid] = 'from_inside'
+                        if self.frame_index - last_cross > 45:
+                            diff_in += 1
+                            self.track_states[tid] = ('from_inside', self.frame_index)
+                            print(f"[{self.cam_id}] ID #{tid} completed crossing: OUTSIDE -> INSIDE. Counted IN.")
+                    else:
+                        self.track_states[tid] = ('from_inside', last_cross)
                     
         # 4. Clean up lost tracks and store them for split tracking (DO NOT delete from track_states immediately)
         for tid in list(self.active_tracks.keys()):
             if tid not in current_active_tids:
                 last_pos = self.active_tracks[tid]
-                state = self.track_states.get(tid)
-                if state is not None:
-                    self.lost_tracks[tid] = (state, last_pos, self.frame_index)
+                state_tuple = self.track_states.get(tid)
+                if state_tuple is not None:
+                    self.lost_tracks[tid] = (state_tuple, last_pos, self.frame_index)
                 del self.active_tracks[tid]
                     
         # 5. Clean up stale states and lost tracks to avoid memory leaks
         for tid in list(self.track_states.keys()):
             if tid not in current_active_tids:
                 if tid in self.lost_tracks:
-                    state, pos, lost_frame = self.lost_tracks[tid]
+                    state_tuple, pos, lost_frame = self.lost_tracks[tid]
                     if self.frame_index - lost_frame > 150:
                         del self.track_states[tid]
                         del self.lost_tracks[tid]

@@ -43,4 +43,13 @@
   * *Xác nhận 3:* Tích hợp bộ nhớ lịch sử mất dấu `lost_tracks` để thừa kế trạng thái di chuyển khi người bị đổi ID lúc đi qua vạch.
   * *Xác nhận 4:* Đồng bộ hóa giao diện vẽ 2 vạch và số đếm chính xác trên cả GUI (`multi_cam_counter.py`) và Web Dashboard (`web_app.py`).
 
+## 9. Tối ưu hóa đếm vạch đôi & Khắc phục đứng hình cảnh báo xâm nhập
+- [x] Chỉnh sửa `web_app.py` để gửi cảnh báo Telegram bất đồng bộ (Thread)
+- [x] Nâng cấp mô hình đếm người của Web Dashboard lên `yolov8s.pt`
+- [x] Tích hợp bộ đếm vạch đôi cải tiến (cooldown, dynamic distance) trong `web_app.py`
+- [x] Đồng bộ bộ đếm cải tiến trong `multi_cam_counter.py`
+- [x] Chạy thử nghiệm và xác nhận kết quả
+
+
+
 
