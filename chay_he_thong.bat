@@ -16,10 +16,11 @@ echo [5] Dang ky khuon mat bang Webcam (register_face.py)
 echo [6] Nhan dien khuon mat bang Webcam (face_camera.py)
 echo [7] Dem nguoi YOLOv8 qua vach ke (multi_cam_counter.py)
 echo [8] Canh bao sam nhap ROI YOLOv5 (test_video.py)
-echo [9] Thoat
+echo [9] Test phat hien nga YOLOv8 custom (test_fall_video.py)
+echo [10] Thoat
 echo.
 echo =======================================================
-set /p choice=Nhap lua chon cua ban (1-9): 
+set /p choice=Nhap lua chon cua ban (1-10): 
 
 if "%choice%"=="1" goto install_req
 if "%choice%"=="2" goto install_cuda
@@ -29,7 +30,8 @@ if "%choice%"=="5" goto reg_face
 if "%choice%"=="6" goto face_cam
 if "%choice%"=="7" goto counter
 if "%choice%"=="8" goto roi
-if "%choice%"=="9" goto exit
+if "%choice%"=="9" goto test_fall
+if "%choice%"=="10" goto exit
 goto menu
 
 :install_req
@@ -77,6 +79,12 @@ goto menu
 :roi
 echo Dang chay test_video.py...
 python test_video.py
+pause
+goto menu
+
+:test_fall
+echo Dang chay test_fall_video.py...
+python test_fall_video.py
 pause
 goto menu
 

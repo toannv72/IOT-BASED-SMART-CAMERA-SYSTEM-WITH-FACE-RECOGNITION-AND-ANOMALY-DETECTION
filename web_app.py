@@ -84,6 +84,18 @@ print("[SYSTEM] Đang tải YOLOv8-pose...")
 yolov8_pose_model = YOLO("yolov8n-pose.pt")
 yolov8_pose_model.to(device)
 
+# 4b. YOLOv8-fall cho Fall Detection (Mô hình tự train)
+yolov8_fall_model_path = "yolov8n_fall_best.pt"
+yolov8_fall_model = None
+if os.path.exists(yolov8_fall_model_path):
+    print(f"[SYSTEM] Phát hiện mô hình ngã tự train: {yolov8_fall_model_path}. Đang tải...")
+    try:
+        yolov8_fall_model = YOLO(yolov8_fall_model_path)
+        yolov8_fall_model.to(device)
+        print("[SYSTEM] Đã tải mô hình YOLOv8-fall tự train thành công!")
+    except Exception as e:
+        print(f"[ERROR] Không thể tải mô hình YOLOv8-fall tự train: {e}")
+
 # --- TRẠNG THÁI HỆ THỐNG TOÀN CỤC ---
 class SystemStatus:
     intrusion_active = False
@@ -535,79 +547,102 @@ def gen_fall_stream():
             time.sleep(0.03) # Tránh loop quá nhanh gây quá tải CPU
             continue
             
-        # Ước lượng tư thế
-        results = yolov8_pose_model(frame, verbose=False, device=device)
-        
+        # Nhận diện ngã bằng mô hình YOLOv8-fall tự train (nếu có) hoặc fallback bằng YOLOv8-pose
         fall_in_frame = False
         
-        if len(results) > 0 and results[0].keypoints is not None:
-            keypoints_data = results[0].keypoints.data.cpu().numpy() # Shape: (N, 17, 3) hoặc (N, 17, 2)
-            boxes = results[0].boxes.xyxy.cpu().numpy()
-            
-            for i, kpts in enumerate(keypoints_data):
-                box = boxes[i]
-                x1, y1, x2, y2 = [int(b) for b in box[:4]]
-                w = x2 - x1
-                h = y2 - y1
-                aspect_ratio = w / (h + 1e-5)
-                
-                # Trích xuất các điểm chính
-                # 0: nose, 5: l_shoulder, 6: r_shoulder, 11: l_hip, 12: r_hip, 15: l_ankle, 16: r_ankle
-                nose = kpts[0]
-                l_sho = kpts[5]
-                r_sho = kpts[6]
-                l_hip = kpts[11]
-                r_hip = kpts[12]
-                l_ank = kpts[15]
-                r_ank = kpts[16]
-                
-                has_conf = kpts.shape[1] == 3
-                
-                sho_x = (l_sho[0] + r_sho[0]) / 2
-                sho_y = (l_sho[1] + r_sho[1]) / 2
-                
-                hip_x = (l_hip[0] + r_hip[0]) / 2
-                hip_y = (l_hip[1] + r_hip[1]) / 2
-                
-                ank_x = (l_ank[0] + r_ank[0]) / 2
-                ank_y = (l_ank[1] + r_ank[1]) / 2
-                
-                is_horizontal = False
-                
-                sho_conf = min(l_sho[2], r_sho[2]) if has_conf else 1.0
-                hip_conf = min(l_hip[2], r_hip[2]) if has_conf else 1.0
-                ank_conf = min(l_ank[2], r_ank[2]) if has_conf else 1.0
-                
-                if sho_conf > 0.3 and hip_conf > 0.3:
-                    dy = sho_y - hip_y
-                    dx = sho_x - hip_x
-                    angle_body = abs(np.arctan2(dy, dx) * 180 / np.pi)
-                    if angle_body < 40 or angle_body > 140:
-                        is_horizontal = True
-                
-                if not is_horizontal and sho_conf > 0.3 and ank_conf > 0.3:
-                    dy_full = ank_y - sho_y
-                    dx_full = ank_x - sho_x
-                    angle_full = abs(np.arctan2(dy_full, dx_full) * 180 / np.pi)
-                    if angle_full < 40 or angle_full > 140:
-                        is_horizontal = True
-                
-                if not is_horizontal and aspect_ratio > 1.3:
-                    is_horizontal = True
-                
-                color = (0, 255, 0)
-                if is_horizontal:
-                    color = (0, 0, 255)
-                    fall_in_frame = True
+        if yolov8_fall_model is not None:
+            results = yolov8_fall_model(frame, verbose=False, device=device)
+            if len(results) > 0 and results[0].boxes is not None:
+                boxes = results[0].boxes
+                for box in boxes:
+                    cls_id = int(box.cls[0].cpu().item())
+                    conf = float(box.conf[0].cpu().item())
                     
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                cv2.putText(frame, f"Ratio: {aspect_ratio:.2f}", (x1, y1 - 10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                    if conf > 0.4:
+                        x1, y1, x2, y2 = [int(b) for b in box.xyxy[0].cpu().numpy()[:4]]
+                        
+                        if cls_id == 0:  # Fall (Class 0 mapped to fall)
+                            color = (0, 0, 255)
+                            label = f"FALL ({conf:.2f})"
+                            fall_in_frame = True
+                        else:  # Normal (Class 1 mapped to normal)
+                            color = (0, 255, 0)
+                            label = f"Normal ({conf:.2f})"
+                            
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                        cv2.putText(frame, label, (x1, y1 - 10), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        else:
+            # Fallback sang ước lượng tư thế bằng YOLOv8-pose
+            results = yolov8_pose_model(frame, verbose=False, device=device)
+            if len(results) > 0 and results[0].keypoints is not None:
+                keypoints_data = results[0].keypoints.data.cpu().numpy() # Shape: (N, 17, 3) hoặc (N, 17, 2)
+                boxes = results[0].boxes.xyxy.cpu().numpy()
                 
-                if sho_conf > 0.3 and hip_conf > 0.3:
-                    cv2.line(frame, (int(sho_x), int(sho_y)), (int(hip_x), int(hip_y)), (255, 255, 0), 2)
-                if hip_conf > 0.3 and ank_conf > 0.3:
-                    cv2.line(frame, (int(hip_x), int(hip_y)), (int(ank_x), int(ank_y)), (255, 0, 255), 2)
+                for i, kpts in enumerate(keypoints_data):
+                    box = boxes[i]
+                    x1, y1, x2, y2 = [int(b) for b in box[:4]]
+                    w = x2 - x1
+                    h = y2 - y1
+                    aspect_ratio = w / (h + 1e-5)
+                    
+                    # Trích xuất các điểm chính
+                    # 0: nose, 5: l_shoulder, 6: r_shoulder, 11: l_hip, 12: r_hip, 15: l_ankle, 16: r_ankle
+                    nose = kpts[0]
+                    l_sho = kpts[5]
+                    r_sho = kpts[6]
+                    l_hip = kpts[11]
+                    r_hip = kpts[12]
+                    l_ank = kpts[15]
+                    r_ank = kpts[16]
+                    
+                    has_conf = kpts.shape[1] == 3
+                    
+                    sho_x = (l_sho[0] + r_sho[0]) / 2
+                    sho_y = (l_sho[1] + r_sho[1]) / 2
+                    
+                    hip_x = (l_hip[0] + r_hip[0]) / 2
+                    hip_y = (l_hip[1] + r_hip[1]) / 2
+                    
+                    ank_x = (l_ank[0] + r_ank[0]) / 2
+                    ank_y = (l_ank[1] + r_ank[1]) / 2
+                    
+                    is_horizontal = False
+                    
+                    sho_conf = min(l_sho[2], r_sho[2]) if has_conf else 1.0
+                    hip_conf = min(l_hip[2], r_hip[2]) if has_conf else 1.0
+                    ank_conf = min(l_ank[2], r_ank[2]) if has_conf else 1.0
+                    
+                    if sho_conf > 0.3 and hip_conf > 0.3:
+                        dy = sho_y - hip_y
+                        dx = sho_x - hip_x
+                        angle_body = abs(np.arctan2(dy, dx) * 180 / np.pi)
+                        if angle_body < 40 or angle_body > 140:
+                            is_horizontal = True
+                    
+                    if not is_horizontal and sho_conf > 0.3 and ank_conf > 0.3:
+                        dy_full = ank_y - sho_y
+                        dx_full = ank_x - sho_x
+                        angle_full = abs(np.arctan2(dy_full, dx_full) * 180 / np.pi)
+                        if angle_full < 40 or angle_full > 140:
+                            is_horizontal = True
+                    
+                    if not is_horizontal and aspect_ratio > 1.3:
+                        is_horizontal = True
+                    
+                    color = (0, 255, 0)
+                    if is_horizontal:
+                        color = (0, 0, 255)
+                        fall_in_frame = True
+                        
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                    cv2.putText(frame, f"Ratio: {aspect_ratio:.2f}", (x1, y1 - 10), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                    
+                    if sho_conf > 0.3 and hip_conf > 0.3:
+                        cv2.line(frame, (int(sho_x), int(sho_y)), (int(hip_x), int(hip_y)), (255, 255, 0), 2)
+                    if hip_conf > 0.3 and ank_conf > 0.3:
+                        cv2.line(frame, (int(hip_x), int(hip_y)), (int(ank_x), int(ank_y)), (255, 0, 255), 2)
                     
         if fall_in_frame:
             fall_counter += 1
