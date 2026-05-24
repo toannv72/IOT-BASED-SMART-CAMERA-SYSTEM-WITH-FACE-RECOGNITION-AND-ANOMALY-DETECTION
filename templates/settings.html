@@ -37,6 +37,40 @@
                 <option value="false">Tắt Cảnh Báo</option>
             </select>
         </div>
+        <div class="form-group">
+            <label class="form-label">Tự Động Dọn Dẹp Nhật Ký & Ảnh Cảnh Báo</label>
+            <select id="setting-cleanup-enabled" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="true">Bật Tự Động Xóa</option>
+                <option value="false">Tắt Tự Động Xóa</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Thời Gian Lưu Trữ Nhật Ký Tối Đa (Ngày)</label>
+            <input type="number" id="setting-cleanup-days" class="form-input" min="1" max="365">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Dung Lượng Ảnh Cảnh Báo Tối Đa (GB)</label>
+            <input type="number" id="setting-cleanup-size" class="form-input" step="0.1" min="0.1">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Phát Âm Thanh Giọng Nói Tiếng Việt (TTS)</label>
+            <select id="setting-tts-enabled" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="true">Bật Đọc Cảnh Báo</option>
+                <option value="false">Tắt Đọc Cảnh Báo</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Mã Giọng Nói TTS (Voice Code)</label>
+            <input type="text" id="setting-tts-voice" class="form-input" placeholder="Ví dụ: vi-VN">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Ngưỡng Phát Hiện Lảng Vảng (Giây)</label>
+            <input type="number" id="setting-loitering-threshold" class="form-input" min="3">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Cooldown Log Trùng Khuôn Mặt (Giây)</label>
+            <input type="number" id="setting-face-cooldown" class="form-input" min="5">
+        </div>
         <div style="margin-top: 24px;">
             <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="saveSettings()">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình Hệ Thống
@@ -110,6 +144,16 @@
                 </label>
             </div>
         </div>
+        
+        <div class="form-group" style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; margin-bottom: 8px;">
+                <input type="checkbox" id="cam-lowlight-enhance"> Tăng cường ánh sáng yếu (Low-Light CLAHE)
+            </label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 12px; color: var(--text-muted);">Ngưỡng Clip Limit:</span>
+                <input type="number" id="cam-lowlight-clip" class="form-input" style="padding: 4px 8px; width: 80px;" step="0.5" value="2.0">
+            </div>
+        </div>
 
         <div class="form-group">
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
@@ -140,6 +184,15 @@
 <script>
     window.addEventListener('DOMContentLoaded', () => {
         loadSettings();
+        if (userRole === 'operator') {
+            // Ẩn các nút lưu cấu hình và thêm camera đối với operator
+            setTimeout(() => {
+                const addBtn = document.querySelector('.btn-primary[onclick="openAddCameraModal()"]');
+                if (addBtn) addBtn.style.display = 'none';
+                const saveBtn = document.querySelector('.btn-success[onclick="saveSettings()"]');
+                if (saveBtn) saveBtn.style.display = 'none';
+            }, 300);
+        }
     });
 
     // onCamerasLoaded được gọi từ base.html sau khi lấy được activeCameras
@@ -157,19 +210,34 @@
             document.getElementById('setting-counter-cooldown').value = settings.counter_cooldown || 45;
             document.getElementById('setting-telegram-cooldown').value = settings.telegram_cooldown || 15;
             document.getElementById('setting-alerts-enabled').value = settings.alerts_enabled ? "true" : "false";
+            document.getElementById('setting-cleanup-enabled').value = settings.auto_cleanup_enabled ? "true" : "false";
+            document.getElementById('setting-cleanup-days').value = settings.cleanup_older_than_days !== undefined ? settings.cleanup_older_than_days : 7;
+            document.getElementById('setting-cleanup-size').value = settings.cleanup_max_size_gb !== undefined ? settings.cleanup_max_size_gb : 2.0;
+            document.getElementById('setting-tts-enabled').value = settings.tts_enabled ? "true" : "false";
+            document.getElementById('setting-tts-voice').value = settings.tts_voice || "vi-VN";
+            document.getElementById('setting-loitering-threshold').value = settings.loitering_threshold !== undefined ? settings.loitering_threshold : 10;
+            document.getElementById('setting-face-cooldown').value = settings.face_log_cooldown !== undefined ? settings.face_log_cooldown : 30;
         } catch(e) {
             console.error("Lỗi khi nạp cấu hình hệ thống:", e);
         }
     }
     
     async function saveSettings() {
+        if (userRole === 'operator') return alert("Bạn không có quyền thay đổi cấu hình!");
         const payload = {
             telegram_token: document.getElementById('setting-token').value.trim(),
             telegram_chats: document.getElementById('setting-chats').value.split(',').map(s => s.trim()).filter(s => s !== ""),
             conf_threshold: parseFloat(document.getElementById('setting-conf').value),
             counter_cooldown: parseInt(document.getElementById('setting-counter-cooldown').value),
             telegram_cooldown: parseInt(document.getElementById('setting-telegram-cooldown').value),
-            alerts_enabled: document.getElementById('setting-alerts-enabled').value === "true"
+            alerts_enabled: document.getElementById('setting-alerts-enabled').value === "true",
+            auto_cleanup_enabled: document.getElementById('setting-cleanup-enabled').value === "true",
+            cleanup_older_than_days: parseInt(document.getElementById('setting-cleanup-days').value),
+            cleanup_max_size_gb: parseFloat(document.getElementById('setting-cleanup-size').value),
+            tts_enabled: document.getElementById('setting-tts-enabled').value === "true",
+            tts_voice: document.getElementById('setting-tts-voice').value.trim(),
+            loitering_threshold: parseInt(document.getElementById('setting-loitering-threshold').value),
+            face_log_cooldown: parseInt(document.getElementById('setting-face-cooldown').value)
         };
         try {
             const response = await fetch('/api/settings', { 
@@ -210,12 +278,14 @@
                 <td><span style="font-size: 11px;">${feats.join(', ') || 'Không có'}</span></td>
                 <td><span style="font-size: 11px; font-weight: 500;">${schedText}</span></td>
                 <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
-                    <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="openEditCameraModal('${cam.camera_id}')">
-                        <i class="fa-solid fa-pen"></i> Sửa
-                    </button>
-                    <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteCamera('${cam.camera_id}')">
-                        <i class="fa-solid fa-trash"></i> Xóa
-                    </button>
+                    ${userRole === 'admin' ? `
+                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="openEditCameraModal('${cam.camera_id}')">
+                            <i class="fa-solid fa-pen"></i> Sửa
+                        </button>
+                        <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteCamera('${cam.camera_id}')">
+                            <i class="fa-solid fa-trash"></i> Xóa
+                        </button>
+                    ` : '<span style="color: var(--text-muted); font-size: 11px;">Chỉ xem</span>'}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -228,6 +298,7 @@
     }
 
     function openAddCameraModal() {
+        if (userRole === 'operator') return;
         document.getElementById('camera-modal-title').innerText = "Thêm Camera Mới";
         document.getElementById('camera-modal-action').value = "add";
         document.getElementById('cam-id-input').value = "";
@@ -240,11 +311,14 @@
         document.getElementById('cam-sched-enabled').checked = false;
         document.getElementById('cam-sched-start').value = "23:00";
         document.getElementById('cam-sched-end').value = "06:00";
+        document.getElementById('cam-lowlight-enhance').checked = false;
+        document.getElementById('cam-lowlight-clip').value = "2.0";
         toggleSchedInputs(false);
         document.getElementById('camera-modal').style.display = "flex";
     }
 
     function openEditCameraModal(cameraId) {
+        if (userRole === 'operator') return;
         const cam = activeCameras.find(c => c.camera_id === cameraId);
         if (!cam) return;
 
@@ -262,6 +336,8 @@
         document.getElementById('cam-sched-enabled').checked = cam.schedule_enabled || false;
         document.getElementById('cam-sched-start').value = cam.schedule_start || "23:00";
         document.getElementById('cam-sched-end').value = cam.schedule_end || "06:00";
+        document.getElementById('cam-lowlight-enhance').checked = cam.low_light_enhance || false;
+        document.getElementById('cam-lowlight-clip').value = cam.enhance_clip_limit !== undefined ? cam.enhance_clip_limit : "2.0";
         toggleSchedInputs(cam.schedule_enabled || false);
         
         document.getElementById('camera-modal').style.display = "flex";
@@ -302,7 +378,9 @@
             roi: existingRoi,
             schedule_enabled: document.getElementById('cam-sched-enabled').checked,
             schedule_start: document.getElementById('cam-sched-start').value,
-            schedule_end: document.getElementById('cam-sched-end').value
+            schedule_end: document.getElementById('cam-sched-end').value,
+            low_light_enhance: document.getElementById('cam-lowlight-enhance').checked,
+            enhance_clip_limit: parseFloat(document.getElementById('cam-lowlight-clip').value)
         };
 
         const url = action === 'add' ? '/api/cameras' : `/api/cameras/${cameraId}`;

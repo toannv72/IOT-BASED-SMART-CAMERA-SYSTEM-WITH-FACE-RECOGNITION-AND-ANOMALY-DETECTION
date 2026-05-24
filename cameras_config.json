@@ -37,7 +37,9 @@
         ],
         "schedule_enabled": false,
         "schedule_start": "23:00",
-        "schedule_end": "06:00"
+        "schedule_end": "06:00",
+        "map_x": 23.5,
+        "map_y": 38.0
     },
     {
         "camera_id": "Cam_Cua_Sau",
@@ -76,7 +78,9 @@
         ],
         "schedule_enabled": false,
         "schedule_start": "23:00",
-        "schedule_end": "06:00"
+        "schedule_end": "06:00",
+        "map_x": 88.0,
+        "map_y": 74.0
     },
     {
         "camera_id": "Cam_Hanh_Lang",
@@ -115,7 +119,9 @@
         ],
         "schedule_enabled": false,
         "schedule_start": "23:00",
-        "schedule_end": "06:00"
+        "schedule_end": "06:00",
+        "map_x": 68.39,
+        "map_y": 48.37
     },
     {
         "camera_id": "quét khuôn mặt",
@@ -154,6 +160,8 @@
         "schedule_enabled": false,
         "schedule_start": "23:00",
         "schedule_end": "06:00",
-        "in_direction": "down"
+        "in_direction": "down",
+        "map_x": 23.5,
+        "map_y": 82.0
     }
 ]

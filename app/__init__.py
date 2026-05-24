@@ -112,3 +112,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Import các routes để đăng ký vào app (tránh circular imports bằng cách import ở cuối)
 from app import routes
+
+# Khởi chạy luồng tự động dọn dẹp hệ thống chạy ngầm
+from app.cleanup import start_cleanup_thread
+start_cleanup_thread()
+

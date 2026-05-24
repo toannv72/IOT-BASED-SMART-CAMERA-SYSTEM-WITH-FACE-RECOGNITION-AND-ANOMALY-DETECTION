@@ -11,7 +11,14 @@ DEFAULT_SETTINGS = {
     "conf_threshold": 0.25,
     "counter_cooldown": 45,
     "telegram_cooldown": 15,
-    "alerts_enabled": True
+    "alerts_enabled": True,
+    "tts_enabled": False,
+    "tts_voice": "vi-VN",
+    "auto_cleanup_enabled": False,
+    "cleanup_max_size_gb": 2.0,
+    "cleanup_older_than_days": 7,
+    "loitering_threshold": 10,
+    "face_log_cooldown": 30
 }
 
 # Tải cài đặt lúc khởi chạy
@@ -59,7 +66,9 @@ def get_cameras_config():
             "roi": [[100, 100], [540, 100], [540, 300], [100, 300]],
             "schedule_enabled": False,
             "schedule_start": "23:00",
-            "schedule_end": "06:00"
+            "schedule_end": "06:00",
+            "map_x": 23.5,
+            "map_y": 38.0
         },
         {
             "camera_id": "Cam_Cua_Sau",
@@ -70,7 +79,9 @@ def get_cameras_config():
             "roi": [[150, 150], [550, 150], [580, 350], [120, 350]],
             "schedule_enabled": False,
             "schedule_start": "23:00",
-            "schedule_end": "06:00"
+            "schedule_end": "06:00",
+            "map_x": 88.0,
+            "map_y": 74.0
         },
         {
             "camera_id": "Cam_Hanh_Lang",
@@ -81,7 +92,9 @@ def get_cameras_config():
             "roi": [[100, 100], [540, 100], [540, 300], [100, 300]],
             "schedule_enabled": False,
             "schedule_start": "23:00",
-            "schedule_end": "06:00"
+            "schedule_end": "06:00",
+            "map_x": 69.5,
+            "map_y": 42.0
         }
     ]
 

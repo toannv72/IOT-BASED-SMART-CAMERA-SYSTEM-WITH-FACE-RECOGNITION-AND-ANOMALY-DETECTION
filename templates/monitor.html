@@ -357,6 +357,43 @@
     // =========================================================================
     // 📈 LOGS MANAGEMENT
     // =========================================================================
+    let systemSettings = {};
+
+    async function loadSystemSettings() {
+        try {
+            const response = await fetch('/api/settings');
+            systemSettings = await response.json();
+        } catch (e) {
+            console.error("Lỗi khi tải cài đặt:", e);
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadSystemSettings();
+        // Cập nhật cấu hình TTS định kỳ
+        setInterval(loadSystemSettings, 15000);
+    });
+
+    function speakWarning(text) {
+        if (!('speechSynthesis' in window)) return;
+        // Bỏ các ký tự emoji đặc biệt và viết tắt để đọc tự nhiên
+        let cleanText = text.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, "");
+        cleanText = cleanText.replace(/Cam_/g, "Camera ");
+        cleanText = cleanText.replace(/Cam /g, "Camera ");
+        
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.lang = systemSettings.tts_voice || 'vi-VN';
+        
+        // Cố gắng lấy giọng đọc tiếng Việt nếu có sẵn trên trình duyệt
+        const voices = window.speechSynthesis.getVoices();
+        const viVoice = voices.find(v => v.lang.includes('vi') || v.lang.includes('VI'));
+        if (viVoice) {
+            utterance.voice = viVoice;
+        }
+        
+        window.speechSynthesis.speak(utterance);
+    }
+
     function addLog(msg, type = '') {
         const list = document.getElementById('log-list');
         const item = document.createElement('div');
@@ -374,7 +411,12 @@
     // handleSystemStatusUpdate được gọi định kỳ từ base.html để nhận log sự kiện
     function handleSystemStatusUpdate(data) {
         if (data.new_logs) {
-            data.new_logs.forEach(log => addLog(log.msg, log.type));
+            data.new_logs.forEach(log => {
+                addLog(log.msg, log.type);
+                if (log.type === 'danger' && systemSettings.tts_enabled) {
+                    speakWarning(log.msg);
+                }
+            });
         }
     }
 </script>

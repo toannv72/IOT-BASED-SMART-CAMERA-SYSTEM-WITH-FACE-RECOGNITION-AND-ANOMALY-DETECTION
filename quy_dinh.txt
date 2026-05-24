@@ -1,0 +1,19 @@
+QUY ĐỊNH SỬ DỤNG HỆ THỐNG GIÁM SÁT AN NINH AI
+
+1. MỤC ĐÍCH SỬ DỤNG:
+- Đảm bảo an ninh trật tự, giám sát an toàn cho người và tài sản trong khu vực thuộc phạm vi quản lý.
+- Phát hiện kịp thời các hành vi xâm nhập trái phép vào vùng cấm (vùng ROI) và cảnh báo hỗ trợ phòng chống tai nạn (phát hiện ngã).
+- Hỗ trợ quản lý và nhận diện khuôn mặt nhân viên/quản trị viên đăng ký hợp lệ.
+
+2. QUẢN LÝ DỮ LIỆU & BẢO MẬT:
+- Dữ liệu hình ảnh và nhật ký cảnh báo chỉ phục vụ mục đích kiểm tra nội bộ, nghiêm cấm sao chép, chia sẻ ra bên ngoài khi chưa có sự đồng ý của quản trị viên cấp cao.
+- Hệ thống sẽ tự động dọn dẹp các tệp ảnh và video sự kiện cũ hơn thời gian quy định trong phần cấu hình hệ thống nhằm tối ưu hóa dung lượng đĩa.
+- Các khuôn mặt đăng ký vào Cơ sở dữ liệu phải được sự đồng ý của cá nhân liên quan và do người có thẩm quyền thực hiện đăng ký trực tiếp.
+
+3. TRÁCH NHIỆM CỦA NHÂN VIÊN VẬN HÀNH:
+- Thường xuyên kiểm tra tình trạng kết nối của các camera trên Sơ đồ E-map.
+- Tiếp nhận và xử lý các cảnh báo khẩn cấp từ hệ thống gửi về ứng dụng (nhấp nháy đỏ trên sơ đồ và tin nhắn Telegram).
+- Báo cáo ngay cho bộ phận kỹ thuật nếu có hiện tượng lỗi luồng truyền hình ảnh hoặc sai lệch tọa độ vạch đếm/ROI.
+- Không tự ý thay đổi các thông số cấu hình quan trọng mà không có sự ủy quyền từ Trưởng bộ phận.
+
+Hệ thống được vận hành tự động 24/7 dưới sự giám sát của Trung tâm Điều hành An ninh.

@@ -16,6 +16,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    role = Column(String, default="admin", nullable=True)  # 'admin' hoặc 'operator'
 
 # 2. Bảng lưu khuôn mặt đã được đăng ký (tên và vector nhúng 128 chiều dạng text json)
 class FaceRecord(Base):
@@ -34,6 +35,8 @@ class SystemEventLog(Base):
     message = Column(Text, nullable=False)
     camera_id = Column(String, index=True, nullable=False)
     image_path = Column(String, nullable=True)  # Đường dẫn ảnh cảnh báo
+    video_path = Column(String, nullable=True)  # Đường dẫn clip sự cố (mới)
+    face_name = Column(String, nullable=True)   # Tên khuôn mặt nhận diện (mới)
     timestamp = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 # Tạo toàn bộ các bảng trong SQLite nếu chưa tồn tại
@@ -54,3 +57,25 @@ try:
         conn.commit()
 except Exception:
     pass
+
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'admin'"))
+        conn.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE system_events ADD COLUMN video_path VARCHAR(255)"))
+        conn.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE system_events ADD COLUMN face_name VARCHAR(100)"))
+        conn.commit()
+except Exception:
+    pass
+

@@ -1,0 +1,643 @@
+{% extends "base.html" %}
+
+{% block title %}Sơ Đồ E-map Giám Sát - AI Surveillance{% endblock %}
+{% block page_title %}Sơ Đồ Vị Trí E-map{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Map styling */
+    .map-container {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16/9;
+        background-color: #0d121f;
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+
+    #map-background-img, .map-blueprint-svg {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+    }
+
+    /* Camera Marker Pin */
+    .camera-marker {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: grab;
+        z-index: 100;
+        transition: transform 0.1s ease, box-shadow 0.3s ease;
+        user-select: none;
+    }
+
+    .camera-marker:active {
+        cursor: grabbing;
+        transform: translate(-50%, -50%) scale(1.15);
+    }
+
+    /* Status classes */
+    .marker-running {
+        background: rgba(16, 185, 129, 0.2);
+        border: 2px solid var(--success);
+        color: var(--success);
+        box-shadow: 0 0 12px var(--success-glow);
+        animation: marker-pulse-green 2s infinite;
+    }
+
+    .marker-offline {
+        background: rgba(156, 163, 175, 0.2);
+        border: 2px solid var(--text-muted);
+        color: var(--text-muted);
+        box-shadow: 0 0 8px rgba(0,0,0,0.3);
+    }
+
+    .marker-alerting {
+        background: rgba(239, 68, 68, 0.25);
+        border: 2px solid var(--danger);
+        color: var(--danger);
+        box-shadow: 0 0 20px var(--danger-glow);
+        animation: marker-pulse-red 0.8s infinite;
+    }
+
+    @keyframes marker-pulse-green {
+        0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    @keyframes marker-pulse-red {
+        0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.9); }
+        70% { box-shadow: 0 0 0 16px rgba(239, 68, 68, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    /* Camera label */
+    .marker-label {
+        position: absolute;
+        top: 48px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(10, 15, 30, 0.85);
+        border: 1px solid var(--border-color);
+        color: #fff;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+        pointer-events: none;
+        backdrop-filter: blur(4px);
+    }
+
+    /* Tooltip content */
+    .marker-tooltip {
+        visibility: hidden;
+        position: absolute;
+        bottom: 54px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(15, 23, 42, 0.95);
+        border: 1px solid var(--border-color);
+        padding: 10px 14px;
+        border-radius: 8px;
+        width: 200px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        z-index: 200;
+        opacity: 0;
+        transition: opacity 0.2s ease, visibility 0.2s;
+        pointer-events: none;
+    }
+
+    .camera-marker:hover .marker-tooltip {
+        visibility: visible;
+        opacity: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+        <div>
+            <h3 style="font-size: 18px; font-weight: 600;"><i class="fa-solid fa-map-location-dot"></i> Thiết Kế Mặt Bằng & Bố Trí Camera</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Kéo thả biểu tượng Camera để cập nhật vị trí trực quan. Click để xem live stream nhanh.</p>
+        </div>
+        
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <!-- Nút Tải ảnh mặt bằng tùy chỉnh -->
+            <label class="btn" style="cursor: pointer;">
+                <i class="fa-solid fa-upload"></i> Đổi Ảnh Mặt Bằng
+                <input type="file" id="upload-map-input" accept="image/*" style="display: none;" onchange="uploadMapFile()">
+            </label>
+            
+            <!-- Nút Tải E-map -->
+            <button class="btn btn-success" onclick="downloadEmapLayout()">
+                <i class="fa-solid fa-download"></i> Tải Sơ Đồ E-map
+            </button>
+        </div>
+    </div>
+
+    <!-- Khung Bản Đồ -->
+    <div class="map-container" id="emap-area">
+        <!-- Ảnh nền mặt bằng (Sẽ tải tùy chỉnh nếu có, nếu không sẽ hiển thị blueprint SVG mặc định) -->
+        <img id="map-background-img" style="display: none;" alt="Custom Floor Plan" onerror="showBlueprintFallback()">
+        
+        <!-- Blueprint Mặc định SVG vẽ mặt bằng 3D/2D bằng nét neon cực ngầu -->
+        <div id="fallback-blueprint" style="width: 100%; height: 100%;">
+            <svg class="map-blueprint-svg" viewBox="0 0 1024 576" xmlns="http://www.w3.org/2000/svg">
+                <!-- Grid background -->
+                <defs>
+                    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                        <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+                    </pattern>
+                </defs>
+                <rect width="1024" height="576" fill="url(#grid)" />
+                
+                <!-- Bức tường & Ngăn phòng -->
+                <g stroke="rgba(59, 130, 246, 0.4)" stroke-width="3" fill="none">
+                    <!-- Tường bao ngoài -->
+                    <rect x="50" y="50" width="924" height="476" rx="10" stroke="rgba(59, 130, 246, 0.6)" stroke-width="4"/>
+                    
+                    <!-- Phòng Khách (Living Room) -->
+                    <rect x="50" y="50" width="400" height="300"/>
+                    <!-- Phòng Ngủ 1 (Bedroom 1) -->
+                    <rect x="450" y="50" width="280" height="200"/>
+                    <!-- Phòng Ngủ 2 (Bedroom 2) -->
+                    <rect x="730" y="50" width="244" height="200"/>
+                    <!-- Hành lang (Corridor) -->
+                    <line x1="450" y1="250" x2="974" y2="250"/>
+                    <!-- Sân sau / Phòng Bếp -->
+                    <line x1="450" y1="250" x2="450" y2="526"/>
+                    <rect x="450" y="320" width="524" height="206"/>
+                </g>
+
+                <!-- Nhãn phòng (Labels) -->
+                <g fill="rgba(255,255,255,0.3)" font-family="Outfit, sans-serif" font-size="14" font-weight="600" text-anchor="middle">
+                    <text x="250" y="200">PHÒNG KHÁCH (CỬA CHÍNH)</text>
+                    <text x="590" y="150">PHÒNG NGỦ 1</text>
+                    <text x="852" y="150">PHÒNG NGỦ 2</text>
+                    <text x="712" y="290">HÀNH LANG GIÁM SÁT</text>
+                    <text x="712" y="440">KHU VỰC BẾP & SÂN SAU</text>
+                    <text x="250" y="440">KHO / VĂN PHÒNG</text>
+                </g>
+                
+                <!-- Ký hiệu cửa ra vào -->
+                <g stroke="var(--warning)" stroke-width="2" fill="none">
+                    <!-- Cửa chính -->
+                    <path d="M 220 50 A 40 40 0 0 1 260 90" stroke-dasharray="4"/>
+                    <line x1="220" y1="50" x2="220" y2="90"/>
+                    <!-- Cửa sau -->
+                    <path d="M 974 420 A 40 40 0 0 1 934 460" stroke-dasharray="4"/>
+                    <line x1="974" y1="420" x2="934" y2="420"/>
+                </g>
+            </svg>
+        </div>
+
+        <!-- Render Các Camera Node ở đây -->
+        <div id="camera-markers-wrapper"></div>
+    </div>
+</div>
+
+<!-- Modal xem nhanh live stream camera -->
+<div id="preview-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div class="glass-card" style="width: 640px; padding: 20px; margin-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 id="preview-title" style="font-size: 16px; font-weight: 600;"><i class="fa-solid fa-video"></i> Live Stream Camera</h3>
+            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closePreviewModal()">&times;</span>
+        </div>
+        <div style="width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+            <img id="preview-stream-img" style="width: 100%; height: 100%; object-fit: contain;" alt="Live stream preview">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let isDragging = false;
+    let dragTarget = null;
+    let startX = 0, startY = 0;
+    let startLeft = 0, startTop = 0;
+    let cameraStatusData = { intrusion_alert: false, fall_alert: false };
+
+    window.addEventListener('DOMContentLoaded', () => {
+        // Tải ảnh nền custom nếu có
+        checkCustomMap();
+        
+        // Nhận log cập nhật trạng thái
+        setInterval(async () => {
+            try {
+                const r = await fetch('/system_status');
+                cameraStatusData = await r.json();
+                updateMarkerStates();
+            } catch(e){}
+        }, 1500);
+    });
+
+    // Gọi sau khi activeCameras được tải xong từ base.html
+    function onCamerasLoaded() {
+        renderCameraMarkers();
+    }
+
+    // Kiểm tra và tải ảnh mặt bằng custom
+    function checkCustomMap() {
+        const bgImg = document.getElementById('map-background-img');
+        // Cache-busting parameter rand
+        bgImg.src = "/static/emap_custom.png?rand=" + Math.random();
+        bgImg.style.display = "block";
+        document.getElementById('fallback-blueprint').style.display = "none";
+    }
+
+    function showBlueprintFallback() {
+        document.getElementById('map-background-img').style.display = "none";
+        document.getElementById('fallback-blueprint').style.display = "block";
+    }
+
+    // Upload mặt bằng custom mới
+    async function uploadMapFile() {
+        const fileInput = document.getElementById('upload-map-input');
+        if (fileInput.files.length === 0) return;
+        
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append("file", file);
+        
+        try {
+            const response = await fetch('/api/emap/upload', {
+                method: 'POST',
+                body: formData
+            });
+            if (response.ok) {
+                alert("Đã cập nhật ảnh mặt bằng mới thành công!");
+                checkCustomMap();
+            } else {
+                alert("Lỗi tải ảnh lên máy chủ!");
+            }
+        } catch(e) {
+            alert("Lỗi kết nối!");
+        }
+    }
+
+    // Vẽ và hiển thị các camera markers
+    function renderCameraMarkers() {
+        const wrapper = document.getElementById('camera-markers-wrapper');
+        wrapper.innerHTML = '';
+        
+        activeCameras.forEach((cam, index) => {
+            // Thiết lập vị trí mặc định nếu chưa được cấu hình tọa độ trước đó
+            let x = cam.map_x !== undefined ? cam.map_x : (15 + index * 18);
+            let y = cam.map_y !== undefined ? cam.map_y : 35;
+            
+            // Giới hạn trong khoảng 2% đến 98% để tránh tràn lề
+            x = Math.max(2, Math.min(98, x));
+            y = Math.max(2, Math.min(98, y));
+            
+            const marker = document.createElement('div');
+            marker.className = 'camera-marker marker-offline';
+            marker.id = `marker-${cam.camera_id}`;
+            marker.style.left = `${x}%`;
+            marker.style.top = `${y}%`;
+            marker.dataset.cameraId = cam.camera_id;
+            
+            // Vẽ biểu tượng và tooltip
+            let featuresText = cam.features.join(', ') || 'Không có';
+            marker.innerHTML = `
+                <i class="fa-solid fa-video"></i>
+                <div class="marker-label">${cam.camera_id}</div>
+                <div class="marker-tooltip">
+                    <strong style="color: var(--primary); display:block; margin-bottom:4px;">${cam.camera_id}</strong>
+                    <div style="font-size: 11px; margin-bottom: 2px;">Tính năng: ${featuresText}</div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Trạng thái: <span class="status-text">Offline</span></div>
+                </div>
+            `;
+            
+            // Gắn sự kiện drag mouse
+            marker.addEventListener('mousedown', startDrag);
+            marker.addEventListener('click', (e) => {
+                // Chỉ mở live stream nếu KHÔNG kéo thả
+                if (marker.classList.contains('was-dragged')) {
+                    marker.classList.remove('was-dragged');
+                    return;
+                }
+                openPreviewModal(cam.camera_id);
+            });
+            
+            wrapper.appendChild(marker);
+        });
+        
+        updateMarkerStates();
+    }
+
+    // Cập nhật trạng thái hiển thị màu sắc dựa theo FPS và Cảnh báo hoạt động
+    async function updateMarkerStates() {
+        try {
+            // Lấy thông số health của camera để biết trạng thái bật tắt
+            const r = await fetch('/api/system_health');
+            const data = await r.json();
+            
+            activeCameras.forEach(cam => {
+                const marker = document.getElementById(`marker-${cam.camera_id}`);
+                if (!marker) return;
+                
+                const fpsVal = data.fps[cam.camera_id] || 0;
+                const statusTextSpan = marker.querySelector('.status-text');
+                
+                // Mặc định offline
+                marker.className = 'camera-marker marker-offline';
+                statusTextSpan.innerText = 'Offline';
+                statusTextSpan.style.color = 'var(--text-muted)';
+                
+                // Kiểm tra xem camera có đang chạy không
+                if (streamStates[cam.camera_id]) {
+                    marker.className = 'camera-marker marker-running';
+                    statusTextSpan.innerText = 'Running';
+                    statusTextSpan.style.color = 'var(--success)';
+                }
+                
+                // Kiểm tra nếu loại camera này đang báo động xâm nhập
+                if (cameraStatusData.intrusion_alert && cam.features.includes('intrusion_roi')) {
+                    marker.className = 'camera-marker marker-alerting';
+                    statusTextSpan.innerText = '⚠️ INTRUSION ALERT!';
+                    statusTextSpan.style.color = 'var(--danger)';
+                }
+                
+                // Nếu camera ngã đang báo động
+                if (cameraStatusData.fall_alert && cam.features.includes('fall_detection')) {
+                    marker.className = 'camera-marker marker-alerting';
+                    statusTextSpan.innerText = '⚠️ FALL DETECTED!';
+                    statusTextSpan.style.color = 'var(--danger)';
+                }
+            });
+        } catch(e){}
+    }
+
+    // Logic Kéo thả biểu tượng camera
+    function startDrag(e) {
+        if (e.target.closest('.marker-tooltip')) return;
+        
+        isDragging = true;
+        dragTarget = e.currentTarget;
+        dragTarget.classList.remove('was-dragged');
+        
+        const rect = document.getElementById('emap-area').getBoundingClientRect();
+        
+        // Tọa độ click chuột
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        // Tọa độ bắt đầu của marker dạng %
+        startLeft = parseFloat(dragTarget.style.left);
+        startTop = parseFloat(dragTarget.style.top);
+        
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', endDrag);
+        e.preventDefault();
+    }
+
+    function drag(e) {
+        if (!isDragging || !dragTarget) return;
+        
+        const mapArea = document.getElementById('emap-area');
+        const rect = mapArea.getBoundingClientRect();
+        
+        // Tính khoảng cách thay đổi dạng pixel
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        
+        // Quy đổi sang tỷ lệ %
+        const percentX = (dx / rect.width) * 100;
+        const percentY = (dy / rect.height) * 100;
+        
+        // Tọa độ % mới
+        let newX = startLeft + percentX;
+        let newY = startTop + percentY;
+        
+        // Giới hạn di chuyển
+        newX = Math.max(2, Math.min(98, newX));
+        newY = Math.max(2, Math.min(98, newY));
+        
+        dragTarget.style.left = `${newX.toFixed(2)}%`;
+        dragTarget.style.top = `${newY.toFixed(2)}%`;
+        
+        dragTarget.classList.add('was-dragged');
+    }
+
+    async function endDrag(e) {
+        isDragging = false;
+        document.removeEventListener('mousemove', drag);
+        document.removeEventListener('mouseup', endDrag);
+        
+        if (!dragTarget) return;
+        
+        const cameraId = dragTarget.dataset.cameraId;
+        const x = parseFloat(dragTarget.style.left);
+        const y = parseFloat(dragTarget.style.top);
+        
+        // Tìm camera trong danh sách local
+        const cam = activeCameras.find(c => c.camera_id === cameraId);
+        if (cam) {
+            cam.map_x = x;
+            cam.map_y = y;
+            
+            // Gửi API cập nhật lại tọa độ camera vào JSON file cấu hình
+            try {
+                await fetch(`/api/cameras/${cameraId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cam)
+                });
+            } catch(e) {
+                console.error("Lỗi đồng bộ tọa độ camera:", e);
+            }
+        }
+        dragTarget = null;
+    }
+
+    // Modal stream nhanh
+    function openPreviewModal(cameraId) {
+        // Chỉ cho phép xem nếu camera đang chạy
+        if (!streamStates[cameraId]) {
+            alert(`Camera ${cameraId} hiện tại đang tắt. Vui lòng bật camera ở mục Giám Sát Live trước!`);
+            return;
+        }
+        document.getElementById('preview-title').innerHTML = `<i class="fa-solid fa-video" style="color: var(--primary);"></i> Xem Nhanh - Camera: ${cameraId}`;
+        document.getElementById('preview-stream-img').src = `/video_feed/${cameraId}?rand=${Math.random()}`;
+        document.getElementById('preview-modal').style.display = "flex";
+    }
+
+    function closePreviewModal() {
+        document.getElementById('preview-modal').style.display = "none";
+        document.getElementById('preview-stream-img').src = "";
+    }
+
+    // =========================================================================
+    // 🎨 CHỨC NĂNG TẢI SƠ ĐỒ E-MAP (CANVAS EXPORT)
+    // =========================================================================
+    function downloadEmapLayout() {
+        const mapArea = document.getElementById('emap-area');
+        const bgImg = document.getElementById('map-background-img');
+        
+        // Tạo canvas off-screen
+        const canvas = document.createElement('canvas');
+        canvas.width = 1280;
+        canvas.height = 720;
+        const ctx = canvas.getContext('2d');
+        
+        // Hàm vẽ toàn bộ biểu tượng camera đè lên bản đồ
+        const drawMarkers = () => {
+            const markers = document.querySelectorAll('.camera-marker');
+            markers.forEach(marker => {
+                const leftPercent = parseFloat(marker.style.left);
+                const topPercent = parseFloat(marker.style.top);
+                const camId = marker.dataset.cameraId;
+                
+                // Quy đổi sang tọa độ pixel trên canvas
+                const pxX = (leftPercent / 100) * canvas.width;
+                const pxY = (topPercent / 100) * canvas.height;
+                
+                // Xác định màu dựa trên trạng thái marker
+                let color = "#9ca3af"; // Offline (Grey)
+                if (marker.classList.contains('marker-running')) {
+                    color = "#10b981"; // Running (Green)
+                } else if (marker.classList.contains('marker-alerting')) {
+                    color = "#ef4444"; // Alerting (Red)
+                }
+                
+                // 1. Vẽ vòng tròn phát sáng (glow circle)
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = color;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(pxX, pxY, 18, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // 2. Vẽ vòng viền trắng ngoài cùng
+                ctx.shadowBlur = 0; // Tắt shadow để vẽ nét thanh sạch
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                // 3. Vẽ chấm nhân giữa
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.arc(pxX, pxY, 4, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // 4. Vẽ hộp nhãn (Label box) chứa tên Camera
+                ctx.font = "bold 13px Arial, sans-serif";
+                const textWidth = ctx.measureText(camId).width;
+                const rectW = textWidth + 16;
+                const rectH = 24;
+                const rectX = pxX - rectW / 2;
+                const rectY = pxY + 26;
+                
+                // Vẽ hộp nền mờ đen
+                ctx.fillStyle = "rgba(10, 15, 30, 0.85)";
+                ctx.strokeStyle = "rgba(255,255,255,0.15)";
+                ctx.lineWidth = 1;
+                
+                // Vẽ góc tròn nhãn
+                ctx.beginPath();
+                ctx.roundRect(rectX, rectY, rectW, rectH, 6);
+                ctx.fill();
+                ctx.stroke();
+                
+                // Ghi chữ tên camera
+                ctx.fillStyle = "#ffffff";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(camId, pxX, rectY + rectH / 2);
+            });
+            
+            // Kích hoạt tải ảnh xuống
+            const link = document.createElement('a');
+            link.download = `sodo_emap_${new Date().toISOString().slice(0,10)}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        };
+
+        // Nếu có hình nền tải lên custom
+        if (bgImg.style.display !== "none" && bgImg.complete) {
+            ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+            drawMarkers();
+        } else {
+            // Vẽ sơ đồ blueprint mặc định bằng code vẽ trực tiếp lên canvas cực kỳ sắc nét
+            ctx.fillStyle = "#0d121f";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Vẽ lưới ô vuông nhạt
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.02)";
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += 30) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            }
+            for (let j = 0; j < canvas.height; j += 30) {
+                ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke();
+            }
+            
+            // Vẽ tường bao và vách phòng
+            ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
+            ctx.lineWidth = 4;
+            
+            // Tường bao quanh ngoài
+            ctx.beginPath();
+            ctx.roundRect(60, 60, canvas.width - 120, canvas.height - 120, 12);
+            ctx.stroke();
+            
+            // Tường chia phòng khách (40% width)
+            ctx.beginPath();
+            ctx.rect(60, 60, 480, 360);
+            ctx.stroke();
+            
+            // Phòng ngủ 1 (25% width)
+            ctx.beginPath();
+            ctx.rect(540, 60, 320, 240);
+            ctx.stroke();
+            
+            // Phòng ngủ 2
+            ctx.beginPath();
+            ctx.rect(860, 60, canvas.width - 860 - 60, 240);
+            ctx.stroke();
+            
+            // Sân sau bếp
+            ctx.beginPath();
+            ctx.moveTo(540, 300); ctx.lineTo(canvas.width - 60, 300);
+            ctx.stroke();
+            
+            // Nhãn chữ các phòng
+            ctx.font = "bold 15px Arial, sans-serif";
+            ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+            ctx.textAlign = "center";
+            ctx.fillText("PHÒNG KHÁCH (CỬA CHÍNH)", 300, 240);
+            ctx.fillText("PHÒNG NGỦ 1", 700, 180);
+            ctx.fillText("PHÒNG NGỦ 2", 980, 180);
+            ctx.fillText("HÀNH LANG GIÁM SÁT", 760, 340);
+            ctx.fillText("KHU VỰC BẾP & SÂN SAU", 760, 520);
+            ctx.fillText("KHO / VĂN PHÒNG", 300, 520);
+            
+            // Cửa ra vào màu cam
+            ctx.strokeStyle = "#f59e0b";
+            ctx.lineWidth = 3;
+            // Cửa chính
+            ctx.beginPath();
+            ctx.arc(280, 60, 45, 0, 0.5 * Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(280, 60); ctx.lineTo(280, 105);
+            ctx.stroke();
+            
+            drawMarkers();
+        }
+    }
+</script>
+{% endblock %}

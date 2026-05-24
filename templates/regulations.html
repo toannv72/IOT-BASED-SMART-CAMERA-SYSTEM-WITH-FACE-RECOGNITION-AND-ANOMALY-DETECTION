@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Quy Định Sử Dụng Hệ Thống - AI Surveillance{% endblock %}
+{% block page_title %}Quy Định Sử Dụng Hệ Thống{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="max-width: 900px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
+        <h3 style="font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+            <i class="fa-solid fa-gavel" style="color: var(--primary);"></i> Nội Quy & Quy Định Giám Sát
+        </h3>
+        <button id="btn-edit-rules" class="btn btn-primary" onclick="enableRulesEdit()">
+            <i class="fa-solid fa-pen-to-square"></i> Chỉnh Sửa Quy Định
+        </button>
+    </div>
+
+    <!-- Khung hiển thị quy định (Read-only View) -->
+    <div id="rules-view-container" style="line-height: 1.8; color: var(--text-main); font-size: 15px; white-space: pre-wrap; transition: opacity 0.3s;">
+        Đang tải quy định hệ thống...
+    </div>
+
+    <!-- Khung soạn thảo quy định (Edit View - Hidden by default) -->
+    <div id="rules-edit-container" style="display: none; flex-direction: column; gap: 16px; transition: opacity 0.3s;">
+        <div class="form-group">
+            <label class="form-label" style="font-weight: 600;">Nội dung quy chế sử dụng (Được lưu dạng văn bản thô trên máy chủ):</label>
+            <textarea id="rules-textarea" class="form-input" style="width: 100%; height: 400px; font-family: monospace; line-height: 1.6; resize: vertical; background: rgba(0, 0, 0, 0.35); padding: 16px; border-radius: 10px; color: #fff;" placeholder="Nhập các quy định giám sát an ninh..."></textarea>
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button class="btn" onclick="cancelRulesEdit()">
+                <i class="fa-solid fa-xmark"></i> Hủy Bỏ
+            </button>
+            <button class="btn btn-success" onclick="saveRules()">
+                <i class="fa-solid fa-floppy-disk"></i> Lưu Quy Định
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let originalContent = "";
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadRules();
+    });
+
+    // Hàm gọi API lấy nội dung quy định từ server
+    async function loadRules() {
+        if (userRole === 'operator') {
+            document.getElementById('btn-edit-rules').style.display = 'none';
+        }
+        try {
+            const response = await fetch('/api/regulations');
+            const data = await response.json();
+            originalContent = data.content;
+            
+            // Render nội dung ra màn hình
+            const viewContainer = document.getElementById('rules-view-container');
+            viewContainer.innerText = originalContent;
+            
+            // Đồng bộ textarea
+            document.getElementById('rules-textarea').value = originalContent;
+        } catch (e) {
+            document.getElementById('rules-view-container').innerText = "Không thể tải quy định hệ thống. Vui lòng thử lại sau.";
+        }
+    }
+
+    // Chuyển giao diện sang chế độ chỉnh sửa
+    function enableRulesEdit() {
+        document.getElementById('rules-view-container').style.display = "none";
+        document.getElementById('btn-edit-rules').style.display = "none";
+        
+        const editContainer = document.getElementById('rules-edit-container');
+        editContainer.style.display = "flex";
+        document.getElementById('rules-textarea').focus();
+    }
+
+    // Hủy bỏ chỉnh sửa
+    function cancelRulesEdit() {
+        if (document.getElementById('rules-textarea').value !== originalContent) {
+            if (!confirm("Các thay đổi chưa lưu sẽ bị mất. Bạn có chắc chắn muốn hủy?")) {
+                return;
+            }
+        }
+        document.getElementById('rules-edit-container').style.display = "none";
+        
+        document.getElementById('rules-view-container').style.display = "block";
+        document.getElementById('btn-edit-rules').style.display = "inline-flex";
+        document.getElementById('rules-textarea').value = originalContent;
+    }
+
+    // Lưu nội dung quy định mới
+    async function saveRules() {
+        const newContent = document.getElementById('rules-textarea').value;
+        try {
+            const response = await fetch('/api/regulations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ content: newContent })
+            });
+            
+            if (response.ok) {
+                alert("Đã cập nhật quy định hệ thống thành công!");
+                originalContent = newContent;
+                
+                // Trở lại chế độ view đọc
+                document.getElementById('rules-edit-container').style.display = "none";
+                document.getElementById('rules-view-container').innerText = newContent;
+                document.getElementById('rules-view-container').style.display = "block";
+                document.getElementById('btn-edit-rules').style.display = "inline-flex";
+            } else {
+                alert("Lỗi máy chủ khi lưu quy định!");
+            }
+        } catch (err) {
+            alert("Lỗi kết nối khi gửi yêu cầu!");
+        }
+    }
+</script>
+{% endblock %}

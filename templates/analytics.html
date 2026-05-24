@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}Báo Cáo Thống Kê - AI Surveillance{% endblock %}
+{% block page_title %}Báo Cáo Thống Kê Hệ Thống{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .kpi-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        margin-bottom: 24px;
+    }
+    .kpi-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.15);
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        font-weight: bold;
+    }
+    .kpi-info {
+        display: flex;
+        flex-direction: column;
+    }
+    .kpi-value {
+        font-size: 24px;
+        font-weight: 700;
+        margin-top: 2px;
+    }
+    .kpi-label {
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+    .chart-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-bottom: 24px;
+    }
+    .chart-card {
+        min-height: 350px;
+        display: flex;
+        flex-direction: column;
+    }
+    .chart-header {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #fff;
+    }
+    .chart-wrapper {
+        position: relative;
+        flex-grow: 1;
+        width: 100%;
+        height: 250px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- KPI Cards Row -->
+<div class="kpi-container">
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background: rgba(59, 130, 246, 0.15); color: var(--primary);">
+            <i class="fa-solid fa-bell"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-label">Tổng Sự Kiện Ghi Nhận</span>
+            <span class="kpi-value" id="kpi-total">0</span>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background: rgba(239, 68, 68, 0.15); color: var(--danger);">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-label">Cảnh Báo Xâm Nhập (ROI)</span>
+            <span class="kpi-value" id="kpi-intrusion">0</span>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background: rgba(245, 158, 11, 0.15); color: var(--warning);">
+            <i class="fa-solid fa-person-falling"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-label">Phát Hiện Sự Cố Ngã</span>
+            <span class="kpi-value" id="kpi-fall">0</span>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background: rgba(16, 185, 129, 0.15); color: var(--success);">
+            <i class="fa-solid fa-users"></i>
+        </div>
+        <div class="kpi-info">
+            <span class="kpi-label">Nhận Diện Khuôn Mặt</span>
+            <span class="kpi-value" id="kpi-face">0</span>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Grid -->
+<div class="chart-grid">
+    <div class="glass-card chart-card">
+        <div class="chart-header">
+            <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i> Phân Phối Loại Cảnh Báo
+        </div>
+        <div class="chart-wrapper">
+            <canvas id="typeChart"></canvas>
+        </div>
+    </div>
+    <div class="glass-card chart-card">
+        <div class="chart-header">
+            <i class="fa-solid fa-video" style="color: var(--success);"></i> Số Lượng Cảnh Báo Theo Camera
+        </div>
+        <div class="chart-wrapper">
+            <canvas id="cameraChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="glass-card chart-card" style="width: 100%;">
+    <div class="chart-header">
+        <i class="fa-solid fa-chart-area" style="color: var(--warning);"></i> Lịch Sử Cảnh Báo 7 Ngày Gần Nhất
+    </div>
+    <div style="height: 300px; position: relative;">
+        <canvas id="historyChart"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let typeChartInstance = null;
+    let cameraChartInstance = null;
+    let historyChartInstance = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadAnalyticsData();
+    });
+
+    async function loadAnalyticsData() {
+        try {
+            const response = await fetch('/api/analytics');
+            const data = await response.json();
+            
+            if (data.error) {
+                console.error("Lỗi API analytics:", data.error);
+                return;
+            }
+            
+            // 1. Cập nhật các thẻ KPI
+            const typeSummary = data.type_summary || {};
+            const totalEvents = Object.values(typeSummary).reduce((a, b) => a + b, 0);
+            
+            document.getElementById('kpi-total').innerText = totalEvents;
+            document.getElementById('kpi-intrusion').innerText = typeSummary.intrusion || 0;
+            document.getElementById('kpi-fall').innerText = typeSummary.fall || 0;
+            document.getElementById('kpi-face').innerText = typeSummary.face || 0;
+            
+            // 2. Vẽ biểu đồ phân bố loại cảnh báo
+            drawTypeChart(typeSummary);
+            
+            // 3. Vẽ biểu đồ thống kê camera
+            drawCameraChart(data.camera_summary || {});
+            
+            // 4. Vẽ biểu đồ lịch sử 7 ngày
+            drawHistoryChart(data.daily_data || {});
+            
+        } catch (e) {
+            console.error("Lỗi khi tải dữ liệu thống kê:", e);
+        }
+    }
+
+    function drawTypeChart(summary) {
+        const ctx = document.getElementById('typeChart').getContext('2d');
+        const labels = ['Xâm Nhập (ROI)', 'Người Ngã', 'Nhận Diện Mặt', 'Bộ Đếm'];
+        const values = [
+            summary.intrusion || 0,
+            summary.fall || 0,
+            summary.face || 0,
+            summary.counter || 0
+        ];
+        
+        typeChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: [
+                        'rgba(239, 68, 68, 0.85)',   // danger (intrusion)
+                        'rgba(245, 158, 11, 0.85)',  // warning (fall)
+                        'rgba(16, 185, 129, 0.85)',  // success (face)
+                        'rgba(59, 130, 246, 0.85)'   // primary (counter)
+                    ],
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            color: '#e5e7eb',
+                            font: { family: 'Outfit', size: 12 }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function drawCameraChart(summary) {
+        const ctx = document.getElementById('cameraChart').getContext('2d');
+        const labels = Object.keys(summary);
+        const values = Object.values(summary);
+        
+        cameraChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Số sự kiện',
+                    data: values,
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 1.5,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#9ca3af', font: { family: 'Outfit' } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: '#9ca3af', font: { family: 'Outfit' }, precision: 0 }
+                    }
+                }
+            }
+        });
+    }
+
+    function drawHistoryChart(dailyData) {
+        const ctx = document.getElementById('historyChart').getContext('2d');
+        
+        // Sắp xếp các ngày tăng dần
+        const sortedDays = Object.keys(dailyData).sort();
+        
+        // Lấy dữ liệu cho từng loại
+        const intrusionData = sortedDays.map(day => dailyData[day].intrusion || 0);
+        const fallData = sortedDays.map(day => dailyData[day].fall || 0);
+        const faceData = sortedDays.map(day => dailyData[day].face || 0);
+        const counterData = sortedDays.map(day => dailyData[day].counter || 0);
+        
+        historyChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sortedDays,
+                datasets: [
+                    {
+                        label: 'Xâm Nhập (ROI)',
+                        data: intrusionData,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Sự Cố Ngã',
+                        data: fallData,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Khuôn Mặt',
+                        data: faceData,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Đếm Người',
+                        data: counterData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#e5e7eb',
+                            font: { family: 'Outfit', size: 12 }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#9ca3af', font: { family: 'Outfit' } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: '#9ca3af', font: { family: 'Outfit' }, precision: 0 }
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

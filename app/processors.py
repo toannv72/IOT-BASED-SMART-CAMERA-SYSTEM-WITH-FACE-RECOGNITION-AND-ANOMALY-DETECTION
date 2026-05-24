@@ -4,6 +4,7 @@ import time
 import math
 import numpy as np
 import json
+import collections
 from PIL import Image
 import torch
 import supervision as sv
@@ -677,6 +678,11 @@ def gen_fall_stream():
 # LUỒNG 5: HỢP NHẤT GIÁM SÁT ĐA KÊNH ĐỘNG (DYNAMIC N-CAMERA STREAM)
 # =========================================================================
 camera_states = {}
+paused_cameras = {}
+
+def pause_camera_alerts(camera_id: str, duration_minutes: int):
+    paused_cameras[camera_id] = time.time() + duration_minutes * 60
+    print(f"[PROCESSORS] Camera '{camera_id}' alerts paused for {duration_minutes} minutes.")
 
 class CameraState:
     def __init__(self):
@@ -688,6 +694,9 @@ class CameraState:
         self.count_in = 0
         self.count_out = 0
         self.last_frame = None
+        self.frame_buffer = collections.deque(maxlen=150)
+        self.intrusion_entry_times = {}
+        self.last_face_log_times = {}
 
 def is_time_in_schedule(start_str, end_str):
     """
@@ -714,7 +723,6 @@ def gen_dynamic_stream(camera_id: str):
     Tự động giải quyết các tác vụ deep learning (YOLOv8 Counter, YOLOv5 ROI, MTCNN/FaceNet, YOLOv8-pose Fall)
     dựa trên tính năng (features) được cấu hình động trên Web Dashboard cho camera tương ứng.
     """
-    # Lấy cấu hình camera
     cameras = config.get_cameras_config()
     cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
     if not cfg:
@@ -726,7 +734,6 @@ def gen_dynamic_stream(camera_id: str):
     state = camera_states[camera_id]
 
     source = cfg["source"]
-    # Kiểm tra nếu là index webcam dạng chuỗi số thì chuyển sang int
     if isinstance(source, str) and source.isdigit():
         source = int(source)
 
@@ -738,7 +745,6 @@ def gen_dynamic_stream(camera_id: str):
     box_annotator = sv.BoxAnnotator()
     label_annotator = sv.LabelAnnotator()
 
-    # Nạp trước FaceNet embeddings nếu dùng Face ID
     db = SessionLocal()
     records = db.query(FaceRecord).all()
     db.close()
@@ -763,12 +769,22 @@ def gen_dynamic_stream(camera_id: str):
                 continue
 
         state.frame_index += 1
-
-        # Resize cố định về 640x360 để chuẩn hóa và tăng hiệu suất
         frame = cv2.resize(frame, (640, 360))
+
+        if cfg.get("low_light_enhance", False):
+            clip_limit = cfg.get("enhance_clip_limit", 2.0)
+            try:
+                lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+                l_channel, a, b = cv2.split(lab)
+                clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8))
+                cl = clahe.apply(l_channel)
+                limg = cv2.merge((cl, a, b))
+                frame = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+            except Exception as e:
+                print(f"[PROCESSORS] Lỗi CLAHE: {e}")
+
         state.last_frame = frame.copy()
 
-        # Mỗi 30 frames tải lại cấu hình để cập nhật tức thì
         if state.frame_index % 30 == 0:
             cameras = config.get_cameras_config()
             new_cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
@@ -787,7 +803,8 @@ def gen_dynamic_stream(camera_id: str):
         cooldown_thr = config.settings.get("counter_cooldown", 45)
         alerts_enabled = config.settings.get("alerts_enabled", True)
 
-        # Kiểm tra lịch trình hoạt động
+        is_paused = time.time() < paused_cameras.get(camera_id, 0)
+
         alert_allowed_by_schedule = True
         if cfg.get("schedule_enabled", False):
             alert_allowed_by_schedule = is_time_in_schedule(cfg.get("schedule_start", "00:00"), cfg.get("schedule_end", "24:00"))
@@ -796,7 +813,6 @@ def gen_dynamic_stream(camera_id: str):
         run_face = "face_id" in features
         run_fall = "fall_detection" in features
 
-        # Chạy YOLO đếm người và xâm nhập ROI
         detections = None
         if run_yolo:
             results = yolov8_model.track(frame, persist=True, tracker="custom_bytetrack.yaml", conf=conf_thr, classes=[0], verbose=False, device=device)
@@ -805,156 +821,218 @@ def gen_dynamic_stream(camera_id: str):
 
         annotated_frame = frame.copy()
 
-        # 1. Vẽ vạch và xử lý Đếm người vạch kép
         if "people_counter" in features and detections is not None:
-            line_pts = cfg.get("line", [[100, 180], [540, 180]])
-            x1, y1 = line_pts[0]
-            x2, y2 = line_pts[1]
-
-            dx = x2 - x1
-            dy = y2 - y1
-            length = math.sqrt(dx*dx + dy*dy)
-            if length == 0: length = 1.0
-            nx = -dy / length
-            ny = dx / length
-            d_offset = 20.0 # Bán kính vạch đôi
-
-            in_dir = cfg.get("in_direction", "down")
-            dot = ny if in_dir == "down" else (-ny if in_dir == "up" else (nx if in_dir == "right" else -nx))
-
-            if dot >= 0:
-                outside_reg = 1
-                inside_reg = 3
-                l_out_A = (int(x1 - d_offset * nx), int(y1 - d_offset * ny))
-                l_out_B = (int(x2 - d_offset * nx), int(y2 - d_offset * ny))
-                l_in_A = (int(x1 + d_offset * nx), int(y1 + d_offset * ny))
-                l_in_B = (int(x2 + d_offset * nx), int(y2 + d_offset * ny))
-            else:
-                outside_reg = 3
-                inside_reg = 1
-                l_out_A = (int(x1 + d_offset * nx), int(y1 + d_offset * ny))
-                l_out_B = (int(x2 + d_offset * nx), int(y2 + d_offset * ny))
-                l_in_A = (int(x1 - d_offset * nx), int(y1 - d_offset * ny))
-                l_in_B = (int(x2 - d_offset * nx), int(y2 - d_offset * ny))
-
-            cv2.line(annotated_frame, l_out_A, l_out_B, (0, 165, 255), 2)
-            cv2.line(annotated_frame, l_in_A, l_in_B, (255, 100, 0), 2)
-
+            lines = cfg.get("lines", [cfg.get("line", [[100, 180], [540, 180]])])
             diff_in = 0
             diff_out = 0
             current_active_tids = set()
 
-            if detections.tracker_id is not None and len(detections.tracker_id) == len(detections):
-                for idx, tid in enumerate(detections.tracker_id):
-                    current_active_tids.add(tid)
-                    bbox = detections.xyxy[idx]
-                    curr_bc = ((bbox[0] + bbox[2]) / 2.0, bbox[3])
+            for line_idx, line_pts in enumerate(lines):
+                x1, y1 = line_pts[0]
+                x2, y2 = line_pts[1]
 
-                    if tid not in state.track_states:
-                        best_match_tid = None
-                        best_match_dist = float('inf')
-                        bbox_dim = max(bbox[2]-bbox[0], bbox[3]-bbox[1])
-                        for lost_tid, (lost_state_tuple, lost_pos, lost_frame) in list(state.lost_tracks.items()):
-                            if lost_tid != tid and state.frame_index - lost_frame < cooldown_thr:
-                                dist = math.dist(curr_bc, lost_pos)
-                                max_dist = min(150.0, 0.5 * bbox_dim + 3.5 * (state.frame_index - lost_frame))
-                                if dist < max_dist and dist < best_match_dist:
-                                    best_match_tid = lost_tid
-                                    best_match_dist = dist
-                        if best_match_tid is not None:
-                            lost_state_tuple, _, _ = state.lost_tracks[best_match_tid]
-                            if lost_state_tuple is not None:
-                                state.track_states[tid] = lost_state_tuple
-                            if best_match_tid in state.lost_tracks: del state.lost_tracks[best_match_tid]
-                            if best_match_tid in state.track_states: del state.track_states[best_match_tid]
+                dx = x2 - x1
+                dy = y2 - y1
+                length = math.sqrt(dx*dx + dy*dy)
+                if length == 0: length = 1.0
+                nx = -dy / length
+                ny = dx / length
+                d_offset = 20.0
 
-                    state.active_tracks[tid] = curr_bc
-                    if tid in state.lost_tracks: del state.lost_tracks[tid]
+                in_dir = cfg.get("in_direction", "down")
+                dot = ny if in_dir == "down" else (-ny if in_dir == "up" else (nx if in_dir == "right" else -nx))
 
-                    x_c, y_c = curr_bc
-                    v_val = (x_c - x1) * nx + (y_c - y1) * ny
-                    region = 1 if v_val < -d_offset else (3 if v_val > d_offset else 2)
+                if dot >= 0:
+                    outside_reg = 1
+                    inside_reg = 3
+                    l_out_A = (int(x1 - d_offset * nx), int(y1 - d_offset * ny))
+                    l_out_B = (int(x2 - d_offset * nx), int(y2 - d_offset * ny))
+                    l_in_A = (int(x1 + d_offset * nx), int(y1 + d_offset * ny))
+                    l_in_B = (int(x2 + d_offset * nx), int(y2 + d_offset * ny))
+                else:
+                    outside_reg = 3
+                    inside_reg = 1
+                    l_out_A = (int(x1 + d_offset * nx), int(y1 + d_offset * ny))
+                    l_out_B = (int(x2 + d_offset * nx), int(y2 + d_offset * ny))
+                    l_in_A = (int(x1 - d_offset * nx), int(y1 - d_offset * ny))
+                    l_in_B = (int(x2 - d_offset * nx), int(y2 - d_offset * ny))
 
-                    state_tuple = state.track_states.get(tid)
-                    track_state, last_cross = state_tuple if state_tuple is not None else (None, 0)
+                cv2.line(annotated_frame, l_out_A, l_out_B, (0, 165, 255), 2)
+                cv2.line(annotated_frame, l_in_A, l_in_B, (255, 100, 0), 2)
 
-                    if region == outside_reg:
-                        if track_state == 'from_inside':
-                            if state.frame_index - last_cross > cooldown_thr:
-                                diff_out += 1
-                                state.track_states[tid] = ('from_outside', state.frame_index)
-                        else:
-                            state.track_states[tid] = ('from_outside', last_cross)
-                    elif region == inside_reg:
-                        if track_state == 'from_outside':
-                            if state.frame_index - last_cross > cooldown_thr:
-                                diff_in += 1
-                                state.track_states[tid] = ('from_inside', state.frame_index)
-                        else:
-                            state.track_states[tid] = ('from_inside', last_cross)
+                if detections.tracker_id is not None and len(detections.tracker_id) == len(detections):
+                    for idx, tid in enumerate(detections.tracker_id):
+                        current_active_tids.add(tid)
+                        bbox = detections.xyxy[idx]
+                        curr_bc = ((bbox[0] + bbox[2]) / 2.0, bbox[3])
+                        
+                        track_key = f"{tid}_{line_idx}"
 
-            for tid in list(state.active_tracks.keys()):
-                if tid not in current_active_tids:
-                    last_pos = state.active_tracks[tid]
-                    state_tuple = state.track_states.get(tid)
+                        if track_key not in state.track_states:
+                            best_match_tid = None
+                            best_match_dist = float('inf')
+                            bbox_dim = max(bbox[2]-bbox[0], bbox[3]-bbox[1])
+                            
+                            for lost_tid, (lost_state_tuple, lost_pos, lost_frame) in list(state.lost_tracks.items()):
+                                lost_track_key = f"{lost_tid}_{line_idx}"
+                                if lost_tid != tid and state.frame_index - lost_frame < cooldown_thr:
+                                    dist = math.dist(curr_bc, lost_pos)
+                                    max_dist = min(150.0, 0.5 * bbox_dim + 3.5 * (state.frame_index - lost_frame))
+                                    if dist < max_dist and dist < best_match_dist:
+                                        best_match_tid = lost_tid
+                                        best_match_dist = dist
+                                        
+                            if best_match_tid is not None:
+                                lost_track_key = f"{best_match_tid}_{line_idx}"
+                                lost_state_tuple, _, _ = state.lost_tracks.get(lost_track_key, (None, None, 0))
+                                if lost_state_tuple is not None:
+                                    state.track_states[track_key] = lost_state_tuple
+                                state.lost_tracks.pop(lost_track_key, None)
+                                state.track_states.pop(lost_track_key, None)
+
+                        state.active_tracks[track_key] = curr_bc
+                        state.lost_tracks.pop(track_key, None)
+
+                        x_c, y_c = curr_bc
+                        v_val = (x_c - x1) * nx + (y_c - y1) * ny
+                        region = 1 if v_val < -d_offset else (3 if v_val > d_offset else 2)
+
+                        state_tuple = state.track_states.get(track_key)
+                        track_state, last_cross = state_tuple if state_tuple is not None else (None, 0)
+
+                        if region == outside_reg:
+                            if track_state == 'from_inside':
+                                if state.frame_index - last_cross > cooldown_thr:
+                                    diff_out += 1
+                                    state.track_states[track_key] = ('from_outside', state.frame_index)
+                            else:
+                                state.track_states[track_key] = ('from_outside', last_cross)
+                        elif region == inside_reg:
+                            if track_state == 'from_outside':
+                                if state.frame_index - last_cross > cooldown_thr:
+                                    diff_in += 1
+                                    state.track_states[track_key] = ('from_inside', state.frame_index)
+                            else:
+                                state.track_states[track_key] = ('from_inside', last_cross)
+
+            for tkey in list(state.active_tracks.keys()):
+                parts = tkey.split('_')
+                tid_val = int(parts[0])
+                if tid_val not in current_active_tids:
+                    last_pos = state.active_tracks[tkey]
+                    state_tuple = state.track_states.get(tkey)
                     if state_tuple is not None:
-                        state.lost_tracks[tid] = (state_tuple, last_pos, state.frame_index)
-                    del state.active_tracks[tid]
+                        state.lost_tracks[tkey] = (state_tuple, last_pos, state.frame_index)
+                    state.active_tracks.pop(tkey, None)
 
-            for tid in list(state.track_states.keys()):
-                if tid not in current_active_tids:
-                    if tid in state.lost_tracks:
-                        _, _, lost_frame = state.lost_tracks[tid]
+            for tkey in list(state.track_states.keys()):
+                parts = tkey.split('_')
+                tid_val = int(parts[0])
+                if tid_val not in current_active_tids:
+                    if tkey in state.lost_tracks:
+                        _, _, lost_frame = state.lost_tracks[tkey]
                         if state.frame_index - lost_frame > 150:
-                            del state.track_states[tid]
-                            del state.lost_tracks[tid]
+                            state.track_states.pop(tkey, None)
+                            state.lost_tracks.pop(tkey, None)
                     else:
-                        del state.track_states[tid]
+                        state.track_states.pop(tkey, None)
 
             if diff_in > 0 or diff_out > 0:
                 state.count_in += diff_in
                 state.count_out += diff_out
-                if alerts_enabled and alert_allowed_by_schedule:
+                if alerts_enabled and alert_allowed_by_schedule and not is_paused:
                     if diff_in > 0:
                         SystemStatus.add_log(f"📥 {camera_id}: Có {diff_in} người đi VÀO", "success")
-                        send_telegram_alert(f"📥 [{camera_id}] Có {diff_in} người vừa đi vào.", frame, "counter", camera_id)
+                        send_telegram_alert(f"📥 [{camera_id}] Có {diff_in} người vừa đi vào.", frame, "counter", camera_id, frame_buffer=list(state.frame_buffer))
                     if diff_out > 0:
                         SystemStatus.add_log(f"📤 {camera_id}: Có {diff_out} người đi RA", "info")
-                        send_telegram_alert(f"📤 [{camera_id}] Có {diff_out} người vừa đi ra.", frame, "counter", camera_id)
+                        send_telegram_alert(f"📤 [{camera_id}] Có {diff_out} người vừa đi ra.", frame, "counter", camera_id, frame_buffer=list(state.frame_buffer))
 
             labels = [f"#{tid}" for tid in (detections.tracker_id if detections.tracker_id is not None else [])]
             annotated_frame = box_annotator.annotate(scene=annotated_frame, detections=detections)
             annotated_frame = label_annotator.annotate(scene=annotated_frame, detections=detections, labels=labels)
             cv2.putText(annotated_frame, f"IN: {state.count_in} | OUT: {state.count_out}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-        # 2. Xử lý Cảnh Báo Xâm Nhập ROI
         if "intrusion_roi" in features and detections is not None:
-            roi_polygon = cfg.get("roi", [[100, 100], [540, 100], [540, 300], [100, 300]])
-            pts = np.array(roi_polygon, np.int32).reshape((-1, 1, 2))
-
+            rois = cfg.get("rois", [cfg.get("roi", [[100, 100], [540, 100], [540, 300], [100, 300]])])
             person_in_roi = False
-            for bbox in detections.xyxy:
-                x_1, y_1, x_2, y_2 = bbox
-                check_points = [
-                    (int((x_1 + x_2) / 2), int(y_2)),
-                    (int((x_1 + x_2) / 2), int((y_1 + y_2) / 2))
-                ]
-                for cp in check_points:
-                    if cv2.pointPolygonTest(pts, cp, False) >= 0:
-                        person_in_roi = True
-                        break
-                if person_in_roi: break
+            active_tids_in_roi = set()
+
+            for roi_poly in rois:
+                pts = np.array(roi_poly, np.int32).reshape((-1, 1, 2))
+                
+                is_this_roi_violated = False
+                if detections.tracker_id is not None and len(detections.tracker_id) == len(detections):
+                    for idx, tid in enumerate(detections.tracker_id):
+                        bbox = detections.xyxy[idx]
+                        check_points = [
+                            (int((bbox[0] + bbox[2]) / 2), int(bbox[3])),
+                            (int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2))
+                        ]
+                        for cp in check_points:
+                            if cv2.pointPolygonTest(pts, cp, False) >= 0:
+                                person_in_roi = True
+                                is_this_roi_violated = True
+                                active_tids_in_roi.add(tid)
+                                break
+                else:
+                    for bbox in detections.xyxy:
+                        check_points = [
+                            (int((bbox[0] + bbox[2]) / 2), int(bbox[3])),
+                            (int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2))
+                        ]
+                        for cp in check_points:
+                            if cv2.pointPolygonTest(pts, cp, False) >= 0:
+                                person_in_roi = True
+                                is_this_roi_violated = True
+                                break
+
+                color = (0, 0, 255) if is_this_roi_violated else (0, 255, 255)
+                cv2.polylines(annotated_frame, [pts], True, color, 2)
+
+            loitering_detected = False
+            current_time = time.time()
+            loitering_threshold = config.settings.get("loitering_threshold", 10)
+
+            for tid in active_tids_in_roi:
+                if tid not in state.intrusion_entry_times:
+                    state.intrusion_entry_times[tid] = current_time
+                else:
+                    elapsed = current_time - state.intrusion_entry_times[tid]
+                    if elapsed > loitering_threshold:
+                        loitering_detected = True
+                        cv2.putText(annotated_frame, f"LẢNG VẢNG ID #{tid}: {int(elapsed)}s", (10, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
+                        
+                        if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                            SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện lảng vảng ID #{tid} quá {loitering_threshold} giây!", "danger")
+                            send_telegram_alert(
+                                message=f"⚠️ [{camera_id}] Phát hiện người lảng vảng ID #{tid} ở lại vùng cấm {int(elapsed)} giây!",
+                                frame=frame,
+                                alert_type="intrusion",
+                                camera_id=camera_id,
+                                frame_buffer=list(state.frame_buffer)
+                            )
+
+            for tid in list(state.intrusion_entry_times.keys()):
+                if tid not in active_tids_in_roi:
+                    state.intrusion_entry_times.pop(tid, None)
 
             if person_in_roi:
-                cv2.polylines(annotated_frame, [pts], True, (0, 0, 255), 2)
-                cv2.putText(annotated_frame, "CANH BAO XAM NHAP!", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-                if alerts_enabled and alert_allowed_by_schedule:
-                    SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện xâm nhập vùng cấm!", "danger")
-                    send_telegram_alert(f"⚠️ [{camera_id}] Phát hiện người xâm nhập vùng cấm!", frame, "intrusion", camera_id)
+                SystemStatus.intrusion_active = True
+                if not loitering_detected:
+                    cv2.putText(annotated_frame, "CANH BAO XAM NHAP!", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                        SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện xâm nhập vùng cấm!", "danger")
+                        send_telegram_alert(
+                            message=f"⚠️ [{camera_id}] Phát hiện người xâm nhập vùng cấm!",
+                            frame=frame,
+                            alert_type="intrusion",
+                            camera_id=camera_id,
+                            frame_buffer=list(state.frame_buffer)
+                        )
             else:
-                cv2.polylines(annotated_frame, [pts], True, (0, 255, 255), 2)
+                SystemStatus.intrusion_active = False
 
-        # 3. Xử lý Nhận Diện Khuôn Mặt (Face ID)
         if run_face:
             img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             boxes, _ = mtcnn_multi.detect(img_pil)
@@ -962,6 +1040,9 @@ def gen_dynamic_stream(camera_id: str):
                 faces = mtcnn_multi(img_pil)
                 if faces is not None:
                     embeddings = resnet(faces.to(device)).detach().cpu().numpy()
+                    face_log_cooldown = config.settings.get("face_log_cooldown", 30)
+                    current_time = time.time()
+                    
                     for box, emb in zip(boxes, embeddings):
                         x_1, y_1, x_2, y_2 = [int(b) for b in box]
                         best_match_name = "Unknown"
@@ -979,12 +1060,33 @@ def gen_dynamic_stream(camera_id: str):
                         text = f"{best_match_name} ({best_distance:.2f})" if best_match_name != "Unknown" else "Unknown"
                         cv2.putText(annotated_frame, text, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
-                        if best_match_name == "Unknown":
-                            if alerts_enabled and alert_allowed_by_schedule:
-                                SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện khuôn mặt lạ!", "danger")
-                                send_telegram_alert(f"⚠️ [{camera_id}] Phát hiện khuôn mặt lạ xuất hiện!", frame, "face", camera_id)
+                        last_log_time = state.last_face_log_times.get(best_match_name, 0)
+                        if current_time - last_log_time > face_log_cooldown:
+                            state.last_face_log_times[best_match_name] = current_time
+                            
+                            if best_match_name == "Unknown":
+                                if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                                    SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện khuôn mặt lạ!", "danger")
+                                    send_telegram_alert(
+                                        message=f"⚠️ [{camera_id}] Phát hiện khuôn mặt lạ xuất hiện!",
+                                        frame=frame,
+                                        alert_type="face",
+                                        camera_id=camera_id,
+                                        frame_buffer=list(state.frame_buffer),
+                                        face_name="Unknown"
+                                    )
+                            else:
+                                if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                                    SystemStatus.add_log(f"👤 {camera_id}: Nhận diện thành công khuôn mặt: {best_match_name}", "info")
+                                    send_telegram_alert(
+                                        message=f"👤 [{camera_id}] Nhận diện thành công khuôn mặt: {best_match_name}",
+                                        frame=frame,
+                                        alert_type="face",
+                                        camera_id=camera_id,
+                                        frame_buffer=list(state.frame_buffer),
+                                        face_name=best_match_name
+                                    )
 
-        # 4. Xử lý Phát Hiện Ngã
         if run_fall:
             fall_in_frame = False
             if yolov8_fall_model is not None:
@@ -1006,7 +1108,6 @@ def gen_dynamic_stream(camera_id: str):
                             cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
                             cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
             else:
-                # Pose estimation fallback
                 results = yolov8_pose_model(frame, verbose=False, device=device)
                 if len(results) > 0 and results[0].keypoints is not None:
                     keypoints_data = results[0].keypoints.data.cpu().numpy()
@@ -1051,10 +1152,17 @@ def gen_dynamic_stream(camera_id: str):
             if fall_in_frame:
                 state.fall_counter += 1
                 if state.fall_counter >= 12:
+                    SystemStatus.fall_active = True
                     cv2.putText(annotated_frame, "PHÁT HIỆN NGÃ!", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-                    if alerts_enabled and alert_allowed_by_schedule:
+                    if alerts_enabled and alert_allowed_by_schedule and not is_paused:
                         SystemStatus.add_log(f"🚨 {camera_id}: Phát hiện người bị ngã!", "danger")
-                        send_telegram_alert(f"🚨 [{camera_id}] Phát hiện có người bị ngã!", frame, "fall", camera_id)
+                        send_telegram_alert(
+                            message=f"🚨 [{camera_id}] Phát hiện có người bị ngã!",
+                            frame=frame,
+                            alert_type="fall",
+                            camera_id=camera_id,
+                            frame_buffer=list(state.frame_buffer)
+                        )
             else:
                 state.fall_counter = max(0, state.fall_counter - 1)
 

@@ -8,7 +8,7 @@
     <!-- Danh sách tài khoản -->
     <div class="glass-card">
         <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
-            <i class="fa-solid fa-user-shield"></i> Danh Sách Tài Khoản Quản Trị
+            <i class="fa-solid fa-user-shield"></i> Danh Sách Tài Khoản Hệ Thống
         </h3>
         <div class="faces-table-container">
             <table class="faces-table">
@@ -16,12 +16,13 @@
                     <tr>
                         <th>ID</th>
                         <th>Tên Tài Khoản</th>
-                        <th style="text-align: right;">Thao Tác</th>
+                        <th>Vai Trò</th>
+                        <th class="admin-only-cell" style="text-align: right;">Thao Tác</th>
                     </tr>
                 </thead>
                 <tbody id="users-list-tbody">
                     <tr>
-                        <td colspan="3" style="text-align: center; color: var(--text-muted);">Đang tải danh sách tài khoản...</td>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted);">Đang tải danh sách tài khoản...</td>
                     </tr>
                 </tbody>
             </table>
@@ -29,7 +30,7 @@
     </div>
 
     <!-- Tạo tài khoản mới -->
-    <div class="glass-card">
+    <div class="glass-card admin-only-block" id="create-user-card">
         <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
             <i class="fa-solid fa-user-plus"></i> Tạo Tài Khoản Mới
         </h3>
@@ -41,8 +42,15 @@
             <label class="form-label">Mật khẩu (Password)</label>
             <input type="password" id="new-user-password" class="form-input" placeholder="Nhập mật khẩu...">
         </div>
+        <div class="form-group">
+            <label class="form-label">Vai Trò (Role)</label>
+            <select id="new-user-role" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="operator">Operator (Chỉ xem live & sơ đồ)</option>
+                <option value="admin">Administrator (Toàn quyền hệ thống)</option>
+            </select>
+        </div>
         <div style="margin-top: 20px;">
-            <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="createNewUser()">
+            <button id="btn-create-user" class="btn btn-success" style="width: 100%; justify-content: center;" onclick="createNewUser()">
                 <i class="fa-solid fa-user-check"></i> Tạo Tài Khoản
             </button>
         </div>
@@ -54,59 +62,94 @@
 <script>
     window.addEventListener('DOMContentLoaded', () => {
         loadUsers();
+        applyRBACRules();
     });
+
+    // Ẩn/hiển thị UI tương ứng với vai trò của người đăng nhập
+    function applyRBACRules() {
+        if (userRole === 'operator') {
+            // Ẩn block tạo tài khoản mới
+            const createCard = document.getElementById('create-user-card');
+            if (createCard) {
+                createCard.style.display = 'none';
+            }
+            
+            // Ẩn cột Thao Tác trong tiêu đề bảng
+            const headerCells = document.querySelectorAll('.admin-only-cell');
+            headerCells.forEach(cell => cell.style.display = 'none');
+        }
+    }
 
     async function loadUsers() {
         const tbody = document.getElementById('users-list-tbody');
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Đang tải danh sách tài khoản...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Đang tải danh sách tài khoản...</td></tr>';
         try {
             const response = await fetch('/api/users');
             const users = await response.json();
             tbody.innerHTML = '';
             
             if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Không có tài khoản nào.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Không có tài khoản nào.</td></tr>';
                 return;
             }
 
             users.forEach(u => {
                 const tr = document.createElement('tr');
+                const roleLabel = u.role === 'admin' ? 
+                    `<span class="badge" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 11px;">Administrator</span>` : 
+                    `<span class="badge" style="background: rgba(156, 163, 175, 0.1); border: 1px solid var(--text-muted); color: var(--text-muted); padding: 2px 6px; border-radius: 4px; font-size: 11px;">Operator</span>`;
+                
+                let actionsHtml = '';
+                if (userRole === 'admin') {
+                    actionsHtml = `
+                        <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="promptChangePassword(${u.id}, '${u.username}')">
+                                <i class="fa-solid fa-key"></i> Đổi Pass
+                            </button>
+                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteUser(${u.id}, '${u.username}')">
+                                <i class="fa-solid fa-trash"></i> Xóa
+                            </button>
+                        </td>
+                    `;
+                } else {
+                    actionsHtml = ''; // Ẩn hoàn toàn cột thao tác đối với operator
+                }
+                
                 tr.innerHTML = `
                     <td>${u.id}</td>
                     <td><strong>${u.username}</strong></td>
-                    <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
-                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="promptChangePassword(${u.id}, '${u.username}')">
-                            <i class="fa-solid fa-key"></i> Đổi Pass
-                        </button>
-                        <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteUser(${u.id}, '${u.username}')">
-                            <i class="fa-solid fa-trash"></i> Xóa
-                        </button>
-                    </td>
+                    <td>${roleLabel}</td>
+                    ${actionsHtml}
                 `;
                 tbody.appendChild(tr);
             });
         } catch (err) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--danger);">Lỗi tải danh sách người dùng.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger);">Lỗi tải danh sách người dùng.</td></tr>';
         }
     }
 
     async function createNewUser() {
+        if (userRole === 'operator') return alert("Bạn không có quyền thực hiện!");
+        
         const userEl = document.getElementById('new-user-username');
         const passEl = document.getElementById('new-user-password');
+        const roleEl = document.getElementById('new-user-role');
         const username = userEl.value.trim();
         const password = passEl.value;
+        const role = roleEl.value;
 
         if (!username || !password) return alert("Vui lòng điền đủ tên tài khoản và mật khẩu!");
 
         const form = new FormData();
         form.append('username', username);
         form.append('password', password);
+        form.append('role', role);
 
         try {
             const response = await fetch('/api/users', { method: 'POST', body: form });
             const res = await response.json();
             if (response.ok) {
-                alert("Tạo tài khoản quản trị thành công!");
+                alert("Tạo tài khoản thành công!");
                 userEl.value = '';
                 passEl.value = '';
                 loadUsers();
@@ -119,6 +162,8 @@
     }
 
     async function promptChangePassword(userId, username) {
+        if (userRole === 'operator') return alert("Bạn không có quyền thực hiện!");
+        
         const newPassword = prompt(`Nhập mật khẩu mới cho tài khoản '${username}':`);
         if (newPassword === null) return;
         if (newPassword.trim() === "") return alert("Mật khẩu không được bỏ trống!");
@@ -141,7 +186,8 @@
     }
 
     async function deleteUser(userId, username) {
-        if (!confirm(`Bạn có chắc chắn muốn xóa tài khoản quản trị '${username}'?`)) return;
+        if (userRole === 'operator') return alert("Bạn không có quyền thực hiện!");
+        if (!confirm(`Bạn có chắc chắn muốn xóa tài khoản '${username}'?`)) return;
         try {
             const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
             const res = await response.json();

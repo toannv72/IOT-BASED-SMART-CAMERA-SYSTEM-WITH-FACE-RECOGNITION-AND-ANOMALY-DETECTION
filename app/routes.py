@@ -20,6 +20,13 @@ from app.config import SystemStatus
 from app.database import SessionLocal, User, FaceRecord, SystemEventLog
 from app.processors import camera_fps, gen_face_stream, gen_roi_stream, gen_counter_stream, gen_fall_stream
 
+# Helper kiểm tra phân quyền quản trị (RBAC)
+def check_admin(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    if request.session.get("role") == "operator":
+        raise HTTPException(status_code=403, detail="Tài khoản Operator không có quyền thực hiện thao tác này!")
+
 # =========================================================================
 # MẬT KHẨU MÃ HÓA BẰNG PBKDF2 HASH (Không phụ thuộc thư viện ngoài bcrypt)
 # =========================================================================
@@ -68,10 +75,11 @@ def post_login(request: Request, username: str = Form(...), password: str = Form
     if not user or not verify_password(password, user.password_hash):
         return templates.TemplateResponse(request, "login.html", {"error": "Sai tài khoản hoặc mật khẩu!", "success": ""})
         
-    # Tạo phiên đăng nhập (Lưu ID vào session cookie đã được mã hóa ký tên)
+    # Tạo phiên đăng nhập (Lưu ID và vai trò vào session cookie đã được mã hóa ký tên)
     request.session["user_id"] = user.id
     request.session["username"] = user.username
-    print(f"[AUTH] Người dùng '{username}' đăng nhập thành công.")
+    request.session["role"] = user.role or "admin"
+    print(f"[AUTH] Người dùng '{username}' đăng nhập thành công với vai trò '{user.role or 'admin'}'.")
     return RedirectResponse(url="/", status_code=303)
 
 @app.get("/register", response_class=HTMLResponse)
@@ -89,8 +97,8 @@ def post_register(request: Request, username: str = Form(...), password: str = F
         db.close()
         return templates.TemplateResponse(request, "register.html", {"error": "Tài khoản này đã tồn tại trên hệ thống!", "success": ""})
         
-    # Đăng ký tài khoản mới và băm mật khẩu
-    new_user = User(username=username, password_hash=hash_password(password))
+    # Đăng ký tài khoản mới và băm mật khẩu, mặc định là admin nếu là tài khoản đăng ký công khai
+    new_user = User(username=username, password_hash=hash_password(password), role="admin")
     try:
         db.add(new_user)
         db.commit()
@@ -143,6 +151,24 @@ def get_users_page(request: Request):
         return RedirectResponse(url="/login")
     return templates.TemplateResponse(request, "users.html", {"active_page": "users"})
 
+@app.get("/regulations", response_class=HTMLResponse)
+def get_regulations_page(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "regulations.html", {"active_page": "regulations"})
+
+@app.get("/emap", response_class=HTMLResponse)
+def get_emap_page(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "emap.html", {"active_page": "emap"})
+
+@app.get("/analytics", response_class=HTMLResponse)
+def get_analytics_page(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "analytics.html", {"active_page": "analytics"})
+
 @app.get("/gpu_info")
 def get_gpu_info(request: Request):
     if not request.session.get("user_id"):
@@ -179,22 +205,116 @@ async def update_settings_route(request: Request):
     if not request.session.get("user_id"):
         raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
         
+    check_admin(request)
     payload = await request.json()
     for k, v in payload.items():
         if k in config.DEFAULT_SETTINGS:
             # Chuyển đổi kiểu dữ liệu phù hợp
             if k == "conf_threshold":
                 config.settings[k] = float(v)
-            elif k in ["counter_cooldown", "telegram_cooldown"]:
+            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown"]:
                 config.settings[k] = int(v)
-            elif k == "alerts_enabled":
+            elif k in ["alerts_enabled", "tts_enabled", "auto_cleanup_enabled"]:
                 config.settings[k] = bool(v)
+            elif k == "cleanup_max_size_gb":
+                config.settings[k] = float(v)
             else:
                 config.settings[k] = v
                 
     config.save_settings()
     SystemStatus.add_log("Cấu hình hệ thống đã được cập nhật trực tiếp.", "success")
     return {"message": "Đã cập nhật cài đặt!"}
+
+# API Quy định an ninh hệ thống
+@app.get("/api/regulations")
+def get_regulations_api(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401)
+    file_path = "quy_dinh.txt"
+    content = ""
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            content = f"Lỗi đọc file quy định: {e}"
+    else:
+        content = "Không tìm thấy nội dung quy định. Hãy soạn thảo nội quy mới."
+    return {"content": content}
+
+@app.post("/api/regulations")
+async def update_regulations_api(request: Request):
+    check_admin(request)
+    payload = await request.json()
+    content = payload.get("content", "")
+    file_path = "quy_dinh.txt"
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        SystemStatus.add_log("Quy định hệ thống đã được cập nhật bởi quản trị viên.", "info")
+        return {"message": "Đã cập nhật quy định thành công!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Không thể ghi file quy định: {e}")
+
+# API Tải ảnh mặt bằng E-map tùy chỉnh
+@app.post("/api/emap/upload")
+async def upload_emap_background(request: Request, file: UploadFile = File(...)):
+    check_admin(request)
+    try:
+        file_bytes = await file.read()
+        os.makedirs("static", exist_ok=True)
+        custom_path = os.path.join("static", "emap_custom.png")
+        with open(custom_path, "wb") as f:
+            f.write(file_bytes)
+        SystemStatus.add_log("Đã tải lên ảnh mặt bằng E-map tùy chỉnh mới.", "success")
+        return {"message": "Tải ảnh mặt bằng thành công!", "path": "/static/emap_custom.png"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi lưu ảnh mặt bằng: {e}")
+
+# API Dữ liệu phân tích thống kê (Analytics API)
+@app.get("/api/analytics")
+def get_analytics_api(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401)
+    db = SessionLocal()
+    try:
+        from sqlalchemy import func
+        from app.database import SystemEventLog
+        
+        # 1. Thống kê tổng số lượng theo loại cảnh báo
+        counts_by_type = db.query(SystemEventLog.event_type, func.count(SystemEventLog.id)).group_by(SystemEventLog.event_type).all()
+        type_summary = {t[0]: t[1] for t in counts_by_type}
+        
+        # 2. Thống kê số lượng cảnh báo theo ngày (7 ngày gần nhất)
+        daily_counts = db.query(
+            func.substr(SystemEventLog.timestamp, 1, 10).label("day"),
+            SystemEventLog.event_type,
+            func.count(SystemEventLog.id)
+        ).filter(SystemEventLog.timestamp != None).group_by("day", SystemEventLog.event_type).order_by("day").all()
+        
+        daily_data = {}
+        for row in daily_counts:
+            day = row[0]
+            etype = row[1]
+            count = row[2]
+            if day not in daily_data:
+                daily_data[day] = {"intrusion": 0, "fall": 0, "face": 0, "counter": 0}
+            daily_data[day][etype] = count
+            
+        # 3. Thống kê số lượng cảnh báo theo từng Camera
+        camera_counts = db.query(SystemEventLog.camera_id, func.count(SystemEventLog.id)).group_by(SystemEventLog.camera_id).all()
+        camera_summary = {c[0]: c[1] for c in camera_counts}
+        
+        return {
+            "type_summary": type_summary,
+            "daily_data": daily_data,
+            "camera_summary": camera_summary
+        }
+    except Exception as e:
+        print(f"[ANALYTICS] Lỗi tính toán thống kê: {e}")
+        return {"error": str(e)}
+    finally:
+        db.close()
 
 # =========================================================================
 # LUỒNG LIVE STREAM VIDEO FEED (PROTECTED FEED ROUTES)
@@ -242,8 +362,7 @@ def video_feed_fall(request: Request):
 # =========================================================================
 @app.post("/register_face")
 async def register_face(request: Request, name: str = Form(...), file: UploadFile = File(...)):
-    if not request.session.get("user_id"):
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
         
     image_bytes = await file.read()
     
@@ -292,8 +411,7 @@ def get_all_faces(request: Request):
 
 @app.put("/faces/{face_id}")
 async def update_face_name(face_id: int, request: Request):
-    if not request.session.get("user_id"):
-        raise HTTPException(status_code=401)
+    check_admin(request)
     
     payload = await request.json()
     new_name = payload.get("name")
@@ -320,8 +438,7 @@ async def update_face_name(face_id: int, request: Request):
 
 @app.delete("/faces/{face_id}")
 def delete_face(face_id: int, request: Request):
-    if not request.session.get("user_id"):
-        raise HTTPException(status_code=401)
+    check_admin(request)
     db = SessionLocal()
     face = db.query(FaceRecord).filter(FaceRecord.id == face_id).first()
     if not face:
@@ -442,24 +559,23 @@ def get_users(request: Request):
     db = SessionLocal()
     users = db.query(User).all()
     db.close()
-    return [{"id": u.id, "username": u.username} for u in users]
+    return [{"id": u.id, "username": u.username, "role": u.role or "admin"} for u in users]
 
 @app.post("/api/users")
-def create_user(request: Request, username: str = Form(...), password: str = Form(...)):
-    if not request.session.get("user_id"):
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+def create_user(request: Request, username: str = Form(...), password: str = Form(...), role: str = Form("operator")):
+    check_admin(request)
     db = SessionLocal()
     existing = db.query(User).filter(User.username == username).first()
     if existing:
         db.close()
         raise HTTPException(status_code=400, detail="Tài khoản này đã tồn tại!")
-    new_user = User(username=username, password_hash=hash_password(password))
+    new_user = User(username=username, password_hash=hash_password(password), role=role)
     try:
         db.add(new_user)
         db.commit()
         db.close()
-        SystemStatus.add_log(f"Đã tạo tài khoản quản trị mới: {username}", "success")
-        return {"message": "Đã tạo tài khoản quản trị thành công!"}
+        SystemStatus.add_log(f"Đã tạo tài khoản {role} mới: {username}", "success")
+        return {"message": f"Đã tạo tài khoản {role} thành công!"}
     except Exception as e:
         db.rollback()
         db.close()
@@ -467,23 +583,26 @@ def create_user(request: Request, username: str = Form(...), password: str = For
 
 @app.put("/api/users/{user_id}")
 async def update_user(user_id: int, request: Request):
-    if not request.session.get("user_id"):
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
     payload = await request.json()
     password = payload.get("password")
-    if not password:
-        raise HTTPException(status_code=400, detail="Mật khẩu không được để trống!")
+    role = payload.get("role")
+    if not password and not role:
+        raise HTTPException(status_code=400, detail="Thiếu thông tin cập nhật!")
     db = SessionLocal()
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         db.close()
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng này!")
-    user.password_hash = hash_password(password)
+    if password:
+        user.password_hash = hash_password(password)
+    if role:
+        user.role = role
     try:
         db.commit()
         db.close()
-        SystemStatus.add_log(f"Đã đổi mật khẩu thành công cho user ID: {user_id}", "info")
-        return {"message": "Đã đổi mật khẩu thành công!"}
+        SystemStatus.add_log(f"Đã cập nhật thông tin user ID: {user_id}", "info")
+        return {"message": "Đã cập nhật thành công!"}
     except Exception as e:
         db.rollback()
         db.close()
@@ -491,9 +610,8 @@ async def update_user(user_id: int, request: Request):
 
 @app.delete("/api/users/{user_id}")
 def delete_user(user_id: int, request: Request):
+    check_admin(request)
     current_user_id = request.session.get("user_id")
-    if not current_user_id:
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
     if current_user_id == user_id:
         raise HTTPException(status_code=400, detail="Bạn không thể tự xóa tài khoản của chính mình!")
     db = SessionLocal()
@@ -524,8 +642,7 @@ def get_cameras(request: Request):
 
 @app.post("/api/cameras")
 async def add_camera(request: Request):
-    if not request.session.get("user_id"):
-        raise HTTPException(status_code=401)
+    check_admin(request)
     new_cam = await request.json()
     camera_id = new_cam.get("camera_id")
     if not camera_id:
@@ -552,8 +669,7 @@ async def add_camera(request: Request):
 
 @app.put("/api/cameras/{camera_id}")
 async def update_camera(camera_id: str, request: Request):
-    if not request.session.get("user_id"):
-        raise HTTPException(status_code=401)
+    check_admin(request)
     updated_cam = await request.json()
     cameras = config.get_cameras_config()
     found_idx = -1
@@ -572,8 +688,7 @@ async def update_camera(camera_id: str, request: Request):
 
 @app.delete("/api/cameras/{camera_id}")
 def delete_camera(camera_id: str, request: Request):
-    if not request.session.get("user_id"):
-        raise HTTPException(status_code=401)
+    check_admin(request)
     cameras = config.get_cameras_config()
     filtered_cameras = [c for c in cameras if c["camera_id"] != camera_id]
     if len(filtered_cameras) == len(cameras):
