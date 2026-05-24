@@ -23,6 +23,8 @@ class FaceRecord(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True, nullable=False)
     embedding = Column(Text, nullable=False)
+    created_at = Column(String, nullable=True)  # Ngày đăng ký
+    created_by = Column(String, nullable=True)  # Người thực hiện đăng ký
 
 # 3. Bảng lưu nhật ký sự kiện hệ thống (Xâm nhập, ngã, người lạ, số đếm)
 class SystemEventLog(Base):
@@ -36,3 +38,19 @@ class SystemEventLog(Base):
 
 # Tạo toàn bộ các bảng trong SQLite nếu chưa tồn tại
 Base.metadata.create_all(bind=engine)
+
+# Tiến hành di cư schema (migrations) an toàn cho SQLite đối với các cột mới
+from sqlalchemy import text
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE faces ADD COLUMN created_at VARCHAR(50)"))
+        conn.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE faces ADD COLUMN created_by VARCHAR(100)"))
+        conn.commit()
+except Exception:
+    pass

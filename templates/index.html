@@ -76,6 +76,7 @@
             font-weight: 700;
             background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -607,12 +608,14 @@
                                     <tr>
                                         <th>ID</th>
                                         <th>Họ Và Tên</th>
+                                        <th>Thời Gian Đăng Ký</th>
+                                        <th>Người Đăng Ký</th>
                                         <th style="text-align: right;">Thao Tác</th>
                                     </tr>
                                 </thead>
                                 <tbody id="faces-list-tbody">
                                     <tr>
-                                        <td colspan="3" style="text-align: center; color: var(--text-muted);">Đang tải dữ liệu...</td>
+                                        <td colspan="5" style="text-align: center; color: var(--text-muted);">Đang tải dữ liệu...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1582,12 +1585,12 @@
 
         async function loadFaces() {
             const tbody = document.getElementById('faces-list-tbody');
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Đang tải dữ liệu...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Đang tải dữ liệu...</td></tr>';
             try {
                 const response = await fetch('/faces');
                 const faces = await response.json();
                 if (faces.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Cơ sở dữ liệu trống.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Cơ sở dữ liệu trống.</td></tr>';
                     return;
                 }
                 tbody.innerHTML = '';
@@ -1596,8 +1599,13 @@
                     tr.innerHTML = `
                         <td>${face.id}</td>
                         <td><strong>${face.name}</strong></td>
-                        <td style="text-align: right;">
-                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="deleteFace(${face.id})">
+                        <td><span style="font-size: 12px; color: var(--text-muted);">${face.created_at}</span></td>
+                        <td><span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">${face.created_by}</span></td>
+                        <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="promptEditFaceName(${face.id}, '${face.name}')">
+                                <i class="fa-solid fa-pen-to-square"></i> Sửa Tên
+                            </button>
+                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteFace(${face.id})">
                                 <i class="fa-solid fa-trash"></i> Xóa
                             </button>
                         </td>
@@ -1605,7 +1613,30 @@
                     tbody.appendChild(tr);
                 });
             } catch (err) {
-                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--danger);">Không thể kết nối với API Server.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--danger);">Không thể kết nối với API Server.</td></tr>';
+            }
+        }
+
+        async function promptEditFaceName(id, currentName) {
+            const newName = prompt(`Đổi tên đăng ký cho khuôn mặt '${currentName}' thành:`, currentName);
+            if (newName === null) return;
+            if (newName.trim() === "") return alert("Tên không được bỏ trống!");
+
+            try {
+                const response = await fetch(`/faces/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName })
+                });
+                const res = await response.json();
+                if (response.ok) {
+                    addLog(`Đã đổi tên khuôn mặt ID: ${id} thành: ${newName}`, 'success');
+                    loadFaces();
+                } else {
+                    alert("Lỗi: " + res.detail);
+                }
+            } catch (e) {
+                alert("Lỗi mạng khi đổi tên!");
             }
         }
 

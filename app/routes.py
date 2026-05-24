@@ -397,13 +397,16 @@ async def register_face(request: Request, name: str = Form(...), file: UploadFil
     emb_json = json.dumps(emb_list)
     
     db = SessionLocal()
-    new_face = FaceRecord(name=name, embedding=emb_json)
+    from datetime import datetime
+    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    created_by = request.session.get("username", "System")
+    new_face = FaceRecord(name=name, embedding=emb_json, created_at=created_at, created_by=created_by)
     db.add(new_face)
     db.commit()
     db.refresh(new_face)
     db.close()
     
-    SystemStatus.add_log(f"Đăng ký khuôn mặt thành công: {name}", "success")
+    SystemStatus.add_log(f"Đăng ký khuôn mặt thành công: {name} (Bởi: {created_by})", "success")
     return {"message": "Đăng ký thành công!", "id": new_face.id, "name": new_face.name}
 
 @app.get("/faces")
@@ -413,7 +416,42 @@ def get_all_faces(request: Request):
     db = SessionLocal()
     faces = db.query(FaceRecord).all()
     db.close()
-    return [{"id": f.id, "name": f.name} for f in faces]
+    return [
+        {
+            "id": f.id, 
+            "name": f.name,
+            "created_at": f.created_at or "Không rõ",
+            "created_by": f.created_by or "Không rõ"
+        } for f in faces
+    ]
+
+@app.put("/faces/{face_id}")
+async def update_face_name(face_id: int, request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401)
+    
+    payload = await request.json()
+    new_name = payload.get("name")
+    if not new_name or new_name.strip() == "":
+        raise HTTPException(status_code=400, detail="Tên không được để trống!")
+        
+    db = SessionLocal()
+    face = db.query(FaceRecord).filter(FaceRecord.id == face_id).first()
+    if not face:
+        db.close()
+        raise HTTPException(status_code=404, detail="Không tìm thấy khuôn mặt này.")
+        
+    old_name = face.name
+    face.name = new_name.strip()
+    try:
+        db.commit()
+        db.close()
+        SystemStatus.add_log(f"Đã đổi tên khuôn mặt từ '{old_name}' thành '{new_name}'", "info")
+        return {"message": "Đã đổi tên thành công!"}
+    except Exception as e:
+        db.rollback()
+        db.close()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/faces/{face_id}")
 def delete_face(face_id: int, request: Request):
