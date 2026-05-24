@@ -6,7 +6,7 @@
 # LỆNH HỢP NHẤT CHẠY WEB DASHBOARD (Khuyên dùng - Gom tất cả tính năng vào 1 lệnh)
 # =========================================================================
 # Lệnh này sẽ tự động khởi động server và mở giao diện Web giám sát tại http://localhost:8000
-python web_app.py
+python main.py
 
 # =========================================================================
 # CÁC LỆNH CHẠY PHÂN HỆ ĐƠN LẺ (Chạy bằng cửa sổ OpenCV cũ)

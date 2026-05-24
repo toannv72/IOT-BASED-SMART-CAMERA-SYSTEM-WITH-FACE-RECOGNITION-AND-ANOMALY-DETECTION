@@ -2,6 +2,10 @@
     {
         "camera_id": "Cam_Cua_Chinh",
         "source": "video.mp4",
+        "features": [
+            "people_counter",
+            "face_id"
+        ],
         "line": [
             [
                 154,
@@ -12,11 +16,35 @@
                 214
             ]
         ],
-        "in_direction": "down"
+        "in_direction": "down",
+        "roi": [
+            [
+                100,
+                100
+            ],
+            [
+                540,
+                100
+            ],
+            [
+                540,
+                300
+            ],
+            [
+                100,
+                300
+            ]
+        ],
+        "schedule_enabled": false,
+        "schedule_start": "23:00",
+        "schedule_end": "06:00"
     },
     {
         "camera_id": "Cam_Cua_Sau",
         "source": "video1.mp4",
+        "features": [
+            "intrusion_roi"
+        ],
         "line": [
             [
                 166,
@@ -27,6 +55,105 @@
                 265
             ]
         ],
-        "in_direction": "up"
+        "in_direction": "up",
+        "roi": [
+            [
+                150,
+                150
+            ],
+            [
+                550,
+                150
+            ],
+            [
+                580,
+                350
+            ],
+            [
+                120,
+                350
+            ]
+        ],
+        "schedule_enabled": false,
+        "schedule_start": "23:00",
+        "schedule_end": "06:00"
+    },
+    {
+        "camera_id": "Cam_Hanh_Lang",
+        "source": "video.mp4",
+        "features": [
+            "fall_detection"
+        ],
+        "line": [
+            [
+                100,
+                180
+            ],
+            [
+                540,
+                180
+            ]
+        ],
+        "in_direction": "down",
+        "roi": [
+            [
+                100,
+                100
+            ],
+            [
+                540,
+                100
+            ],
+            [
+                540,
+                300
+            ],
+            [
+                100,
+                300
+            ]
+        ],
+        "schedule_enabled": false,
+        "schedule_start": "23:00",
+        "schedule_end": "06:00"
+    },
+    {
+        "camera_id": "quét khuôn mặt",
+        "source": "0",
+        "features": [
+            "face_id"
+        ],
+        "line": [
+            [
+                100,
+                180
+            ],
+            [
+                540,
+                180
+            ]
+        ],
+        "roi": [
+            [
+                100,
+                100
+            ],
+            [
+                540,
+                100
+            ],
+            [
+                540,
+                300
+            ],
+            [
+                100,
+                300
+            ]
+        ],
+        "schedule_enabled": false,
+        "schedule_start": "23:00",
+        "schedule_end": "06:00",
+        "in_direction": "down"
     }
 ]

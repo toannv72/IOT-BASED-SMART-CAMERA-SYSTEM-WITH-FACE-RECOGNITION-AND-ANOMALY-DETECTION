@@ -48,7 +48,7 @@ goto menu
 
 :run_web
 echo Dang khoi chay Unified Web Dashboard...
-python web_app.py
+python main.py
 pause
 goto menu
 

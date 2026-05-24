@@ -1,0 +1,10 @@
+{
+    "telegram_token": "8788292129:AAG-BKlK_c9YbdArYQ4QoqyKZBD-29esw50",
+    "telegram_chats": [
+        "8438973190"
+    ],
+    "conf_threshold": 0.25,
+    "counter_cooldown": 45,
+    "telegram_cooldown": 15,
+    "alerts_enabled": true
+}

@@ -50,6 +50,12 @@
 - [x] Đồng bộ bộ đếm cải tiến trong `multi_cam_counter.py`
 - [x] Chạy thử nghiệm và xác nhận kết quả
 
-
-
-
+## 10. Tái cấu trúc Modular, Đăng ký/Đăng nhập người dùng & Giám sát sức khỏe phần cứng
+- [x] Thiết kế cấu trúc thư mục modular chuyên nghiệp dưới gói `app/`
+- [x] Triển khai custom `HMACSessionMiddleware` thay thế `SessionMiddleware` của Starlette tránh phụ thuộc thư viện ngoài `itsdangerous`
+- [x] Tạo màn hình Đăng ký/Đăng nhập dạng Glassmorphism bảo mật các luồng video và API settings
+- [x] Tạo widget giám sát sức khỏe CPU, RAM, GPU, VRAM và FPS thực tế của từng camera giám sát
+- [x] SQLite-based historical alert event log lưu lịch sử cảnh báo cùng đường dẫn ảnh sự kiện chụp được
+- [x] Cấu hình động thông số AI trực tiếp trên giao diện Dashboard không cần restart
+- [x] Loại bỏ file monolithic `web_app.py` và cập nhật các tệp tin batch khởi chạy `chay_he_thong.bat` và hướng dẫn vận hành
+- [x] Chạy thử nghiệm và xác nhận toàn bộ hệ thống hoạt động chính xác

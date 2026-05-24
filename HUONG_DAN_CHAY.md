@@ -24,7 +24,7 @@ Thay vì chạy từng phân hệ bằng các lệnh riêng lẻ và hiển th�
 
 * **Lệnh chạy:**
   ```bash
-  python web_app.py
+  python main.py
   ```
 * **Cách hoạt động:**
   1. Server uvicorn sẽ khởi chạy tại địa chỉ: `http://localhost:8000`.

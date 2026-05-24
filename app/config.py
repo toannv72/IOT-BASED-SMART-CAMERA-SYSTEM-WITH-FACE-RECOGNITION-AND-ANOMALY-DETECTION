@@ -1,0 +1,131 @@
+import os
+import json
+
+SETTINGS_FILE = "settings.json"
+CONFIG_FILE = "cameras_config.json"
+
+# Cài đặt mặc định của hệ thống
+DEFAULT_SETTINGS = {
+    "telegram_token": "8788292129:AAG-BKlK_c9YbdArYQ4QoqyKZBD-29esw50",
+    "telegram_chats": ["8438973190"],
+    "conf_threshold": 0.25,
+    "counter_cooldown": 45,
+    "telegram_cooldown": 15,
+    "alerts_enabled": True
+}
+
+# Tải cài đặt lúc khởi chạy
+settings = DEFAULT_SETTINGS.copy()
+
+def load_settings():
+    global settings
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+                # Đảm bảo không ghi đè các cấu hình thiếu bằng giá trị mặc định
+                for k, v in DEFAULT_SETTINGS.items():
+                    if k not in loaded:
+                        loaded[k] = v
+                settings = loaded
+        except Exception as e:
+            print(f"[CONFIG] Lỗi tải settings.json: {e}. Sử dụng cài đặt mặc định.")
+    else:
+        save_settings()
+
+def save_settings():
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=4, ensure_ascii=False)
+        print(f"[CONFIG] Đã lưu cấu hình mới vào {SETTINGS_FILE}")
+    except Exception as e:
+        print(f"[CONFIG] Lỗi ghi file cấu hình: {e}")
+
+def get_cameras_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[CONFIG] Lỗi tải cameras_config.json: {e}")
+    # Trả về cấu hình mặc định nếu file lỗi hoặc không tồn tại
+    return [
+        {
+            "camera_id": "Cam_Cua_Chinh",
+            "source": "video.mp4",
+            "features": ["people_counter", "face_id"],
+            "line": [[154, 218], [412, 214]],
+            "in_direction": "down",
+            "roi": [[100, 100], [540, 100], [540, 300], [100, 300]],
+            "schedule_enabled": False,
+            "schedule_start": "23:00",
+            "schedule_end": "06:00"
+        },
+        {
+            "camera_id": "Cam_Cua_Sau",
+            "source": "video1.mp4",
+            "features": ["intrusion_roi"],
+            "line": [[166, 211], [349, 265]],
+            "in_direction": "up",
+            "roi": [[150, 150], [550, 150], [580, 350], [120, 350]],
+            "schedule_enabled": False,
+            "schedule_start": "23:00",
+            "schedule_end": "06:00"
+        },
+        {
+            "camera_id": "Cam_Hanh_Lang",
+            "source": "video.mp4",
+            "features": ["fall_detection"],
+            "line": [[100, 180], [540, 180]],
+            "in_direction": "down",
+            "roi": [[100, 100], [540, 100], [540, 300], [100, 300]],
+            "schedule_enabled": False,
+            "schedule_start": "23:00",
+            "schedule_end": "06:00"
+        }
+    ]
+
+def save_cameras_config(camera_id, p1, p2):
+    try:
+        cameras = get_cameras_config()
+        for cam in cameras:
+            if cam["camera_id"] == camera_id:
+                cam["line"] = [list(p1), list(p2)]
+                break
+        save_full_cameras_config(cameras)
+        print(f"[CONFIG] Đã lưu vạch kẻ camera {camera_id} mới.")
+    except Exception as e:
+        print(f"[CONFIG] Lỗi lưu vạch kẻ camera: {e}")
+
+def save_full_cameras_config(cameras):
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(cameras, f, indent=4, ensure_ascii=False)
+        print(f"[CONFIG] Đã lưu toàn bộ cấu hình {len(cameras)} camera vào {CONFIG_FILE}")
+    except Exception as e:
+        print(f"[CONFIG] Lỗi lưu cấu hình camera: {e}")
+
+# Nạp cấu hình ban đầu
+load_settings()
+
+import threading
+from datetime import datetime
+
+# Trạng thái hệ thống thời gian thực dùng chung
+class SystemStatus:
+    intrusion_active = False
+    fall_active = False
+    new_logs = []
+    log_lock = threading.Lock()
+    
+    @classmethod
+    def add_log(cls, msg, log_type=""):
+        with cls.log_lock:
+            cls.new_logs.append({
+                "msg": msg,
+                "type": log_type,
+                "time": datetime.now().strftime("%H:%M:%S")
+            })
+            if len(cls.new_logs) > 50:
+                cls.new_logs.pop(0)
+
