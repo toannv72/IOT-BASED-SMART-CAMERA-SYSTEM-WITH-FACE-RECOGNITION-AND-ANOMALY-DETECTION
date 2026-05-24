@@ -687,6 +687,7 @@ class CameraState:
         self.fall_counter = 0
         self.count_in = 0
         self.count_out = 0
+        self.last_frame = None
 
 def is_time_in_schedule(start_str, end_str):
     """
@@ -765,6 +766,7 @@ def gen_dynamic_stream(camera_id: str):
 
         # Resize cố định về 640x360 để chuẩn hóa và tăng hiệu suất
         frame = cv2.resize(frame, (640, 360))
+        state.last_frame = frame.copy()
 
         # Mỗi 30 frames tải lại cấu hình để cập nhật tức thì
         if state.frame_index % 30 == 0:

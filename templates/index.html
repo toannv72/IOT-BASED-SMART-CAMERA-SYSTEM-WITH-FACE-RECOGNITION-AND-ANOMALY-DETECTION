@@ -628,14 +628,30 @@
                             <label class="form-label">Họ và Tên</label>
                             <input type="text" id="register-name" class="form-input" placeholder="Nhập tên đăng ký...">
                         </div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-                            <button class="btn btn-primary" style="flex: 1; padding: 6px 12px; font-size: 12px;" onclick="startWebcamCapture()">
-                                <i class="fa-solid fa-camera"></i> Chụp ảnh Web
+                        <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                            <button class="btn btn-primary" style="flex: 1; padding: 6px 12px; font-size: 11px;" onclick="startWebcamCapture()">
+                                <i class="fa-solid fa-camera"></i> Chụp WebRTC
                             </button>
-                            <button class="btn" style="flex: 1; padding: 6px 12px; font-size: 12px;" onclick="document.getElementById('file-upload').click()">
-                                <i class="fa-solid fa-upload"></i> Tải file ảnh
+                            <button class="btn btn-success" style="flex: 1; padding: 6px 12px; font-size: 11px;" onclick="toggleSystemCameraCaptureArea()">
+                                <i class="fa-solid fa-camera-rotate"></i> Chụp Cam Hệ Thống
+                            </button>
+                            <button class="btn" style="flex: 1; padding: 6px 12px; font-size: 11px;" onclick="document.getElementById('file-upload').click()">
+                                <i class="fa-solid fa-upload"></i> Tải File
                             </button>
                             <input type="file" id="file-upload" style="display: none;" accept="image/*" onchange="uploadImageFile(this)">
+                        </div>
+
+                        <!-- Khu vực chụp từ Camera Hệ Thống -->
+                        <div id="system-camera-capture-area" style="display: none; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                            <div class="form-group" style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 11px;">Chọn Camera Hệ Thống</label>
+                                <select id="capture-system-cam-id" class="form-input" style="background: rgba(0,0,0,0.2); color: #fff; width: 100%; font-size: 12px; padding: 6px 10px;">
+                                    <!-- Nạp động qua JS -->
+                                </select>
+                            </div>
+                            <button class="btn btn-success" style="width: 100%; justify-content: center; font-size: 12px; padding: 6px 12px;" onclick="captureFromSystemCamera()">
+                                <i class="fa-solid fa-circle-dot"></i> Chụp & Đăng ký
+                            </button>
                         </div>
                         <div id="webcam-capture-area" style="display: none;">
                             <div class="webcam-container">
@@ -1607,12 +1623,21 @@
         async function startWebcamCapture() {
             const webcamArea = document.getElementById('webcam-capture-area');
             const video = document.getElementById('webcam-video');
+            
+            // Đóng khu vực chụp từ camera hệ thống nếu đang mở
+            document.getElementById('system-camera-capture-area').style.display = 'none';
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("Trình duyệt từ chối quyền mở Camera do kết nối không bảo mật (Yêu cầu dùng tên miền HTTPS hoặc chạy cục bộ http://localhost / http://127.0.0.1). Vui lòng sử dụng tính năng 'Chụp Cam Hệ Thống' hoặc 'Tải File' để đăng ký khuôn mặt!");
+                return;
+            }
+            
             webcamArea.style.display = "block";
             try {
                 webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                 video.srcObject = webcamStream;
             } catch (err) {
-                alert("Không thể truy cập camera trình duyệt!");
+                alert("Không thể truy cập camera trình duyệt! Lỗi: " + err.message);
                 webcamArea.style.display = "none";
             }
         }
@@ -1622,6 +1647,71 @@
                 webcamStream.getTracks().forEach(track => track.stop());
                 webcamStream = null;
                 document.getElementById('webcam-capture-area').style.display = "none";
+            }
+        }
+
+        async function toggleSystemCameraCaptureArea() {
+            const area = document.getElementById('system-camera-capture-area');
+            const select = document.getElementById('capture-system-cam-id');
+            
+            if (area.style.display === 'none') {
+                stopWebcam();
+                try {
+                    const response = await fetch('/api/cameras');
+                    activeCameras = await response.json();
+                    select.innerHTML = activeCameras.map(cam => `<option value="${cam.camera_id}">${cam.camera_id}</option>`).join('');
+                    if (activeCameras.length === 0) {
+                        select.innerHTML = '<option value="">Không có camera nào khả dụng</option>';
+                    }
+                } catch (e) {
+                    select.innerHTML = '<option value="">Lỗi tải danh sách camera</option>';
+                }
+                area.style.display = 'block';
+            } else {
+                area.style.display = 'none';
+            }
+        }
+
+        async function captureFromSystemCamera() {
+            const nameInput = document.getElementById('register-name');
+            const name = nameInput.value.trim();
+            if (!name) return alert("Vui lòng nhập tên đăng ký trước!");
+            
+            const camSelect = document.getElementById('capture-system-cam-id');
+            const cameraId = camSelect.value;
+            if (!cameraId) return alert("Không có camera nào được chọn!");
+            
+            const statusDiv = document.getElementById('upload-status');
+            statusDiv.innerHTML = "Đang lấy ảnh từ camera " + cameraId + "...";
+            
+            try {
+                const response = await fetch(`/api/capture_frame/${cameraId}`);
+                if (!response.ok) {
+                    const errJson = await response.json();
+                    throw new Error(errJson.detail || "Không thể chụp hình từ camera!");
+                }
+                const blob = await response.blob();
+                
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('file', blob, 'face.jpg');
+                
+                statusDiv.innerHTML = "Đang gửi ảnh đăng ký...";
+                const regResponse = await fetch('/register_face', { method: 'POST', body: formData });
+                const regRes = await regResponse.json();
+                
+                if (regResponse.ok) {
+                    statusDiv.innerHTML = "Đăng ký thành công!";
+                    addLog(`Đăng ký khuôn mặt thành công cho: ${name} (từ ${cameraId})`, 'success');
+                    loadFaces();
+                    alert("Đăng ký khuôn mặt thành công!");
+                } else {
+                    statusDiv.innerHTML = `<span style="color: var(--danger);">Lỗi: ${regRes.detail || "Đăng ký thất bại"}</span>`;
+                    alert("Lỗi: " + (regRes.detail || "Đăng ký thất bại"));
+                }
+            } catch (err) {
+                statusDiv.innerHTML = `<span style="color: var(--danger);">Lỗi: ${err.message}</span>`;
+                alert("Lỗi: " + err.message);
             }
         }
 
@@ -1649,13 +1739,20 @@
                 statusDiv.innerHTML = "Đang gửi ảnh đăng ký...";
                 try {
                     const response = await fetch('/register_face', { method: 'POST', body: formData });
+                    const res = await response.json();
                     if (response.ok) {
                         statusDiv.innerHTML = "Đăng ký thành công!";
                         addLog(`Đăng ký khuôn mặt thành công cho: ${name}`, 'success');
                         loadFaces();
                         stopWebcam();
+                    } else {
+                        statusDiv.innerHTML = `<span style="color: var(--danger);">Lỗi: ${res.detail || "Đăng ký thất bại"}</span>`;
+                        alert("Lỗi: " + (res.detail || "Đăng ký thất bại"));
                     }
-                } catch (err) { statusDiv.innerHTML = "Lỗi kết nối server!"; }
+                } catch (err) { 
+                    statusDiv.innerHTML = "Lỗi kết nối server!"; 
+                    alert("Lỗi kết nối server!");
+                }
             }, 'image/jpeg');
         }
 
@@ -1671,9 +1768,13 @@
             
             try {
                 const response = await fetch('/register_face', { method: 'POST', body: formData });
+                const res = await response.json();
                 if (response.ok) {
                     addLog(`Đăng ký khuôn mặt thành công cho: ${name}`, 'success');
                     loadFaces();
+                    alert("Đăng ký khuôn mặt thành công!");
+                } else {
+                    alert("Lỗi: " + (res.detail || "Đăng ký thất bại"));
                 }
             } catch (err) { alert("Lỗi kết nối server!"); }
             input.value = "";

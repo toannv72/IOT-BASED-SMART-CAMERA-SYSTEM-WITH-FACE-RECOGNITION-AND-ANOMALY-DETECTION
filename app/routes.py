@@ -512,6 +512,23 @@ def get_system_logs(request: Request):
     finally:
         db.close()
 
+@app.get("/api/capture_frame/{camera_id}")
+def capture_camera_frame(camera_id: str, request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401)
+        
+    from app.processors import camera_states
+    state = camera_states.get(camera_id)
+    if state is None or getattr(state, "last_frame", None) is None:
+        raise HTTPException(status_code=400, detail="Camera chưa hoạt động hoặc chưa có khung hình nào!")
+        
+    import cv2
+    ret, buffer = cv2.imencode('.jpg', state.last_frame)
+    if not ret:
+        raise HTTPException(status_code=500, detail="Không thể mã hóa khung hình!")
+        
+    return Response(content=buffer.tobytes(), media_type="image/jpeg")
+
 # =========================================================================
 # API QUẢN LÝ TÀI KHOẢN (USER MANAGEMENT ENDPOINTS)
 # =========================================================================
