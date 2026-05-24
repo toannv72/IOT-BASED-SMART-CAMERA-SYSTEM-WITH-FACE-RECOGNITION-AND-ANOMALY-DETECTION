@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Nhật Ký Cảnh Báo - AI Surveillance{% endblock %}
+{% block page_title %}Nhật Ký Cảnh Báo & Ảnh Sự Kiện{% endblock %}
+
+{% block content %}
+<div class="glass-card">
+    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+        <i class="fa-solid fa-clock-rotate-left"></i> Nhật Ký Cảnh Báo & Ảnh Sự Kiện Lưu Trữ
+    </h3>
+    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+            <input type="text" id="log-search" class="form-input" placeholder="Tìm kiếm chi tiết sự kiện..." oninput="filterHistoryLogs()">
+        </div>
+        <div class="form-group" style="width: 200px; margin-bottom: 0;">
+            <select id="log-filter-type" class="form-input" onchange="filterHistoryLogs()" style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="">Tất cả sự kiện</option>
+                <option value="intrusion">Xâm nhập vùng cấm (ROI)</option>
+                <option value="fall">Phát hiện người ngã</option>
+                <option value="face">Nhận diện khuôn mặt lạ</option>
+                <option value="counter">Đếm người qua vạch</option>
+            </select>
+        </div>
+        <button class="btn btn-primary" onclick="loadHistoryLogs()">
+            <i class="fa-solid fa-arrows-rotate"></i> Làm Mới Dữ Liệu
+        </button>
+    </div>
+    <div class="faces-table-container">
+        <table class="faces-table">
+            <thead>
+                <tr>
+                    <th>Thời Gian</th>
+                    <th>Camera ID</th>
+                    <th>Loại Sự Kiện</th>
+                    <th>Chi Tiết</th>
+                    <th style="text-align: right;">Ảnh Chụp</th>
+                </tr>
+            </thead>
+            <tbody id="history-logs-tbody">
+                <!-- Nạp động qua JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Lightbox Modal Xem Ảnh Sự Kiện Cảnh Báo -->
+<div id="image-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div style="position: relative; max-width: 90%; max-height: 90%; text-align: center;">
+        <span style="position: absolute; top: -45px; right: 0; color: #fff; font-size: 35px; cursor: pointer; font-weight: bold;" onclick="closeImageModal()">&times;</span>
+        <img id="modal-img" src="" style="max-width: 100%; max-height: 80vh; border-radius: 12px; border: 2px solid rgba(255,255,255,0.15);" alt="Alert snapshot">
+        <div id="modal-caption" style="margin-top: 15px; color: #fff; font-size: 15px; font-weight: 500;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let historyLogs = [];
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadHistoryLogs();
+    });
+
+    async function loadHistoryLogs() {
+        try {
+            const response = await fetch('/api/logs');
+            historyLogs = await response.json();
+            filterHistoryLogs();
+        } catch (err) {
+            console.error("Lỗi khi tải nhật ký:", err);
+        }
+    }
+
+    function filterHistoryLogs() {
+        const search = document.getElementById('log-search').value.toLowerCase();
+        const typeFilter = document.getElementById('log-filter-type').value;
+        const tbody = document.getElementById('history-logs-tbody');
+        
+        const filtered = historyLogs.filter(log => {
+            const matchSearch = log.message.toLowerCase().includes(search) || log.camera_id.toLowerCase().includes(search);
+            const matchType = typeFilter === "" || log.event_type === typeFilter;
+            return matchSearch && matchType;
+        });
+        
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Không tìm thấy sự kiện nào tương ứng.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(log => `
+            <tr>
+                <td>${log.timestamp}</td>
+                <td><strong>${log.camera_id}</strong></td>
+                <td><span class="badge" style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; font-size: 11px;">${log.event_type}</span></td>
+                <td>${log.message}</td>
+                <td style="text-align: right;">
+                    <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="openImageModal('${log.image_path}', '${log.message}')">Xem Ảnh</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function openImageModal(src, caption) {
+        document.getElementById('modal-img').src = src;
+        document.getElementById('modal-caption').innerText = caption;
+        document.getElementById('image-modal').style.display = "flex";
+    }
+
+    function closeImageModal() { 
+        document.getElementById('image-modal').style.display = "none"; 
+    }
+</script>
+{% endblock %}

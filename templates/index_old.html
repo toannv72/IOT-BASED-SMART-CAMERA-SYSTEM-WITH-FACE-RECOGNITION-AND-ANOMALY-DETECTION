@@ -1,0 +1,1914 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Giám Sát Thông Minh AI - Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: rgba(17, 24, 39, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.4);
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.4);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --font-family: 'Outfit', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+        }
+
+        /* Layout */
+        .app-container {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background-color: rgba(10, 15, 30, 0.85);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            backdrop-filter: blur(12px);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 36px;
+        }
+
+        .brand i {
+            font-size: 28px;
+            color: var(--primary);
+            text-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .brand-title {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .menu-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-grow: 1;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .menu-item:hover, .menu-item.active {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .menu-item.active {
+            border-left: 4px solid var(--primary);
+            background-color: rgba(59, 130, 246, 0.15);
+            box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.05);
+        }
+
+        .system-status {
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .status-title {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--success);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success-glow);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .gpu-info {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* Main Content */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 30px;
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header-title {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        /* Glassmorphism Cards */
+        .glass-card {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            padding: 24px;
+            margin-bottom: 24px;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        /* Tabs Panels */
+        .tab-panel {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Monitor Tab specific styles */
+        .camera-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 24px;
+        }
+
+        .camera-card {
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .camera-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .camera-title {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .camera-stream-wrapper {
+            position: relative;
+            width: 100%;
+            background-color: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            border: 1px solid var(--border-color);
+        }
+
+        .camera-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .camera-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-muted);
+            gap: 12px;
+            background: linear-gradient(135deg, #111827 0%, #030712 100%);
+        }
+
+        .camera-placeholder i {
+            font-size: 40px;
+        }
+
+        .stream-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .btn {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            font-family: var(--font-family);
+        }
+
+        .btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: transparent;
+        }
+
+        .btn-primary:hover {
+            background-color: #2563eb;
+            box-shadow: 0 0 12px var(--primary-glow);
+        }
+
+        .btn-success {
+            background-color: var(--success);
+            border-color: transparent;
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+            box-shadow: 0 0 12px var(--success-glow);
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            border-color: transparent;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+            box-shadow: 0 0 12px var(--danger-glow);
+        }
+
+        /* Database Tab specific styles */
+        .db-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .faces-table-container {
+            overflow-x: auto;
+        }
+
+        .faces-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .faces-table th, .faces-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .faces-table th {
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .faces-table tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Register Form WebRTC styles */
+        .webcam-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            background-color: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .webcam-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Flip webcam horizontally */
+        }
+
+        .webcam-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 160px;
+            height: 160px;
+            border: 2px dashed var(--success);
+            border-radius: 12px;
+            pointer-events: none;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .form-input {
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            padding: 10px 14px;
+            border-radius: 8px;
+            color: #fff;
+            font-family: var(--font-family);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
+        }
+
+        /* Alert logs UI */
+        .log-container {
+            max-height: 250px;
+            overflow-y: auto;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column-reverse; /* New logs at top visually */
+            gap: 8px;
+        }
+
+        .log-item {
+            font-size: 13px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background-color: rgba(255, 255, 255, 0.02);
+            border-left: 3px solid var(--primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-item.danger {
+            border-left-color: var(--danger);
+            background-color: rgba(239, 68, 68, 0.05);
+        }
+
+        .log-item.success {
+            border-left-color: var(--success);
+            background-color: rgba(16, 185, 129, 0.05);
+        }
+
+        .log-time {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-shield-halved"></i>
+                <div class="brand-title">AI SURVEILLANCE</div>
+            </div>
+            
+            <nav style="flex-grow: 1;">
+                <ul class="menu-list">
+                    <li>
+                        <div class="menu-item active" onclick="switchTab('monitor', this)">
+                            <i class="fa-solid fa-desktop"></i> Giám Sát Live
+                        </div>
+                    </li>
+                    <li>
+                        <div class="menu-item" onclick="switchTab('database', this)">
+                            <i class="fa-solid fa-users-gear"></i> Cơ Sở Dữ Liệu
+                        </div>
+                    </li>
+                    <li>
+                        <div class="menu-item" onclick="switchTab('logs', this)">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Nhật Ký Cảnh Báo
+                        </div>
+                    </li>
+                    <li>
+                        <div class="menu-item" onclick="switchTab('settings', this)">
+                            <i class="fa-solid fa-gears"></i> Cấu Hình Hệ Thống
+                        </div>
+                    </li>
+                    <li>
+                        <div class="menu-item" onclick="switchTab('users', this)">
+                            <i class="fa-solid fa-user-shield"></i> Quản Lý Tài Khoản
+                        </div>
+                    </li>
+                    <li style="margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                        <a class="menu-item" href="/logout" style="color: var(--danger); text-decoration: none;">
+                            <i class="fa-solid fa-right-from-bracket"></i> Đăng Xuất
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="system-status" style="margin-top: 20px; display: flex; flex-direction: column; gap: 12px;">
+                <div class="status-card" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
+                    <div class="status-title" style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 8px;">Hiệu năng phần cứng</div>
+                    
+                    <div style="font-size: 11px; margin-bottom: 6px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                            <span>CPU:</span>
+                            <span id="health-cpu" style="font-weight: 600;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                            <div id="bar-cpu" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                    
+                    <div style="font-size: 11px; margin-bottom: 6px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                            <span>RAM:</span>
+                            <span id="health-ram" style="font-weight: 600;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                            <div id="bar-ram" style="width: 0%; height: 100%; background: var(--success); transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+
+                    <div style="font-size: 11px; margin-bottom: 6px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                            <span>GPU:</span>
+                            <span id="health-gpu" style="font-weight: 600;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                            <div id="bar-gpu" style="width: 0%; height: 100%; background: var(--warning); transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="gpu-info" id="gpu-info" style="font-size: 10px; color: var(--text-muted); margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px;">Đang tải GPU info...</div>
+                </div>
+
+                <div class="status-card" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
+                    <div class="status-title" style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 8px;">Tốc độ xử lý (FPS)</div>
+                    <div id="fps-list" style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+                        <!-- Nạp động qua JS -->
+                    </div>
+                </div>
+            </div>
+        </aside>
+<!-- Main Workspace -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <h1 class="header-title" id="tab-title">Giám Sát Live</h1>
+                <div style="display: flex; gap: 10px;">
+                    <div id="live-alert-indicator" class="status-badge" style="display: none; background: rgba(239, 68, 68, 0.15); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--danger);">
+                        <div class="status-dot" style="background-color: var(--danger); box-shadow: 0 0 8px var(--danger-glow);"></div>
+                        <span style="color: var(--danger); font-weight: bold;">XÂM NHẬP ĐANG XẢY RA!</span>
+                    </div>
+                    <div id="live-fall-indicator" class="status-badge" style="display: none; background: rgba(239, 68, 68, 0.15); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--danger); box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);">
+                        <div class="status-dot" style="background-color: var(--danger); box-shadow: 0 0 8px var(--danger-glow); animation: pulse 1s infinite;"></div>
+                        <span style="color: var(--danger); font-weight: bold;">PHÁT HIỆN NGƯỜI BỊ NGÃ!</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- TAB 1: LIVE MONITOR -->
+            <section id="panel-monitor" class="tab-panel active">
+                <div class="camera-grid" id="camera-streams-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
+                    <!-- Sinh tự động qua JavaScript -->
+                </div>
+
+                <!-- Nhật ký sự kiện trực tuyến -->
+                <div class="glass-card" style="margin-top: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h3 style="font-size: 16px; font-weight: 600;"><i class="fa-solid fa-list-ul"></i> Nhật Ký Sự Kiện Hệ Thống Trực Tuyến</h3>
+                        <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="clearLogs()">Xóa Nhật Ký</button>
+                    </div>
+                    <div class="log-container" id="log-list">
+                        <div class="log-item success">
+                            <span>Khởi động hệ thống AI thành công. Sẵn sàng giám sát.</span>
+                            <span class="log-time">Vừa xong</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: DATABASE MANAGEMENT -->
+            <section id="panel-database" class="tab-panel">
+                <div class="db-layout" style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 24px;">
+                    <!-- Danh sách khuôn mặt đã lưu -->
+                    <div class="glass-card">
+                        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+                            <i class="fa-solid fa-id-card"></i> Danh Sách Khuôn Mặt Đã Đăng Ký
+                        </h3>
+                        <div class="faces-table-container">
+                            <table class="faces-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Họ Và Tên</th>
+                                        <th>Thời Gian Đăng Ký</th>
+                                        <th>Người Đăng Ký</th>
+                                        <th style="text-align: right;">Thao Tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="faces-list-tbody">
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; color: var(--text-muted);">Đang tải dữ liệu...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Đăng ký khuôn mặt mới -->
+                    <div class="glass-card">
+                        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+                            <i class="fa-solid fa-user-plus"></i> Đăng Ký Khuôn Mặt Mới
+                        </h3>
+                        <div class="form-group">
+                            <label class="form-label">Họ và Tên</label>
+                            <input type="text" id="register-name" class="form-input" placeholder="Nhập tên đăng ký...">
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                            <button class="btn btn-primary" style="flex: 1; padding: 6px 12px; font-size: 11px;" onclick="startWebcamCapture()">
+                                <i class="fa-solid fa-camera"></i> Chụp WebRTC
+                            </button>
+                            <button class="btn btn-success" style="flex: 1; padding: 6px 12px; font-size: 11px;" onclick="toggleSystemCameraCaptureArea()">
+                                <i class="fa-solid fa-camera-rotate"></i> Chụp Cam Hệ Thống
+                            </button>
+                            <button class="btn" style="flex: 1; padding: 6px 12px; font-size: 11px;" onclick="document.getElementById('file-upload').click()">
+                                <i class="fa-solid fa-upload"></i> Tải File
+                            </button>
+                            <input type="file" id="file-upload" style="display: none;" accept="image/*" onchange="uploadImageFile(this)">
+                        </div>
+
+                        <!-- Khu vực chụp từ Camera Hệ Thống -->
+                        <div id="system-camera-capture-area" style="display: none; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                            <div class="form-group" style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 11px;">Chọn Camera Hệ Thống</label>
+                                <select id="capture-system-cam-id" class="form-input" style="background: rgba(0,0,0,0.2); color: #fff; width: 100%; font-size: 12px; padding: 6px 10px;">
+                                    <!-- Nạp động qua JS -->
+                                </select>
+                            </div>
+                            <button class="btn btn-success" style="width: 100%; justify-content: center; font-size: 12px; padding: 6px 12px;" onclick="captureFromSystemCamera()">
+                                <i class="fa-solid fa-circle-dot"></i> Chụp & Đăng ký
+                            </button>
+                        </div>
+                        <div id="webcam-capture-area" style="display: none;">
+                            <div class="webcam-container">
+                                <video id="webcam-video" class="webcam-video" autoplay></video>
+                                <div class="webcam-overlay"></div>
+                            </div>
+                            <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="captureAndRegister()">
+                                <i class="fa-solid fa-circle-dot"></i> Chụp & Lưu
+                            </button>
+                        </div>
+                        <div id="upload-status" style="font-size: 13px; text-align: center; margin-top: 10px;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: SETTINGS -->
+            <section id="panel-settings" class="tab-panel">
+                <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: start;">
+                    <!-- Cấu hình hệ thống -->
+                    <div class="glass-card">
+                        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+                            <i class="fa-solid fa-sliders"></i> Cấu Hinh Hệ Thống & Cảnh Báo
+                        </h3>
+                        <div class="form-group">
+                            <label class="form-label">Telegram Bot Token</label>
+                            <input type="text" id="setting-token" class="form-input" placeholder="Nhập token Telegram Bot...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Telegram Chat IDs (cách nhau bằng dấu phẩy)</label>
+                            <input type="text" id="setting-chats" class="form-input" placeholder="Ví dụ: 8438973190...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Ngưỡng Tin Cậy YOLO (Confidence Threshold)</label>
+                            <input type="number" id="setting-conf" class="form-input" step="0.05" min="0.1" max="0.9">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Thời Gian Cooldown Vạch Đếm (Frames)</label>
+                            <input type="number" id="setting-counter-cooldown" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Thời Gian Cooldown Telegram (Giây)</label>
+                            <input type="number" id="setting-telegram-cooldown" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Kích Hoạt Cảnh Báo An Ninh</label>
+                            <select id="setting-alerts-enabled" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
+                                <option value="true">Bật Cảnh Báo</option>
+                                <option value="false">Tắt Cảnh Báo</option>
+                            </select>
+                        </div>
+                        <div style="margin-top: 24px;">
+                            <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="saveSettings()">
+                                <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình Hệ Thống
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Danh sách cấu hình camera -->
+                    <div class="glass-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="font-size: 18px; font-weight: 600;">
+                                <i class="fa-solid fa-video"></i> Quản Lý Danh Sách Camera
+                            </h3>
+                            <button class="btn btn-primary" onclick="openAddCameraModal()">
+                                <i class="fa-solid fa-plus"></i> Thêm Camera Mới
+                            </button>
+                        </div>
+                        <div class="faces-table-container">
+                            <table class="faces-table">
+                                <thead>
+                                    <tr>
+                                        <th>Camera ID</th>
+                                        <th>Nguồn Video</th>
+                                        <th>Tính Năng AI</th>
+                                        <th>Lịch Trình</th>
+                                        <th style="text-align: right;">Thao Tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cameras-config-tbody">
+                                    <!-- Nạp động qua JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: USER MANAGEMENT -->
+            <section id="panel-users" class="tab-panel">
+                <div class="db-layout" style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 24px;">
+                    <!-- Danh sách tài khoản -->
+                    <div class="glass-card">
+                        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+                            <i class="fa-solid fa-user-shield"></i> Danh Sách Tài Khoản Quản Trị
+                        </h3>
+                        <div class="faces-table-container">
+                            <table class="faces-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Tên Tài Khoản</th>
+                                        <th style="text-align: right;">Thao Tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-list-tbody">
+                                    <!-- Nạp động qua JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tạo tài khoản mới -->
+                    <div class="glass-card">
+                        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+                            <i class="fa-solid fa-user-plus"></i> Tạo Tài Khoản Mới
+                        </h3>
+                        <div class="form-group">
+                            <label class="form-label">Tên tài khoản (Username)</label>
+                            <input type="text" id="new-user-username" class="form-input" placeholder="Nhập username...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Mật khẩu (Password)</label>
+                            <input type="password" id="new-user-password" class="form-input" placeholder="Nhập mật khẩu...">
+                        </div>
+                        <div style="margin-top: 20px;">
+                            <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="createNewUser()">
+                                <i class="fa-solid fa-user-check"></i> Tạo Tài Khoản
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: EVENT WARNING LOGS ARCHIVE -->
+            <section id="panel-logs" class="tab-panel">
+                <div class="glass-card">
+                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+                        <i class="fa-solid fa-clock-rotate-left"></i> Nhật Ký Cảnh Báo & Ảnh Sự Kiện Lưu Trữ
+                    </h3>
+                    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                        <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                            <input type="text" id="log-search" class="form-input" placeholder="Tìm kiếm chi tiết sự kiện..." oninput="filterHistoryLogs()">
+                        </div>
+                        <div class="form-group" style="width: 200px; margin-bottom: 0;">
+                            <select id="log-filter-type" class="form-input" onchange="filterHistoryLogs()" style="background: rgba(255,255,255,0.03); color: #fff;">
+                                <option value="">Tất cả sự kiện</option>
+                                <option value="intrusion">Xâm nhập vùng cấm (ROI)</option>
+                                <option value="fall">Phát hiện người ngã</option>
+                                <option value="face">Nhận diện khuôn mặt lạ</option>
+                                <option value="counter">Đếm người qua vạch</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" onclick="loadHistoryLogs()">
+                            <i class="fa-solid fa-arrows-rotate"></i> Làm Mới Dữ Liệu
+                        </button>
+                    </div>
+                    <div class="faces-table-container">
+                        <table class="faces-table">
+                            <thead>
+                                <tr>
+                                    <th>Thời Gian</th>
+                                    <th>Camera ID</th>
+                                    <th>Loại Sự Kiện</th>
+                                    <th>Chi Tiết</th>
+                                    <th style="text-align: right;">Ảnh Chụp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-logs-tbody">
+                                <!-- Nạp động qua JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal Thêm/Sửa Camera -->
+    <div id="camera-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+        <div class="glass-card" style="width: 500px; margin-bottom: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 id="camera-modal-title" style="font-size: 18px; font-weight: 600;">Thêm Camera Mới</h3>
+                <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closeCameraModal()">&times;</span>
+            </div>
+            <input type="hidden" id="camera-modal-action" value="add">
+            
+            <div class="form-group">
+                <label class="form-label">Camera ID (Duy nhất, viết liền không dấu)</label>
+                <input type="text" id="cam-id-input" class="form-input" placeholder="Ví dụ: Cam_San_Sau">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Nguồn Stream (Index webcam, file video hoặc link RTSP)</label>
+                <input type="text" id="cam-source-input" class="form-input" placeholder="Ví dụ: 0 hoặc video.mp4 hoặc rtsp://...">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Kích Hoạt Tính Năng AI</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" id="cam-feat-counter"> Đếm người vạch kép
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" id="cam-feat-roi"> Phát hiện xâm nhập ROI
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" id="cam-feat-face"> So khớp khuôn mặt
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" id="cam-feat-fall"> Phát hiện người ngã
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="cam-sched-enabled" onchange="toggleSchedInputs(this.checked)"> Kích hoạt giờ hoạt động cảnh báo
+                </label>
+            </div>
+            
+            <div id="cam-sched-times" style="display: flex; gap: 12px; margin-bottom: 20px; transition: opacity 0.3s;">
+                <div style="flex: 1;">
+                    <label class="form-label">Bắt đầu</label>
+                    <input type="time" id="cam-sched-start" class="form-input" value="23:00">
+                </div>
+                <div style="flex: 1;">
+                    <label class="form-label">Kết thúc</label>
+                    <input type="time" id="cam-sched-end" class="form-input" value="06:00">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button class="btn" onclick="closeCameraModal()">Hủy</button>
+                <button class="btn btn-success" onclick="saveCameraConfig()">Lưu Thay Đổi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Vẽ Vạch / Vùng Cấm ROI -->
+    <div id="draw-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+        <div class="glass-card" style="width: 700px; padding: 24px; margin-bottom: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 id="draw-modal-title" style="font-size: 18px; font-weight: 600;">Thiết Lập Tọa Độ Camera</h3>
+                <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closeDrawModal()">&times;</span>
+            </div>
+            
+            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="setDrawMode('line')">
+                    <i class="fa-solid fa-grip-lines" style="color: var(--warning);"></i> Vẽ vạch đếm
+                </button>
+                <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="setDrawMode('roi')">
+                    <i class="fa-solid fa-draw-polygon" style="color: var(--success);"></i> Vẽ vùng cấm ROI
+                </button>
+                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="clearDrawingPoints()">
+                    <i class="fa-solid fa-eraser"></i> Xóa vẽ nháp
+                </button>
+                <button id="btn-close-roi" class="btn btn-success" style="padding: 6px 12px; font-size: 12px; display: none;" onclick="closeRoiPolygon()">
+                    <i class="fa-solid fa-link"></i> Đóng Vùng ROI
+                </button>
+            </div>
+
+            <div style="position: relative; width: 640px; height: 360px; background: #000; margin: 0 auto; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+                <img id="draw-preview-img" style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; pointer-events: none;" alt="Camera preview">
+                <canvas id="draw-canvas" width="640" height="360" style="position: absolute; top:0; left:0; width:100%; height:100%; cursor: crosshair; z-index: 10;"></canvas>
+            </div>
+            
+            <p id="draw-help-text" style="font-size: 12px; color: var(--warning); margin-top: 12px; text-align: center;">Vui lòng chọn chế độ vẽ.</p>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;">
+                <button class="btn" onclick="closeDrawModal()">Hủy bỏ</button>
+                <button class="btn btn-primary" onclick="saveDrawCoords()">Lưu và Áp dụng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox Modal Xem Ảnh Sự Kiện Cảnh Báo -->
+    <div id="image-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+        <div style="position: relative; max-width: 90%; max-height: 90%; text-align: center;">
+            <span style="position: absolute; top: -45px; right: 0; color: #fff; font-size: 35px; cursor: pointer; font-weight: bold;" onclick="closeImageModal()">&times;</span>
+            <img id="modal-img" src="" style="max-width: 100%; max-height: 80vh; border-radius: 12px; border: 2px solid rgba(255,255,255,0.15);" alt="Alert snapshot">
+            <div id="modal-caption" style="margin-top: 15px; color: #fff; font-size: 15px; font-weight: 500;"></div>
+        </div>
+    </div>
+
+    <!-- Script logic dashboard -->
+    <script>
+        let currentTab = 'monitor';
+        let streamStates = {}; // camera_id -> boolean (trạng thái bật/tắt camera)
+        let webcamStream = null;
+        let historyLogs = [];
+        let activeCameras = []; // Lưu trữ cấu hình camera từ API
+        let drawingPoints = []; // Các điểm tọa độ vẽ vạch/ROI
+        let drawMode = 'line'; // 'line' hoặc 'roi'
+        let currentDrawCamId = '';
+        let roiClosed = false;
+
+        function switchTab(tabId, el) {
+            currentTab = tabId;
+            document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+            el.classList.add('active');
+            
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+            document.getElementById(`panel-${tabId}`).classList.add('active');
+
+            const titles = {
+                'monitor': 'Giám Sát Live',
+                'database': 'Cơ Sở Dữ Liệu Khuôn Mặt',
+                'settings': 'Cấu Hình Hệ Thống',
+                'logs': 'Nhật Ký Cảnh Báo & Ảnh Sự Kiện',
+                'users': 'Quản Lý Tài Khoản Quản Trị'
+            };
+            document.getElementById('tab-title').innerText = titles[tabId];
+
+            if (tabId === 'database') {
+                loadFaces();
+            } else if (tabId === 'logs') {
+                loadHistoryLogs();
+            } else if (tabId === 'settings') {
+                loadSettings();
+                loadCamerasConfig();
+            } else if (tabId === 'users') {
+                loadUsers();
+            } else {
+                stopWebcam();
+            }
+        }
+
+        // =========================================================================
+        // 🎥 1. QUẢN LÝ LƯỚI CAMERA ĐỘNG (DYNAMICAL CAMERA GRID)
+        // =========================================================================
+        async function loadCamerasGrid() {
+            try {
+                const response = await fetch('/api/cameras');
+                activeCameras = await response.json();
+                
+                const grid = document.getElementById('camera-streams-grid');
+                grid.innerHTML = ''; // Xóa sạch dữ liệu cũ
+
+                if (activeCameras.length === 0) {
+                    grid.innerHTML = '<div class="glass-card" style="grid-column: span 2; text-align: center; padding: 40px; color: var(--text-muted);">Không có camera nào được kết nối. Hãy thêm camera trong tab Cấu hình hệ thống!</div>';
+                    return;
+                }
+
+                activeCameras.forEach(cam => {
+                    // Hiển thị huy hiệu (badges) cho các tính năng được kích hoạt
+                    let featuresHtml = '';
+                    const features = cam.features || [];
+                    if (features.includes('people_counter')) {
+                        featuresHtml += `<span class="badge" style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); color: var(--success); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-people-arrows"></i> Đếm vạch kép</span>`;
+                    }
+                    if (features.includes('intrusion_roi')) {
+                        featuresHtml += `<span class="badge" style="background: rgba(245, 158, 11, 0.1); border: 1px solid var(--warning); color: var(--warning); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> Vùng ROI</span>`;
+                    }
+                    if (features.includes('face_id')) {
+                        featuresHtml += `<span class="badge" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-face-smile"></i> Face ID</span>`;
+                    }
+                    if (features.includes('fall_detection')) {
+                        featuresHtml += `<span class="badge" style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-person-falling"></i> Phát hiện ngã</span>`;
+                    }
+                    
+                    let schedHtml = `<span style="color: var(--text-muted);"><i class="fa-solid fa-globe"></i> Hoạt động 24/7</span>`;
+                    if (cam.schedule_enabled) {
+                        schedHtml = `<span style="color: var(--warning); font-weight: 500;"><i class="fa-solid fa-clock"></i> Lịch: ${cam.schedule_start} - ${cam.schedule_end}</span>`;
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = 'glass-card camera-card';
+                    card.innerHTML = `
+                        <div class="camera-header">
+                            <span class="camera-title"><i class="fa-solid fa-video" style="color: var(--primary);"></i> ${cam.camera_id}</span>
+                            <span class="status-badge" id="badge-${cam.camera_id}"><div class="status-dot"></div> Off</span>
+                        </div>
+                        <div class="camera-stream-wrapper">
+                            <img id="stream-${cam.camera_id}" class="camera-stream" style="display: none;" alt="${cam.camera_id} Stream">
+                            <div id="placeholder-${cam.camera_id}" class="camera-placeholder">
+                                <i class="fa-solid fa-circle-play"></i>
+                                <span>Chưa bật camera</span>
+                            </div>
+                        </div>
+                        <div class="stream-controls" style="display: flex; gap: 8px;">
+                            <button class="btn btn-primary" onclick="toggleDynamicStream('${cam.camera_id}', '/video_feed/${cam.camera_id}')" style="flex: 1;">
+                                <i class="fa-solid fa-power-off"></i> Bật/Tắt
+                            </button>
+                            <button class="btn" onclick="openDrawModal('${cam.camera_id}')" style="padding: 6px 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: #fff;">
+                                <i class="fa-solid fa-pen-ruler" style="color: var(--warning);"></i> Vẽ Vạch/ROI
+                            </button>
+                        </div>
+                        <div style="font-size: 11px; padding: 10px 12px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.15);">
+                            <div>${featuresHtml}</div>
+                            <div style="display: flex; justify-content: space-between; font-size: 10px;">
+                                <span>Cảnh báo an ninh:</span>
+                                <span>${schedHtml}</span>
+                            </div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                    
+                    if (streamStates[cam.camera_id] === undefined) {
+                        streamStates[cam.camera_id] = false;
+                    } else if (streamStates[cam.camera_id]) {
+                        const img = document.getElementById(`stream-${cam.camera_id}`);
+                        const placeholder = document.getElementById(`placeholder-${cam.camera_id}`);
+                        const sBadge = document.getElementById(`badge-${cam.camera_id}`);
+                        img.src = `/video_feed/${cam.camera_id}?rand=${Math.random()}`;
+                        img.style.display = "block";
+                        placeholder.style.display = "none";
+                        sBadge.innerHTML = '<div class="status-dot" style="background-color: var(--success); box-shadow: 0 0 8px var(--success-glow);"></div> Running';
+                    }
+                });
+            } catch (err) {
+                console.error("Lỗi nạp camera grid:", err);
+            }
+        }
+
+        function toggleDynamicStream(cameraId, endpoint) {
+            const img = document.getElementById(`stream-${cameraId}`);
+            const placeholder = document.getElementById(`placeholder-${cameraId}`);
+            const sBadge = document.getElementById(`badge-${cameraId}`);
+            
+            if (streamStates[cameraId]) {
+                img.src = "";
+                img.style.display = "none";
+                placeholder.style.display = "flex";
+                streamStates[cameraId] = false;
+                sBadge.innerHTML = '<div class="status-dot"></div> Off';
+                addLog(`Tắt camera: ${cameraId}`, 'muted');
+            } else {
+                img.src = endpoint + "?rand=" + Math.random();
+                img.style.display = "block";
+                placeholder.style.display = "none";
+                streamStates[cameraId] = true;
+                sBadge.innerHTML = '<div class="status-dot" style="background-color: var(--success); box-shadow: 0 0 8px var(--success-glow); animation: pulse 1s infinite;"></div> Running';
+                addLog(`Bật camera: ${cameraId}`, 'success');
+            }
+        }
+
+        // =========================================================================
+        // 🔑 2. QUẢN LÝ TÀI KHOẢN (USER ADMINISTRATION LOGIC)
+        // =========================================================================
+        async function loadUsers() {
+            const tbody = document.getElementById('users-list-tbody');
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Đang tải danh sách tài khoản...</td></tr>';
+            try {
+                const response = await fetch('/api/users');
+                const users = await response.json();
+                tbody.innerHTML = '';
+                users.forEach(u => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${u.id}</td>
+                        <td><strong>${u.username}</strong></td>
+                        <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="promptChangePassword(${u.id}, '${u.username}')">
+                                <i class="fa-solid fa-key"></i> Đổi Pass
+                            </button>
+                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteUser(${u.id}, '${u.username}')">
+                                <i class="fa-solid fa-trash"></i> Xóa
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--danger);">Lỗi tải danh sách người dùng.</td></tr>';
+            }
+        }
+
+        async function createNewUser() {
+            const userEl = document.getElementById('new-user-username');
+            const passEl = document.getElementById('new-user-password');
+            const username = userEl.value.trim();
+            const password = passEl.value;
+
+            if (!username || !password) return alert("Vui lòng điền đủ tên tài khoản và mật khẩu!");
+
+            const form = new FormData();
+            form.append('username', username);
+            form.append('password', password);
+
+            try {
+                const response = await fetch('/api/users', { method: 'POST', body: form });
+                const res = await response.json();
+                if (response.ok) {
+                    alert("Tạo tài khoản quản trị thành công!");
+                    userEl.value = '';
+                    passEl.value = '';
+                    loadUsers();
+                } else {
+                    alert("Lỗi: " + res.detail);
+                }
+            } catch (err) {
+                alert("Lỗi kết nối server!");
+            }
+        }
+
+        async function promptChangePassword(userId, username) {
+            const newPassword = prompt(`Nhập mật khẩu mới cho tài khoản '${username}':`);
+            if (newPassword === null) return;
+            if (newPassword.trim() === "") return alert("Mật khẩu không được bỏ trống!");
+
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: newPassword })
+                });
+                const res = await response.json();
+                if (response.ok) {
+                    alert("Đổi mật khẩu thành công!");
+                } else {
+                    alert("Lỗi: " + res.detail);
+                }
+            } catch (e) {
+                alert("Lỗi mạng khi đổi mật khẩu!");
+            }
+        }
+
+        async function deleteUser(userId, username) {
+            if (!confirm(`Bạn có chắc chắn muốn xóa tài khoản quản trị '${username}'?`)) return;
+            try {
+                const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+                const res = await response.json();
+                if (response.ok) {
+                    alert("Đã xóa tài khoản!");
+                    loadUsers();
+                } else {
+                    alert("Lỗi: " + res.detail);
+                }
+            } catch (err) {
+                alert("Lỗi khi xóa tài khoản!");
+            }
+        }
+
+        // =========================================================================
+        // 📹 3. QUẢN LÝ CẤU HÌNH CAMERA ĐỘNG (CAMERA CRUD)
+        // =========================================================================
+        async function loadCamerasConfig() {
+            const tbody = document.getElementById('cameras-config-tbody');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Đang nạp cấu hình camera...</td></tr>';
+            try {
+                const response = await fetch('/api/cameras');
+                const cameras = await response.json();
+                tbody.innerHTML = '';
+                cameras.forEach(cam => {
+                    let feats = [];
+                    if (cam.features.includes('people_counter')) feats.push('Đếm vạch');
+                    if (cam.features.includes('intrusion_roi')) feats.push('ROI cấm');
+                    if (cam.features.includes('face_id')) feats.push('Face ID');
+                    if (cam.features.includes('fall_detection')) feats.push('Ngã');
+
+                    let schedText = '24/7';
+                    if (cam.schedule_enabled) {
+                        schedText = `Bật (${cam.schedule_start} - ${cam.schedule_end})`;
+                    }
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><strong>${cam.camera_id}</strong></td>
+                        <td style="font-family: monospace; font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${cam.source}</td>
+                        <td><span style="font-size: 11px;">${feats.join(', ') || 'Không có'}</span></td>
+                        <td><span style="font-size: 11px; font-weight: 500;">${schedText}</span></td>
+                        <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="openEditCameraModal('${cam.camera_id}')">
+                                <i class="fa-solid fa-pen"></i> Sửa
+                            </button>
+                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteCamera('${cam.camera_id}')">
+                                <i class="fa-solid fa-trash"></i> Xóa
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--danger);">Không thể nạp cấu hình.</td></tr>';
+            }
+        }
+
+        function toggleSchedInputs(checked) {
+            document.getElementById('cam-sched-times').style.opacity = checked ? "1" : "0.4";
+            document.getElementById('cam-sched-times').style.pointerEvents = checked ? "auto" : "none";
+        }
+
+        function openAddCameraModal() {
+            document.getElementById('camera-modal-title').innerText = "Thêm Camera Mới";
+            document.getElementById('camera-modal-action').value = "add";
+            document.getElementById('cam-id-input').value = "";
+            document.getElementById('cam-id-input').disabled = false;
+            document.getElementById('cam-source-input').value = "video.mp4";
+            document.getElementById('cam-feat-counter').checked = true;
+            document.getElementById('cam-feat-roi').checked = false;
+            document.getElementById('cam-feat-face').checked = false;
+            document.getElementById('cam-feat-fall').checked = false;
+            document.getElementById('cam-sched-enabled').checked = false;
+            document.getElementById('cam-sched-start').value = "23:00";
+            document.getElementById('cam-sched-end').value = "06:00";
+            toggleSchedInputs(false);
+            document.getElementById('camera-modal').style.display = "flex";
+        }
+
+        function openEditCameraModal(cameraId) {
+            const cam = activeCameras.find(c => c.camera_id === cameraId);
+            if (!cam) return;
+
+            document.getElementById('camera-modal-title').innerText = `Chỉnh Sửa Camera: ${cameraId}`;
+            document.getElementById('camera-modal-action').value = "edit";
+            document.getElementById('cam-id-input').value = cam.camera_id;
+            document.getElementById('cam-id-input').disabled = true;
+            document.getElementById('cam-source-input').value = cam.source;
+            
+            document.getElementById('cam-feat-counter').checked = cam.features.includes('people_counter');
+            document.getElementById('cam-feat-roi').checked = cam.features.includes('intrusion_roi');
+            document.getElementById('cam-feat-face').checked = cam.features.includes('face_id');
+            document.getElementById('cam-feat-fall').checked = cam.features.includes('fall_detection');
+            
+            document.getElementById('cam-sched-enabled').checked = cam.schedule_enabled || false;
+            document.getElementById('cam-sched-start').value = cam.schedule_start || "23:00";
+            document.getElementById('cam-sched-end').value = cam.schedule_end || "06:00";
+            toggleSchedInputs(cam.schedule_enabled || false);
+            
+            document.getElementById('camera-modal').style.display = "flex";
+        }
+
+        function closeCameraModal() {
+            document.getElementById('camera-modal').style.display = "none";
+        }
+
+        async function saveCameraConfig() {
+            const action = document.getElementById('camera-modal-action').value;
+            const cameraId = document.getElementById('cam-id-input').value.trim();
+            const source = document.getElementById('cam-source-input').value.trim();
+            
+            if (!cameraId || !source) return alert("Vui lòng nhập đầy đủ thông tin bắt buộc!");
+
+            const features = [];
+            if (document.getElementById('cam-feat-counter').checked) features.push('people_counter');
+            if (document.getElementById('cam-feat-roi').checked) features.push('intrusion_roi');
+            if (document.getElementById('cam-feat-face').checked) features.push('face_id');
+            if (document.getElementById('cam-feat-fall').checked) features.push('fall_detection');
+
+            let existingLine = [[100, 180], [540, 180]];
+            let existingRoi = [[100, 100], [540, 100], [540, 300], [100, 300]];
+            if (action === 'edit') {
+                const oldCam = activeCameras.find(c => c.camera_id === cameraId);
+                if (oldCam) {
+                    if (oldCam.line) existingLine = oldCam.line;
+                    if (oldCam.roi) existingRoi = oldCam.roi;
+                }
+            }
+
+            const payload = {
+                camera_id: cameraId,
+                source: source,
+                features: features,
+                line: existingLine,
+                roi: existingRoi,
+                schedule_enabled: document.getElementById('cam-sched-enabled').checked,
+                schedule_start: document.getElementById('cam-sched-start').value,
+                schedule_end: document.getElementById('cam-sched-end').value
+            };
+
+            const url = action === 'add' ? '/api/cameras' : `/api/cameras/${cameraId}`;
+            const method = action === 'add' ? 'POST' : 'PUT';
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const res = await response.json();
+                if (response.ok) {
+                    alert("Cấu hình camera đã được cập nhật thành công!");
+                    closeCameraModal();
+                    loadCamerasConfig();
+                    loadCamerasGrid();
+                } else {
+                    alert("Lỗi: " + res.detail);
+                }
+            } catch (err) {
+                alert("Lỗi khi lưu cấu hình camera!");
+            }
+        }
+
+        async function deleteCamera(cameraId) {
+            if (!confirm(`Bạn có chắc chắn muốn xóa camera '${cameraId}'?`)) return;
+            try {
+                const response = await fetch(`/api/cameras/${cameraId}`, { method: 'DELETE' });
+                if (response.ok) {
+                    alert("Đã xóa camera!");
+                    loadCamerasConfig();
+                    loadCamerasGrid();
+                }
+            } catch (e) {
+                alert("Lỗi khi xóa camera!");
+            }
+        }
+
+        // =========================================================================
+        // 🎨 4. CANVAS VẼ VẠCH ĐẾM & VÙNG ROI ĐA GIÁC (HTML5 CANVAS DRAWING LOGIC)
+        // =========================================================================
+        function openDrawModal(cameraId) {
+            currentDrawCamId = cameraId;
+            drawingPoints = [];
+            roiClosed = false;
+            
+            const cam = activeCameras.find(c => c.camera_id === cameraId);
+            if (!cam) return;
+
+            document.getElementById('draw-modal-title').innerText = `Thiết Lập Tọa Độ - Camera: ${cameraId}`;
+            document.getElementById('draw-preview-img').src = `/video_feed/${cameraId}?rand=${Math.random()}`;
+            
+            if (cam.features.includes('intrusion_roi') && cam.roi && cam.roi.length > 0) {
+                drawMode = 'roi';
+                drawingPoints = JSON.parse(JSON.stringify(cam.roi));
+                roiClosed = true;
+            } else {
+                drawMode = 'line';
+                if (cam.line && cam.line.length > 0) {
+                    drawingPoints = JSON.parse(JSON.stringify(cam.line));
+                }
+            }
+
+            document.getElementById('draw-modal').style.display = "flex";
+            setDrawMode(drawMode);
+            setTimeout(redrawCanvas, 300);
+        }
+
+        function closeDrawModal() {
+            document.getElementById('draw-modal').style.display = "none";
+            document.getElementById('draw-preview-img').src = ""; 
+        }
+
+        function setDrawMode(mode) {
+            drawMode = mode;
+            drawingPoints = [];
+            roiClosed = false;
+            
+            document.getElementById('btn-close-roi').style.display = mode === 'roi' ? 'inline-block' : 'none';
+            
+            const helpTexts = {
+                'line': 'Vẽ Vạch Đếm: Click chuột trái 2 lần lên ảnh preview để xác định điểm A và điểm B.',
+                'roi': 'Vẽ Vùng Cấm ROI: Click chuột liên tục để tạo các góc. Xong thì click nút "Đóng Vùng ROI" để khép kín đa giác.'
+            };
+            document.getElementById('draw-help-text').innerText = helpTexts[mode];
+            redrawCanvas();
+        }
+
+        function clearDrawingPoints() {
+            drawingPoints = [];
+            roiClosed = false;
+            redrawCanvas();
+        }
+
+        function closeRoiPolygon() {
+            if (drawMode !== 'roi') return;
+            if (drawingPoints.length < 3) return alert("Đa giác ROI cấm phải có tối thiểu 3 góc!");
+            roiClosed = true;
+            redrawCanvas();
+            document.getElementById('draw-help-text').innerText = "Đã nối kín đa giác ROI! Hãy kiểm tra và click 'Lưu và Áp dụng'.";
+        }
+
+        const canvas = document.getElementById('draw-canvas');
+        canvas.addEventListener('click', (e) => {
+            if (roiClosed && drawMode === 'roi') {
+                alert("Vùng ROI đã đóng kín. Vui lòng bấm 'Xóa vẽ nháp' nếu vẽ lại!");
+                return;
+            }
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.round((e.clientX - rect.left) * (canvas.width / rect.width));
+            const y = Math.round((e.clientY - rect.top) * (canvas.height / rect.height));
+            
+            if (drawMode === 'line') {
+                if (drawingPoints.length >= 2) {
+                    drawingPoints = []; 
+                }
+                drawingPoints.push([x, y]);
+                if (drawingPoints.length === 2) {
+                    document.getElementById('draw-help-text').innerText = "Đã hoàn thành vạch kẻ! Click 'Lưu và Áp dụng'.";
+                }
+            } else if (drawMode === 'roi') {
+                drawingPoints.push([x, y]);
+            }
+            redrawCanvas();
+        });
+
+        function redrawCanvas() {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (drawingPoints.length === 0) return;
+
+            ctx.lineWidth = 3;
+            ctx.font = "11px Outfit, sans-serif";
+            
+            if (drawMode === 'line') {
+                ctx.strokeStyle = '#f59e0b';
+                ctx.fillStyle = '#f59e0b';
+                
+                ctx.beginPath();
+                ctx.arc(drawingPoints[0][0], drawingPoints[0][1], 5, 0, 2*Math.PI);
+                ctx.fill();
+                ctx.fillText("Vạch Ngoài (A)", drawingPoints[0][0] + 8, drawingPoints[0][1] - 8);
+                
+                if (drawingPoints.length === 2) {
+                    ctx.beginPath();
+                    ctx.arc(drawingPoints[1][0], drawingPoints[1][1], 5, 0, 2*Math.PI);
+                    ctx.fill();
+                    ctx.fillText("Vạch Trong (B)", drawingPoints[1][0] + 8, drawingPoints[1][1] - 8);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(drawingPoints[0][0], drawingPoints[0][1]);
+                    ctx.lineTo(drawingPoints[1][0], drawingPoints[1][1]);
+                    ctx.stroke();
+                }
+            } else if (drawMode === 'roi') {
+                ctx.strokeStyle = roiClosed ? '#ef4444' : '#10b981';
+                ctx.fillStyle = roiClosed ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.1)';
+                
+                ctx.beginPath();
+                ctx.moveTo(drawingPoints[0][0], drawingPoints[0][1]);
+                
+                drawingPoints.forEach((pt, idx) => {
+                    ctx.lineTo(pt[0], pt[1]);
+                    ctx.fillText(`P${idx+1}`, pt[0]+6, pt[1]-6);
+                });
+                
+                if (roiClosed) {
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                ctx.stroke();
+                
+                ctx.fillStyle = '#3b82f6';
+                drawingPoints.forEach(pt => {
+                    ctx.beginPath();
+                    ctx.arc(pt[0], pt[1], 4, 0, 2*Math.PI);
+                    ctx.fill();
+                });
+            }
+        }
+
+        async function saveDrawCoords() {
+            if (drawingPoints.length === 0) return alert("Hãy vẽ tọa độ lên hình trước!");
+            if (drawMode === 'line' && drawingPoints.length < 2) return alert("Vui lòng vẽ đủ 2 điểm của vạch đếm!");
+            if (drawMode === 'roi' && !roiClosed) return alert("Đa giác ROI cấm chưa được khép kín! Hãy click 'Đóng Vùng ROI'.");
+
+            const cam = activeCameras.find(c => c.camera_id === currentDrawCamId);
+            if (!cam) return;
+
+            if (drawMode === 'line') {
+                cam.line = drawingPoints;
+            } else if (drawMode === 'roi') {
+                cam.roi = drawingPoints;
+            }
+
+            try {
+                const response = await fetch(`/api/cameras/${currentDrawCamId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cam)
+                });
+                if (response.ok) {
+                    alert("Cập nhật tọa độ thiết lập thành công!");
+                    closeDrawModal();
+                    loadCamerasConfig();
+                    loadCamerasGrid();
+                } else {
+                    alert("Lỗi máy chủ khi lưu!");
+                }
+            } catch (err) {
+                alert("Lỗi kết nối!");
+            }
+        }
+
+        // =========================================================================
+        // 📊 5. CẬP NHẬT HIỆU NĂNG SỨC KHỎE VÀ FPS THỜI GIAN THỰC (SYSTEM HEALTH UPDATE)
+        // =========================================================================
+        async function updateSystemHealth() {
+            try {
+                const response = await fetch('/api/system_health');
+                const data = await response.json();
+                
+                document.getElementById('health-cpu').innerText = `${data.cpu_usage}%`;
+                document.getElementById('bar-cpu').style.width = `${data.cpu_usage}%`;
+                
+                document.getElementById('health-ram').innerText = `${data.ram_usage}%`;
+                document.getElementById('bar-ram').style.width = `${data.ram_usage}%`;
+                
+                document.getElementById('health-gpu').innerText = `${data.gpu_usage}%`;
+                document.getElementById('bar-gpu').style.width = `${data.gpu_usage}%`;
+                
+                const fpsList = document.getElementById('fps-list');
+                fpsList.innerHTML = '';
+                
+                if (activeCameras.length === 0) {
+                    fpsList.innerHTML = '<span style="color: var(--text-muted); font-size: 10px;">Không có camera hoạt động</span>';
+                } else {
+                    activeCameras.forEach(cam => {
+                        const fpsVal = data.fps[cam.camera_id] !== undefined ? data.fps[cam.camera_id] : 0.0;
+                        let statusColor = "var(--text-muted)";
+                        if (streamStates[cam.camera_id]) {
+                            statusColor = fpsVal > 15 ? "var(--success)" : (fpsVal > 5 ? "var(--warning)" : "var(--danger)");
+                        }
+                        
+                        const item = document.createElement('div');
+                        item.style.display = "flex";
+                        item.style.justifyContent = "space-between";
+                        item.style.padding = "2px 0";
+                        item.innerHTML = `
+                            <span>${cam.camera_id}:</span>
+                            <span style="font-family: monospace; font-weight: 600; color: ${statusColor};">
+                                ${streamStates[cam.camera_id] ? `${fpsVal} FPS` : 'OFF'}
+                            </span>
+                        `;
+                        fpsList.appendChild(item);
+                    });
+                }
+            } catch(e) {
+                console.error("Lỗi cập nhật sức khỏe phần cứng:", e);
+            }
+        }
+
+        setInterval(() => {
+            if (currentTab === 'monitor') {
+                updateSystemHealth();
+            }
+        }, 2000);
+
+        async function loadFaces() {
+            const tbody = document.getElementById('faces-list-tbody');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Đang tải dữ liệu...</td></tr>';
+            try {
+                const response = await fetch('/faces');
+                const faces = await response.json();
+                if (faces.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Cơ sở dữ liệu trống.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = '';
+                faces.forEach(face => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${face.id}</td>
+                        <td><strong>${face.name}</strong></td>
+                        <td><span style="font-size: 12px; color: var(--text-muted);">${face.created_at}</span></td>
+                        <td><span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">${face.created_by}</span></td>
+                        <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="promptEditFaceName(${face.id}, '${face.name}')">
+                                <i class="fa-solid fa-pen-to-square"></i> Sửa Tên
+                            </button>
+                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteFace(${face.id})">
+                                <i class="fa-solid fa-trash"></i> Xóa
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--danger);">Không thể kết nối với API Server.</td></tr>';
+            }
+        }
+
+        async function promptEditFaceName(id, currentName) {
+            const newName = prompt(`Đổi tên đăng ký cho khuôn mặt '${currentName}' thành:`, currentName);
+            if (newName === null) return;
+            if (newName.trim() === "") return alert("Tên không được bỏ trống!");
+
+            try {
+                const response = await fetch(`/faces/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName })
+                });
+                const res = await response.json();
+                if (response.ok) {
+                    addLog(`Đã đổi tên khuôn mặt ID: ${id} thành: ${newName}`, 'success');
+                    loadFaces();
+                } else {
+                    alert("Lỗi: " + res.detail);
+                }
+            } catch (e) {
+                alert("Lỗi mạng khi đổi tên!");
+            }
+        }
+
+        async function deleteFace(id) {
+            if (!confirm("Bạn có chắc chắn muốn xóa khuôn mặt này khỏi cơ sở dữ liệu?")) return;
+            try {
+                await fetch(`/faces/${id}`, { method: 'DELETE' });
+                addLog(`Đã xóa khuôn mặt ID: ${id}`, 'danger');
+                loadFaces();
+            } catch (err) {
+                alert("Lỗi khi xóa khuôn mặt!");
+            }
+        }
+
+        async function startWebcamCapture() {
+            const webcamArea = document.getElementById('webcam-capture-area');
+            const video = document.getElementById('webcam-video');
+            
+            // Đóng khu vực chụp từ camera hệ thống nếu đang mở
+            document.getElementById('system-camera-capture-area').style.display = 'none';
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("Trình duyệt từ chối quyền mở Camera do kết nối không bảo mật (Yêu cầu dùng tên miền HTTPS hoặc chạy cục bộ http://localhost / http://127.0.0.1). Vui lòng sử dụng tính năng 'Chụp Cam Hệ Thống' hoặc 'Tải File' để đăng ký khuôn mặt!");
+                return;
+            }
+            
+            webcamArea.style.display = "block";
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                video.srcObject = webcamStream;
+            } catch (err) {
+                alert("Không thể truy cập camera trình duyệt! Lỗi: " + err.message);
+                webcamArea.style.display = "none";
+            }
+        }
+
+        function stopWebcam() {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+                document.getElementById('webcam-capture-area').style.display = "none";
+            }
+        }
+
+        async function toggleSystemCameraCaptureArea() {
+            const area = document.getElementById('system-camera-capture-area');
+            const select = document.getElementById('capture-system-cam-id');
+            
+            if (area.style.display === 'none') {
+                stopWebcam();
+                try {
+                    const response = await fetch('/api/cameras');
+                    activeCameras = await response.json();
+                    select.innerHTML = activeCameras.map(cam => `<option value="${cam.camera_id}">${cam.camera_id}</option>`).join('');
+                    if (activeCameras.length === 0) {
+                        select.innerHTML = '<option value="">Không có camera nào khả dụng</option>';
+                    }
+                } catch (e) {
+                    select.innerHTML = '<option value="">Lỗi tải danh sách camera</option>';
+                }
+                area.style.display = 'block';
+            } else {
+                area.style.display = 'none';
+            }
+        }
+
+        async function captureFromSystemCamera() {
+            const nameInput = document.getElementById('register-name');
+            const name = nameInput.value.trim();
+            if (!name) return alert("Vui lòng nhập tên đăng ký trước!");
+            
+            const camSelect = document.getElementById('capture-system-cam-id');
+            const cameraId = camSelect.value;
+            if (!cameraId) return alert("Không có camera nào được chọn!");
+            
+            const statusDiv = document.getElementById('upload-status');
+            statusDiv.innerHTML = "Đang lấy ảnh từ camera " + cameraId + "...";
+            
+            try {
+                const response = await fetch(`/api/capture_frame/${cameraId}`);
+                if (!response.ok) {
+                    const errJson = await response.json();
+                    throw new Error(errJson.detail || "Không thể chụp hình từ camera!");
+                }
+                const blob = await response.blob();
+                
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('file', blob, 'face.jpg');
+                
+                statusDiv.innerHTML = "Đang gửi ảnh đăng ký...";
+                const regResponse = await fetch('/register_face', { method: 'POST', body: formData });
+                const regRes = await regResponse.json();
+                
+                if (regResponse.ok) {
+                    statusDiv.innerHTML = "Đăng ký thành công!";
+                    addLog(`Đăng ký khuôn mặt thành công cho: ${name} (từ ${cameraId})`, 'success');
+                    loadFaces();
+                    alert("Đăng ký khuôn mặt thành công!");
+                } else {
+                    statusDiv.innerHTML = `<span style="color: var(--danger);">Lỗi: ${regRes.detail || "Đăng ký thất bại"}</span>`;
+                    alert("Lỗi: " + (regRes.detail || "Đăng ký thất bại"));
+                }
+            } catch (err) {
+                statusDiv.innerHTML = `<span style="color: var(--danger);">Lỗi: ${err.message}</span>`;
+                alert("Lỗi: " + err.message);
+            }
+        }
+
+        async function captureAndRegister() {
+            const nameInput = document.getElementById('register-name');
+            const name = nameInput.value.trim();
+            if (!name) return alert("Vui lòng nhập tên đăng ký trước!");
+
+            const video = document.getElementById('webcam-video');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('file', blob, 'face.jpg');
+
+                const statusDiv = document.getElementById('upload-status');
+                statusDiv.innerHTML = "Đang gửi ảnh đăng ký...";
+                try {
+                    const response = await fetch('/register_face', { method: 'POST', body: formData });
+                    const res = await response.json();
+                    if (response.ok) {
+                        statusDiv.innerHTML = "Đăng ký thành công!";
+                        addLog(`Đăng ký khuôn mặt thành công cho: ${name}`, 'success');
+                        loadFaces();
+                        stopWebcam();
+                    } else {
+                        statusDiv.innerHTML = `<span style="color: var(--danger);">Lỗi: ${res.detail || "Đăng ký thất bại"}</span>`;
+                        alert("Lỗi: " + (res.detail || "Đăng ký thất bại"));
+                    }
+                } catch (err) { 
+                    statusDiv.innerHTML = "Lỗi kết nối server!"; 
+                    alert("Lỗi kết nối server!");
+                }
+            }, 'image/jpeg');
+        }
+
+        async function uploadImageFile(input) {
+            const nameInput = document.getElementById('register-name');
+            const name = nameInput.value.trim();
+            if (!name) return alert("Vui lòng điền tên trước khi tải ảnh!");
+            if (input.files.length === 0) return;
+            
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('file', input.files[0]);
+            
+            try {
+                const response = await fetch('/register_face', { method: 'POST', body: formData });
+                const res = await response.json();
+                if (response.ok) {
+                    addLog(`Đăng ký khuôn mặt thành công cho: ${name}`, 'success');
+                    loadFaces();
+                    alert("Đăng ký khuôn mặt thành công!");
+                } else {
+                    alert("Lỗi: " + (res.detail || "Đăng ký thất bại"));
+                }
+            } catch (err) { alert("Lỗi kết nối server!"); }
+            input.value = "";
+        }
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/settings');
+                const settings = await response.json();
+                document.getElementById('setting-token').value = settings.telegram_token || "";
+                document.getElementById('setting-chats').value = settings.telegram_chats.join(", ") || "";
+                document.getElementById('setting-conf').value = settings.conf_threshold || 0.25;
+                document.getElementById('setting-counter-cooldown').value = settings.counter_cooldown || 45;
+                document.getElementById('setting-telegram-cooldown').value = settings.telegram_cooldown || 15;
+                document.getElementById('setting-alerts-enabled').value = settings.alerts_enabled ? "true" : "false";
+            } catch(e) {}
+        }
+        
+        async function saveSettings() {
+            const payload = {
+                telegram_token: document.getElementById('setting-token').value.trim(),
+                telegram_chats: document.getElementById('setting-chats').value.split(',').map(s => s.trim()).filter(s => s !== ""),
+                conf_threshold: parseFloat(document.getElementById('setting-conf').value),
+                counter_cooldown: parseInt(document.getElementById('setting-counter-cooldown').value),
+                telegram_cooldown: parseInt(document.getElementById('setting-telegram-cooldown').value),
+                alerts_enabled: document.getElementById('setting-alerts-enabled').value === "true"
+            };
+            try {
+                await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                alert("Lưu cấu hình thành công!");
+                addLog("Đã cập nhật cấu hình hệ thống", 'success');
+            } catch(e) { alert("Lỗi khi lưu cấu hình!"); }
+        }
+
+        async function loadHistoryLogs() {
+            try {
+                const response = await fetch('/api/logs');
+                historyLogs = await response.json();
+                filterHistoryLogs();
+            } catch (err) {}
+        }
+
+        function filterHistoryLogs() {
+            const search = document.getElementById('log-search').value.toLowerCase();
+            const typeFilter = document.getElementById('log-filter-type').value;
+            const tbody = document.getElementById('history-logs-tbody');
+            const filtered = historyLogs.filter(log => log.message.toLowerCase().includes(search) && (typeFilter === "" || log.event_type === typeFilter));
+            
+            tbody.innerHTML = filtered.map(log => `
+                <tr>
+                    <td>${log.timestamp}</td>
+                    <td>${log.camera_id}</td>
+                    <td>${log.event_type}</td>
+                    <td>${log.message}</td>
+                    <td style="text-align: right;">
+                        <button class="btn" onclick="openImageModal('${log.image_path}', '${log.message}')">Xem</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openImageModal(src, caption) {
+            document.getElementById('modal-img').src = src;
+            document.getElementById('modal-caption').innerText = caption;
+            document.getElementById('image-modal').style.display = "flex";
+        }
+
+        function closeImageModal() { document.getElementById('image-modal').style.display = "none"; }
+
+        setInterval(async () => {
+            if (currentTab !== 'monitor') return;
+            try {
+                const data = await (await fetch('/system_status')).json();
+                document.getElementById('live-alert-indicator').style.display = data.intrusion_alert ? "inline-flex" : "none";
+                document.getElementById('live-fall-indicator').style.display = data.fall_alert ? "inline-flex" : "none";
+                if (data.new_logs) data.new_logs.forEach(log => addLog(log.msg, log.type));
+            } catch(e) {}
+        }, 1500);
+
+        function addLog(msg, type = '') {
+            const list = document.getElementById('log-list');
+            const item = document.createElement('div');
+            item.className = `log-item ${type}`;
+            item.innerHTML = `<span>${msg}</span><span class="log-time">${new Date().toLocaleTimeString()}</span>`;
+            list.appendChild(item);
+            if (list.children.length > 30) list.removeChild(list.firstChild);
+        }
+
+        function clearLogs() {
+            document.getElementById('log-list').innerHTML = '';
+            addLog("Đã xóa nhật ký.", 'muted');
+        }
+
+        window.addEventListener('load', () => {
+            fetch('/gpu_info')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('gpu-info').innerText = "GPU: " + data.gpu_name + (data.cuda_active ? " (CUDA Active)" : " (CPU fallback)");
+                });
+            loadSettings();
+            loadCamerasGrid();
+            setTimeout(updateSystemHealth, 500);
+        });
+    </script>
+</body>
+</html>

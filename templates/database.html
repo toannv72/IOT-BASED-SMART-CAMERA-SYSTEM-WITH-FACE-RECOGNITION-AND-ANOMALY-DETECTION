@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}Cơ Sở Dữ Liệu Khuôn Mặt - AI Surveillance{% endblock %}
+{% block page_title %}Cơ Sở Dữ Liệu Khuôn Mặt{% endblock %}
+
+{% block content %}
+<div class="db-layout">
+    <!-- Danh sách khuôn mặt đã lưu -->
+    <div class="glass-card">
+        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+            <i class="fa-solid fa-id-card"></i> Danh Sách Khuôn Mặt Đã Đăng Ký
+        </h3>
+        <div class="faces-table-container">
+            <table class="faces-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Họ Và Tên</th>
+                        <th>Thời Gian Đăng Ký</th>
+                        <th>Người Đăng Ký</th>
+                        <th style="text-align: right;">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody id="faces-list-tbody">
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted);">Đang tải dữ liệu...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Đăng ký khuôn mặt mới -->
+    <div class="glass-card">
+        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+            <i class="fa-solid fa-user-plus"></i> Đăng Ký Khuôn Mặt Mới
+        </h3>
+        <div class="form-group">
+            <label class="form-label">Họ và Tên</label>
+            <input type="text" id="register-name" class="form-input" placeholder="Nhập tên đăng ký...">
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+            <button class="btn btn-primary" style="flex: 1; padding: 6px 12px; font-size: 11px;" onclick="startWebcamCapture()">
+                <i class="fa-solid fa-camera"></i> Chụp WebRTC
+            </button>
+            <button class="btn btn-success" style="flex: 1; padding: 6px 12px; font-size: 11px;" onclick="toggleSystemCameraCaptureArea()">
+                <i class="fa-solid fa-camera-rotate"></i> Chụp Cam Hệ Thống
+            </button>
+            <button class="btn" style="flex: 1; padding: 6px 12px; font-size: 11px;" onclick="document.getElementById('file-upload').click()">
+                <i class="fa-solid fa-upload"></i> Tải File
+            </button>
+            <input type="file" id="file-upload" style="display: none;" accept="image/*" onchange="uploadImageFile(this)">
+        </div>
+
+        <!-- Khu vực chụp từ Camera Hệ Thống -->
+        <div id="system-camera-capture-area" style="display: none; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label" style="font-size: 11px;">Chọn Camera Hệ Thống</label>
+                <select id="capture-system-cam-id" class="form-input" style="background: rgba(0,0,0,0.2); color: #fff; width: 100%; font-size: 12px; padding: 6px 10px;">
+                    <!-- Nạp động qua JS -->
+                </select>
+            </div>
+            <button class="btn btn-success" style="width: 100%; justify-content: center; font-size: 12px; padding: 6px 12px;" onclick="captureFromSystemCamera()">
+                <i class="fa-solid fa-circle-dot"></i> Chụp & Đăng ký
+            </button>
+        </div>
+        <div id="webcam-capture-area" style="display: none;">
+            <div class="webcam-container">
+                <video id="webcam-video" class="webcam-video" autoplay></video>
+                <div class="webcam-overlay"></div>
+            </div>
+            <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="captureAndRegister()">
+                <i class="fa-solid fa-circle-dot"></i> Chụp & Lưu
+            </button>
+        </div>
+        <div id="upload-status" style="font-size: 13px; text-align: center; margin-top: 10px;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let webcamStream = null;
+
+    // Load dữ liệu khuôn mặt ngay khi mở trang
+    window.addEventListener('DOMContentLoaded', () => {
+        loadFaces();
+    });
+
+    // onCamerasLoaded được gọi từ base.html sau khi lấy được activeCameras
+    function onCamerasLoaded() {
+        // Có thể dùng để chuẩn bị danh sách camera chụp hệ thống trước
+        const select = document.getElementById('capture-system-cam-id');
+        if (select) {
+            select.innerHTML = activeCameras.map(cam => `<option value="${cam.camera_id}">${cam.camera_id}</option>`).join('');
+            if (activeCameras.length === 0) {
+                select.innerHTML = '<option value="">Không có camera nào khả dụng</option>';
+            }
+        }
+    }
+
+    async function loadFaces() {
+        const tbody = document.getElementById('faces-list-tbody');
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Đang tải dữ liệu...</td></tr>';
+        try {
+            const response = await fetch('/faces');
+            const faces = await response.json();
+            if (faces.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Cơ sở dữ liệu trống.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            faces.forEach(face => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${face.id}</td>
+                    <td><strong>${face.name}</strong></td>
+                    <td><span style="font-size: 12px; color: var(--text-muted);">${face.created_at}</span></td>
+                    <td><span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">${face.created_by}</span></td>
+                    <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="promptEditFaceName(${face.id}, '${face.name}')">
+                            <i class="fa-solid fa-pen-to-square"></i> Sửa Tên
+                        </button>
+                        <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteFace(${face.id})">
+                            <i class="fa-solid fa-trash"></i> Xóa
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--danger);">Không thể kết nối với API Server.</td></tr>';
+        }
+    }
+
+    async function promptEditFaceName(id, currentName) {
+        const newName = prompt(`Đổi tên đăng ký cho khuôn mặt '${currentName}' thành:`, currentName);
+        if (newName === null) return;
+        if (newName.trim() === "") return alert("Tên không được bỏ trống!");
+
+        try {
+            const response = await fetch(`/faces/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName })
+            });
+            const res = await response.json();
+            if (response.ok) {
+                loadFaces();
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch (e) {
+            alert("Lỗi mạng khi đổi tên!");
+        }
+    }
+
+    async function deleteFace(id) {
+        if (!confirm("Bạn có chắc chắn muốn xóa khuôn mặt này khỏi cơ sở dữ liệu?")) return;
+        try {
+            const response = await fetch(`/faces/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                loadFaces();
+            } else {
+                alert("Lỗi khi xóa khuôn mặt!");
+            }
+        } catch (err) {
+            alert("Lỗi khi xóa khuôn mặt!");
+        }
+    }
+
+    async function startWebcamCapture() {
+        const webcamArea = document.getElementById('webcam-capture-area');
+        const video = document.getElementById('webcam-video');
+        
+        // Đóng khu vực chụp từ camera hệ thống nếu đang mở
+        document.getElementById('system-camera-capture-area').style.display = 'none';
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert("Trình duyệt từ chối quyền mở Camera do kết nối không bảo mật (Yêu cầu dùng tên miền HTTPS hoặc chạy cục bộ http://localhost / http://127.0.0.1). Vui lòng sử dụng tính năng 'Chụp Cam Hệ Thống' hoặc 'Tải File' để đăng ký khuôn mặt!");
+            return;
+        }
+        
+        webcamArea.style.display = "block";
+        try {
+            webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            video.srcObject = webcamStream;
+        } catch (err) {
+            alert("Không thể truy cập camera trình duyệt! Lỗi: " + err.message);
+            webcamArea.style.display = "none";
+        }
+    }
+
+    function stopWebcam() {
+        if (webcamStream) {
+            webcamStream.getTracks().forEach(track => track.stop());
+            webcamStream = null;
+            document.getElementById('webcam-capture-area').style.display = "none";
+        }
+    }
+
+    async function toggleSystemCameraCaptureArea() {
+        const area = document.getElementById('system-camera-capture-area');
+        const select = document.getElementById('capture-system-cam-id');
+        
+        if (area.style.display === 'none') {
+            stopWebcam();
+            try {
+                const response = await fetch('/api/cameras');
+                const cams = await response.json();
+                select.innerHTML = cams.map(cam => `<option value="${cam.camera_id}">${cam.camera_id}</option>`).join('');
+                if (cams.length === 0) {
+                    select.innerHTML = '<option value="">Không có camera nào khả dụng</option>';
+                }
+            } catch (e) {
+                select.innerHTML = '<option value="">Lỗi tải danh sách camera</option>';
+            }
+            area.style.display = 'block';
+        } else {
+            area.style.display = 'none';
+        }
+    }
+
+    async function captureFromSystemCamera() {
+        const nameInput = document.getElementById('register-name');
+        const name = nameInput.value.trim();
+        if (!name) return alert("Vui lòng nhập tên đăng ký trước!");
+        
+        const camSelect = document.getElementById('capture-system-cam-id');
+        const cameraId = camSelect.value;
+        if (!cameraId) return alert("Không có camera nào được chọn!");
+        
+        const statusDiv = document.getElementById('upload-status');
+        statusDiv.innerHTML = "Đang lấy ảnh từ camera " + cameraId + "...";
+        
+        try {
+            const response = await fetch(`/api/capture_frame/${cameraId}`);
+            if (!response.ok) {
+                const errJson = await response.json();
+                throw new Error(errJson.detail || "Không thể chụp hình từ camera!");
+            }
+            const blob = await response.blob();
+            
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('file', blob, 'face.jpg');
+            
+            statusDiv.innerHTML = "Đang gửi ảnh đăng ký...";
+            const regResponse = await fetch('/register_face', { method: 'POST', body: formData });
+            const regRes = await regResponse.json();
+            
+            if (regResponse.ok) {
+                statusDiv.innerHTML = "Đăng ký thành công!";
+                loadFaces();
+                alert("Đăng ký khuôn mặt thành công!");
+            } else {
+                statusDiv.innerHTML = `<span style="color: var(--danger);">Lỗi: ${regRes.detail || "Đăng ký thất bại"}</span>`;
+                alert("Lỗi: " + (regRes.detail || "Đăng ký thất bại"));
+            }
+        } catch (err) {
+            statusDiv.innerHTML = `<span style="color: var(--danger);">Lỗi: ${err.message}</span>`;
+            alert("Lỗi: " + err.message);
+        }
+    }
+
+    async function captureAndRegister() {
+        const nameInput = document.getElementById('register-name');
+        const name = nameInput.value.trim();
+        if (!name) return alert("Vui lòng nhập tên đăng ký trước!");
+
+        const video = document.getElementById('webcam-video');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        canvas.toBlob(async (blob) => {
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('file', blob, 'face.jpg');
+
+            const statusDiv = document.getElementById('upload-status');
+            statusDiv.innerHTML = "Đang gửi ảnh đăng ký...";
+            try {
+                const response = await fetch('/register_face', { method: 'POST', body: formData });
+                const res = await response.json();
+                if (response.ok) {
+                    statusDiv.innerHTML = "Đăng ký thành công!";
+                    loadFaces();
+                    stopWebcam();
+                } else {
+                    statusDiv.innerHTML = `<span style="color: var(--danger);">Lỗi: ${res.detail || "Đăng ký thất bại"}</span>`;
+                    alert("Lỗi: " + (res.detail || "Đăng ký thất bại"));
+                }
+            } catch (err) { 
+                statusDiv.innerHTML = "Lỗi kết nối server!"; 
+                alert("Lỗi kết nối server!");
+            }
+        }, 'image/jpeg');
+    }
+
+    async function uploadImageFile(input) {
+        const nameInput = document.getElementById('register-name');
+        const name = nameInput.value.trim();
+        if (!name) return alert("Vui lòng điền tên trước khi tải ảnh!");
+        if (input.files.length === 0) return;
+        
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('file', input.files[0]);
+        
+        try {
+            const response = await fetch('/register_face', { method: 'POST', body: formData });
+            const res = await response.json();
+            if (response.ok) {
+                loadFaces();
+                alert("Đăng ký khuôn mặt thành công!");
+            } else {
+                alert("Lỗi: " + (res.detail || "Đăng ký thất bại"));
+            }
+        } catch (err) { alert("Lỗi kết nối server!"); }
+        input.value = "";
+    }
+</script>
+{% endblock %}

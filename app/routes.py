@@ -9,7 +9,10 @@ import psutil
 import torch
 from fastapi import Request, Response, Form, UploadFile, File, HTTPException, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
+from fastapi.templating import Jinja2Templates
 from PIL import Image
+
+templates = Jinja2Templates(directory="templates")
 
 from app import app
 import app.config as config
@@ -46,164 +49,6 @@ def verify_password(password: str, stored_hash: str) -> bool:
 # =========================================================================
 # GIAO DIỆN GLASSMORPHISM ĐĂNG NHẬP VÀ ĐĂNG KÝ (TỰ CHỨA - ĐẸP MẮT)
 # =========================================================================
-def get_auth_html(mode="login", error="", success=""):
-    title = "Đăng Nhập Hệ Thống" if mode == "login" else "Đăng Ký Tài Khoản"
-    button_text = "Đăng Nhập" if mode == "login" else "Đăng Ký"
-    switch_link = "/register" if mode == "login" else "/login"
-    switch_text = "Chưa có tài khoản? Đăng ký ngay" if mode == "login" else "Đã có tài khoản? Đăng nhập"
-    
-    error_html = f'<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> {error}</div>' if error else ""
-    success_html = f'<div class="alert alert-success"><i class="fas fa-check-circle"></i> {success}</div>' if success else ""
-    
-    return f"""
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{title} - AI Surveillance</title>
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-        <style>
-            :root {{
-                --bg-color: #0b0f19;
-                --panel-bg: rgba(17, 24, 39, 0.7);
-                --border-color: rgba(255, 255, 255, 0.08);
-                --primary: #3b82f6;
-                --primary-glow: rgba(59, 130, 246, 0.5);
-                --text-main: #f3f4f6;
-                --text-muted: #9ca3af;
-            }}
-            * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-            body {{
-                font-family: 'Outfit', sans-serif;
-                background-color: var(--bg-color);
-                color: var(--text-main);
-                height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                overflow: hidden;
-            }}
-            /* Hiệu ứng nền */
-            .bg-glow {{
-                position: absolute;
-                width: 400px;
-                height: 400px;
-                background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                z-index: 1;
-                pointer-events: none;
-            }}
-            .card {{
-                width: 400px;
-                background: var(--panel-bg);
-                backdrop-filter: blur(16px);
-                border: 1px solid var(--border-color);
-                border-radius: 16px;
-                padding: 40px;
-                z-index: 2;
-                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-                text-align: center;
-            }}
-            h2 {{ font-weight: 600; margin-bottom: 24px; letter-spacing: -0.5px; }}
-            .input-group {{
-                position: relative;
-                margin-bottom: 20px;
-                text-align: left;
-            }}
-            .input-group label {{
-                display: block;
-                font-size: 13px;
-                color: var(--text-muted);
-                margin-bottom: 6px;
-            }}
-            .input-group i {{
-                position: absolute;
-                bottom: 12px;
-                left: 14px;
-                color: var(--text-muted);
-            }}
-            .input-group input {{
-                width: 100%;
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid var(--border-color);
-                border-radius: 8px;
-                padding: 10px 10px 10px 38px;
-                color: #fff;
-                font-family: inherit;
-                outline: none;
-                transition: 0.3s;
-            }}
-            .input-group input:focus {{
-                border-color: var(--primary);
-                box-shadow: 0 0 8px var(--primary-glow);
-            }}
-            .btn {{
-                width: 100%;
-                background: var(--primary);
-                color: #fff;
-                border: none;
-                border-radius: 8px;
-                padding: 12px;
-                font-size: 15px;
-                font-weight: 500;
-                font-family: inherit;
-                cursor: pointer;
-                transition: 0.3s;
-                margin-top: 10px;
-            }}
-            .btn:hover {{
-                box-shadow: 0 0 15px var(--primary);
-                transform: translateY(-1px);
-            }}
-            .alert {{
-                padding: 10px;
-                border-radius: 8px;
-                font-size: 13px;
-                margin-bottom: 20px;
-                text-align: left;
-            }}
-            .alert-danger {{ background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; }}
-            .alert-success {{ background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #a7f3d0; }}
-            .switch-link {{
-                display: block;
-                margin-top: 20px;
-                font-size: 13px;
-                color: var(--primary);
-                text-decoration: none;
-                transition: 0.2s;
-            }}
-            .switch-link:hover {{ text-decoration: underline; }}
-        </style>
-    </head>
-    <body>
-        <div class="bg-glow"></div>
-        <div class="card">
-            <h2>{title}</h2>
-            {error_html}
-            {success_html}
-            <form action="" method="post">
-                <div class="input-group">
-                    <label for="username">Tên tài khoản</label>
-                    <i class="fas fa-user"></i>
-                    <input type="text" id="username" name="username" placeholder="Nhập username..." required>
-                </div>
-                <div class="input-group">
-                    <label for="password">Mật khẩu</label>
-                    <i class="fas fa-lock"></i>
-                    <input type="password" id="password" name="password" placeholder="Nhập password..." required>
-                </div>
-                <button type="submit" class="btn">{button_text}</button>
-            </form>
-            <a href="{switch_link}" class="switch-link">{switch_text}</a>
-        </div>
-    </body>
-    </html>
-    """
-
 # =========================================================================
 # ROUTING ĐĂNG NHẬP & ĐĂNG KÝ (AUTHENTICATION ENDPOINTS)
 # =========================================================================
@@ -212,7 +57,7 @@ def get_login(request: Request):
     # Nếu đã đăng nhập thì tự chuyển sang Dashboard chính
     if request.session.get("user_id"):
         return RedirectResponse(url="/")
-    return HTMLResponse(get_auth_html(mode="login"))
+    return templates.TemplateResponse(request, "login.html", {"error": "", "success": ""})
 
 @app.post("/login", response_class=HTMLResponse)
 def post_login(request: Request, username: str = Form(...), password: str = Form(...)):
@@ -221,7 +66,7 @@ def post_login(request: Request, username: str = Form(...), password: str = Form
     db.close()
     
     if not user or not verify_password(password, user.password_hash):
-        return HTMLResponse(get_auth_html(mode="login", error="Sai tài khoản hoặc mật khẩu!"))
+        return templates.TemplateResponse(request, "login.html", {"error": "Sai tài khoản hoặc mật khẩu!", "success": ""})
         
     # Tạo phiên đăng nhập (Lưu ID vào session cookie đã được mã hóa ký tên)
     request.session["user_id"] = user.id
@@ -233,16 +78,16 @@ def post_login(request: Request, username: str = Form(...), password: str = Form
 def get_register(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse(url="/")
-    return HTMLResponse(get_auth_html(mode="register"))
+    return templates.TemplateResponse(request, "register.html", {"error": "", "success": ""})
 
 @app.post("/register", response_class=HTMLResponse)
-def post_register(username: str = Form(...), password: str = Form(...)):
+def post_register(request: Request, username: str = Form(...), password: str = Form(...)):
     db = SessionLocal()
     existing_user = db.query(User).filter(User.username == username).first()
     
     if existing_user:
         db.close()
-        return HTMLResponse(get_auth_html(mode="register", error="Tài khoản này đã tồn tại trên hệ thống!"))
+        return templates.TemplateResponse(request, "register.html", {"error": "Tài khoản này đã tồn tại trên hệ thống!", "success": ""})
         
     # Đăng ký tài khoản mới và băm mật khẩu
     new_user = User(username=username, password_hash=hash_password(password))
@@ -251,11 +96,11 @@ def post_register(username: str = Form(...), password: str = Form(...)):
         db.commit()
         db.close()
         print(f"[AUTH] Đã đăng ký thành công tài khoản mới: {username}")
-        return HTMLResponse(get_auth_html(mode="login", success="Đăng ký thành công! Hãy đăng nhập."))
+        return templates.TemplateResponse(request, "login.html", {"success": "Đăng ký thành công! Hãy đăng nhập.", "error": ""})
     except Exception as e:
         db.rollback()
         db.close()
-        return HTMLResponse(get_auth_html(mode="register", error=f"Lỗi đăng ký tài khoản: {e}"))
+        return templates.TemplateResponse(request, "register.html", {"error": f"Lỗi đăng ký tài khoản: {e}", "success": ""})
 
 @app.get("/logout")
 def get_logout(request: Request):
@@ -272,12 +117,31 @@ def read_root(request: Request):
     # Route Guard: Bảo vệ trang chính
     if not request.session.get("user_id"):
         return RedirectResponse(url="/login")
-        
-    html_path = os.path.join("templates", "index.html")
-    if os.path.exists(html_path):
-        with open(html_path, "r", encoding="utf-8") as f:
-            return HTMLResponse(content=f.read())
-    return HTMLResponse("<h1>Thư mục templates hoặc tệp index.html không tồn tại!</h1>")
+    return templates.TemplateResponse(request, "monitor.html", {"active_page": "monitor"})
+
+@app.get("/database", response_class=HTMLResponse)
+def get_database_page(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "database.html", {"active_page": "database"})
+
+@app.get("/logs", response_class=HTMLResponse)
+def get_logs_page(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "logs.html", {"active_page": "logs"})
+
+@app.get("/settings", response_class=HTMLResponse)
+def get_settings_page(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "settings.html", {"active_page": "settings"})
+
+@app.get("/users", response_class=HTMLResponse)
+def get_users_page(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "users.html", {"active_page": "users"})
 
 @app.get("/gpu_info")
 def get_gpu_info(request: Request):
@@ -303,13 +167,14 @@ def get_system_status(request: Request):
         "new_logs": logs_to_return
     }
 
-@app.get("/settings")
+# API JSON Cấu hình hệ thống (Settings endpoints)
+@app.get("/api/settings")
 def get_settings_route(request: Request):
     if not request.session.get("user_id"):
         raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
     return config.settings
 
-@app.post("/settings")
+@app.post("/api/settings")
 async def update_settings_route(request: Request):
     if not request.session.get("user_id"):
         raise HTTPException(status_code=401, detail="Chưa đăng nhập!")

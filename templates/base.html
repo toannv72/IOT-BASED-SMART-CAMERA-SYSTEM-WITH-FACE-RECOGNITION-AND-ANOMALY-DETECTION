@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Hệ Thống Giám Sát Thông Minh AI{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: rgba(17, 24, 39, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.4);
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.4);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --font-family: 'Outfit', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+        }
+
+        /* Layout */
+        .app-container {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background-color: rgba(10, 15, 30, 0.85);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            backdrop-filter: blur(12px);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 36px;
+        }
+
+        .brand i {
+            font-size: 28px;
+            color: var(--primary);
+            text-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .brand-title {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .menu-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-grow: 1;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .menu-item:hover, .menu-item.active {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .menu-item.active {
+            border-left: 4px solid var(--primary);
+            background-color: rgba(59, 130, 246, 0.15);
+            box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.05);
+        }
+
+        .system-status {
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .status-title {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--success);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success-glow);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .gpu-info {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* Main Content */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 30px;
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header-title {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        /* Glassmorphism Cards */
+        .glass-card {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            padding: 24px;
+            margin-bottom: 24px;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        /* Monitor Tab specific styles */
+        .camera-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+
+        .camera-card {
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .camera-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .camera-title {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .camera-stream-wrapper {
+            position: relative;
+            width: 100%;
+            background-color: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            border: 1px solid var(--border-color);
+        }
+
+        .camera-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .camera-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-muted);
+            gap: 12px;
+            background: linear-gradient(135deg, #111827 0%, #030712 100%);
+        }
+
+        .camera-placeholder i {
+            font-size: 40px;
+        }
+
+        .stream-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .btn {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            font-family: var(--font-family);
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: transparent;
+        }
+
+        .btn-primary:hover {
+            background-color: #2563eb;
+            box-shadow: 0 0 12px var(--primary-glow);
+        }
+
+        .btn-success {
+            background-color: var(--success);
+            border-color: transparent;
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+            box-shadow: 0 0 12px var(--success-glow);
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            border-color: transparent;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+            box-shadow: 0 0 12px var(--danger-glow);
+        }
+
+        /* Database Tab specific styles */
+        .db-layout {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .faces-table-container {
+            overflow-x: auto;
+        }
+
+        .faces-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .faces-table th, .faces-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .faces-table th {
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .faces-table tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Register Form WebRTC styles */
+        .webcam-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            background-color: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .webcam-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        .webcam-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 160px;
+            height: 160px;
+            border: 2px dashed var(--success);
+            border-radius: 12px;
+            pointer-events: none;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .form-input {
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            padding: 10px 14px;
+            border-radius: 8px;
+            color: #fff;
+            font-family: var(--font-family);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
+        }
+
+        /* Alert logs UI */
+        .log-container {
+            max-height: 250px;
+            overflow-y: auto;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 8px;
+        }
+
+        .log-item {
+            font-size: 13px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background-color: rgba(255, 255, 255, 0.02);
+            border-left: 3px solid var(--primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-item.danger {
+            border-left-color: var(--danger);
+            background-color: rgba(239, 68, 68, 0.05);
+        }
+
+        .log-item.success {
+            border-left-color: var(--success);
+            background-color: rgba(16, 185, 129, 0.05);
+        }
+
+        .log-time {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .badge {
+            display: inline-block;
+            font-weight: 500;
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-shield-halved"></i>
+                <div class="brand-title">AI SURVEILLANCE</div>
+            </div>
+            
+            <nav style="flex-grow: 1;">
+                <ul class="menu-list">
+                    <li>
+                        <a href="/" class="menu-item {% if active_page == 'monitor' %}active{% endif %}">
+                            <i class="fa-solid fa-desktop"></i> Giám Sát Live
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/database" class="menu-item {% if active_page == 'database' %}active{% endif %}">
+                            <i class="fa-solid fa-users-gear"></i> Cơ Sở Dữ Liệu
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/logs" class="menu-item {% if active_page == 'logs' %}active{% endif %}">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Nhật Ký Cảnh Báo
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/settings" class="menu-item {% if active_page == 'settings' %}active{% endif %}">
+                            <i class="fa-solid fa-gears"></i> Cấu Hình Hệ Thống
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/users" class="menu-item {% if active_page == 'users' %}active{% endif %}">
+                            <i class="fa-solid fa-user-shield"></i> Quản Lý Tài Khoản
+                        </a>
+                    </li>
+                    <li style="margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                        <a class="menu-item" href="/logout" style="color: var(--danger);">
+                            <i class="fa-solid fa-right-from-bracket"></i> Đăng Xuất
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="system-status" style="margin-top: 20px; display: flex; flex-direction: column; gap: 12px;">
+                <div class="status-card" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
+                    <div class="status-title" style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 8px;">Hiệu năng phần cứng</div>
+                    
+                    <div style="font-size: 11px; margin-bottom: 6px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                            <span>CPU:</span>
+                            <span id="health-cpu" style="font-weight: 600;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                            <div id="bar-cpu" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                    
+                    <div style="font-size: 11px; margin-bottom: 6px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                            <span>RAM:</span>
+                            <span id="health-ram" style="font-weight: 600;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                            <div id="bar-ram" style="width: 0%; height: 100%; background: var(--success); transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+
+                    <div style="font-size: 11px; margin-bottom: 6px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                            <span>GPU:</span>
+                            <span id="health-gpu" style="font-weight: 600;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                            <div id="bar-gpu" style="width: 0%; height: 100%; background: var(--warning); transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="gpu-info" id="gpu-info" style="font-size: 10px; color: var(--text-muted); margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px;">Đang tải GPU info...</div>
+                </div>
+
+                <div class="status-card" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
+                    <div class="status-title" style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 8px;">Tốc độ xử lý (FPS)</div>
+                    <div id="fps-list" style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+                        <!-- Nạp động qua JS -->
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <h1 class="header-title" id="tab-title">{% block page_title %}{% endblock %}</h1>
+                <div style="display: flex; gap: 10px;">
+                    <div id="live-alert-indicator" class="status-badge" style="display: none; background: rgba(239, 68, 68, 0.15); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--danger);">
+                        <div class="status-dot" style="background-color: var(--danger); box-shadow: 0 0 8px var(--danger-glow);"></div>
+                        <span style="color: var(--danger); font-weight: bold;">XÂM NHẬP ĐANG XẢY RA!</span>
+                    </div>
+                    <div id="live-fall-indicator" class="status-badge" style="display: none; background: rgba(239, 68, 68, 0.15); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--danger); box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);">
+                        <div class="status-dot" style="background-color: var(--danger); box-shadow: 0 0 8px var(--danger-glow); animation: pulse 1s infinite;"></div>
+                        <span style="color: var(--danger); font-weight: bold;">PHÁT HIỆN NGƯỜI BỊ NGÃ!</span>
+                    </div>
+                </div>
+            </header>
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Base Scripts -->
+    <script>
+        let activeCameras = [];
+        let streamStates = {};
+
+        // Polling trạng thái nguy hiểm từ máy chủ
+        setInterval(async () => {
+            try {
+                const data = await (await fetch('/system_status')).json();
+                document.getElementById('live-alert-indicator').style.display = data.intrusion_alert ? "inline-flex" : "none";
+                document.getElementById('live-fall-indicator').style.display = data.fall_alert ? "inline-flex" : "none";
+                if (typeof handleSystemStatusUpdate === 'function') {
+                    handleSystemStatusUpdate(data);
+                }
+            } catch(e) {}
+        }, 1500);
+
+        async function updateSystemHealth() {
+            try {
+                const response = await fetch('/api/system_health');
+                const data = await response.json();
+                
+                document.getElementById('health-cpu').innerText = `${data.cpu_usage}%`;
+                document.getElementById('bar-cpu').style.width = `${data.cpu_usage}%`;
+                
+                document.getElementById('health-ram').innerText = `${data.ram_usage}%`;
+                document.getElementById('bar-ram').style.width = `${data.ram_usage}%`;
+                
+                document.getElementById('health-gpu').innerText = `${data.gpu_usage}%`;
+                document.getElementById('bar-gpu').style.width = `${data.gpu_usage}%`;
+                
+                const fpsList = document.getElementById('fps-list');
+                fpsList.innerHTML = '';
+                
+                if (activeCameras.length === 0) {
+                    fpsList.innerHTML = '<span style="color: var(--text-muted); font-size: 10px;">Không có camera hoạt động</span>';
+                } else {
+                    activeCameras.forEach(cam => {
+                        const fpsVal = data.fps[cam.camera_id] !== undefined ? data.fps[cam.camera_id] : 0.0;
+                        let statusColor = "var(--text-muted)";
+                        if (streamStates[cam.camera_id]) {
+                            statusColor = fpsVal > 15 ? "var(--success)" : (fpsVal > 5 ? "var(--warning)" : "var(--danger)");
+                        }
+                        
+                        const item = document.createElement('div');
+                        item.style.display = "flex";
+                        item.style.justifyContent = "space-between";
+                        item.style.padding = "2px 0";
+                        item.innerHTML = `
+                            <span>${cam.camera_id}:</span>
+                            <span style="font-family: monospace; font-weight: 600; color: ${statusColor};">
+                                ${streamStates[cam.camera_id] ? `${fpsVal} FPS` : 'OFF'}
+                            </span>
+                        `;
+                        fpsList.appendChild(item);
+                    });
+                }
+            } catch(e) {}
+        }
+
+        setInterval(updateSystemHealth, 2000);
+
+        window.addEventListener('load', () => {
+            fetch('/gpu_info')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('gpu-info').innerText = "GPU: " + data.gpu_name + (data.cuda_active ? " (CUDA Active)" : " (CPU fallback)");
+                });
+            
+            // Gọi load camera cấu hình cơ bản để lấy activeCameras trước
+            fetch('/api/cameras')
+                .then(r => r.json())
+                .then(data => {
+                    activeCameras = data;
+                    activeCameras.forEach(cam => {
+                        streamStates[cam.camera_id] = false;
+                    });
+                    
+                    // Khôi phục trạng thái bật/tắt camera từ Session Storage (nếu có)
+                    const savedStates = sessionStorage.getItem('streamStates');
+                    if (savedStates) {
+                        try {
+                            streamStates = JSON.parse(savedStates);
+                        } catch(e) {}
+                    }
+                    
+                    if (typeof onCamerasLoaded === 'function') {
+                        onCamerasLoaded();
+                    }
+                    setTimeout(updateSystemHealth, 500);
+                });
+        });
+        
+        function saveStreamStates() {
+            sessionStorage.setItem('streamStates', JSON.stringify(streamStates));
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Cấu Hình Hệ Thống - AI Surveillance{% endblock %}
+{% block page_title %}Cấu Hình Hệ Thống{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: start;">
+    <!-- Cấu hình hệ thống -->
+    <div class="glass-card">
+        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+            <i class="fa-solid fa-sliders"></i> Cấu Hình Hệ Thống & Cảnh Báo
+        </h3>
+        <div class="form-group">
+            <label class="form-label">Telegram Bot Token</label>
+            <input type="text" id="setting-token" class="form-input" placeholder="Nhập token Telegram Bot...">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Telegram Chat IDs (cách nhau bằng dấu phẩy)</label>
+            <input type="text" id="setting-chats" class="form-input" placeholder="Ví dụ: 8438973190...">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Ngưỡng Tin Cậy YOLO (Confidence Threshold)</label>
+            <input type="number" id="setting-conf" class="form-input" step="0.05" min="0.1" max="0.9">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Thời Gian Cooldown Vạch Đếm (Frames)</label>
+            <input type="number" id="setting-counter-cooldown" class="form-input">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Thời Gian Cooldown Telegram (Giây)</label>
+            <input type="number" id="setting-telegram-cooldown" class="form-input">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Kích Hoạt Cảnh Báo An Ninh</label>
+            <select id="setting-alerts-enabled" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="true">Bật Cảnh Báo</option>
+                <option value="false">Tắt Cảnh Báo</option>
+            </select>
+        </div>
+        <div style="margin-top: 24px;">
+            <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="saveSettings()">
+                <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình Hệ Thống
+            </button>
+        </div>
+    </div>
+
+    <!-- Danh sách cấu hình camera -->
+    <div class="glass-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="font-size: 18px; font-weight: 600;">
+                <i class="fa-solid fa-video"></i> Quản Lý Danh Sách Camera
+            </h3>
+            <button class="btn btn-primary" onclick="openAddCameraModal()">
+                <i class="fa-solid fa-plus"></i> Thêm Camera Mới
+            </button>
+        </div>
+        <div class="faces-table-container">
+            <table class="faces-table">
+                <thead>
+                    <tr>
+                        <th>Camera ID</th>
+                        <th>Nguồn Video</th>
+                        <th>Tính Năng AI</th>
+                        <th>Lịch Trình</th>
+                        <th style="text-align: right;">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody id="cameras-config-tbody">
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted);">Đang nạp cấu hình camera...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Thêm/Sửa Camera -->
+<div id="camera-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div class="glass-card" style="width: 500px; margin-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 id="camera-modal-title" style="font-size: 18px; font-weight: 600;">Thêm Camera Mới</h3>
+            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closeCameraModal()">&times;</span>
+        </div>
+        <input type="hidden" id="camera-modal-action" value="add">
+        
+        <div class="form-group">
+            <label class="form-label">Camera ID (Duy nhất, viết liền không dấu)</label>
+            <input type="text" id="cam-id-input" class="form-input" placeholder="Ví dụ: Cam_San_Sau">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Nguồn Stream (Index webcam, file video hoặc link RTSP)</label>
+            <input type="text" id="cam-source-input" class="form-input" placeholder="Ví dụ: 0 hoặc video.mp4 hoặc rtsp://...">
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Kích Hoạt Tính Năng AI</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" id="cam-feat-counter"> Đếm người vạch kép
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" id="cam-feat-roi"> Phát hiện xâm nhập ROI
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" id="cam-feat-face"> So khớp khuôn mặt
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" id="cam-feat-fall"> Phát hiện người ngã
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="cam-sched-enabled" onchange="toggleSchedInputs(this.checked)"> Kích hoạt giờ hoạt động cảnh báo
+            </label>
+        </div>
+        
+        <div id="cam-sched-times" style="display: flex; gap: 12px; margin-bottom: 20px; transition: opacity 0.3s;">
+            <div style="flex: 1;">
+                <label class="form-label">Bắt đầu</label>
+                <input type="time" id="cam-sched-start" class="form-input" value="23:00">
+            </div>
+            <div style="flex: 1;">
+                <label class="form-label">Kết thúc</label>
+                <input type="time" id="cam-sched-end" class="form-input" value="06:00">
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button class="btn" onclick="closeCameraModal()">Hủy</button>
+            <button class="btn btn-success" onclick="saveCameraConfig()">Lưu Thay Đổi</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.addEventListener('DOMContentLoaded', () => {
+        loadSettings();
+    });
+
+    // onCamerasLoaded được gọi từ base.html sau khi lấy được activeCameras
+    function onCamerasLoaded() {
+        loadCamerasConfig();
+    }
+
+    async function loadSettings() {
+        try {
+            const response = await fetch('/api/settings');
+            const settings = await response.json();
+            document.getElementById('setting-token').value = settings.telegram_token || "";
+            document.getElementById('setting-chats').value = settings.telegram_chats.join(", ") || "";
+            document.getElementById('setting-conf').value = settings.conf_threshold || 0.25;
+            document.getElementById('setting-counter-cooldown').value = settings.counter_cooldown || 45;
+            document.getElementById('setting-telegram-cooldown').value = settings.telegram_cooldown || 15;
+            document.getElementById('setting-alerts-enabled').value = settings.alerts_enabled ? "true" : "false";
+        } catch(e) {
+            console.error("Lỗi khi nạp cấu hình hệ thống:", e);
+        }
+    }
+    
+    async function saveSettings() {
+        const payload = {
+            telegram_token: document.getElementById('setting-token').value.trim(),
+            telegram_chats: document.getElementById('setting-chats').value.split(',').map(s => s.trim()).filter(s => s !== ""),
+            conf_threshold: parseFloat(document.getElementById('setting-conf').value),
+            counter_cooldown: parseInt(document.getElementById('setting-counter-cooldown').value),
+            telegram_cooldown: parseInt(document.getElementById('setting-telegram-cooldown').value),
+            alerts_enabled: document.getElementById('setting-alerts-enabled').value === "true"
+        };
+        try {
+            const response = await fetch('/api/settings', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify(payload) 
+            });
+            if (response.ok) {
+                alert("Lưu cấu hình thành công!");
+                loadSettings();
+            } else {
+                alert("Lỗi khi lưu cấu hình!");
+            }
+        } catch(e) { 
+            alert("Lỗi khi lưu cấu hình!"); 
+        }
+    }
+
+    async function loadCamerasConfig() {
+        const tbody = document.getElementById('cameras-config-tbody');
+        tbody.innerHTML = '';
+        activeCameras.forEach(cam => {
+            let feats = [];
+            if (cam.features.includes('people_counter')) feats.push('Đếm vạch');
+            if (cam.features.includes('intrusion_roi')) feats.push('ROI cấm');
+            if (cam.features.includes('face_id')) feats.push('Face ID');
+            if (cam.features.includes('fall_detection')) feats.push('Ngã');
+
+            let schedText = '24/7';
+            if (cam.schedule_enabled) {
+                schedText = `Bật (${cam.schedule_start} - ${cam.schedule_end})`;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${cam.camera_id}</strong></td>
+                <td style="font-family: monospace; font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${cam.source}</td>
+                <td><span style="font-size: 11px;">${feats.join(', ') || 'Không có'}</span></td>
+                <td><span style="font-size: 11px; font-weight: 500;">${schedText}</span></td>
+                <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+                    <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="openEditCameraModal('${cam.camera_id}')">
+                        <i class="fa-solid fa-pen"></i> Sửa
+                    </button>
+                    <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteCamera('${cam.camera_id}')">
+                        <i class="fa-solid fa-trash"></i> Xóa
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function toggleSchedInputs(checked) {
+        document.getElementById('cam-sched-times').style.opacity = checked ? "1" : "0.4";
+        document.getElementById('cam-sched-times').style.pointerEvents = checked ? "auto" : "none";
+    }
+
+    function openAddCameraModal() {
+        document.getElementById('camera-modal-title').innerText = "Thêm Camera Mới";
+        document.getElementById('camera-modal-action').value = "add";
+        document.getElementById('cam-id-input').value = "";
+        document.getElementById('cam-id-input').disabled = false;
+        document.getElementById('cam-source-input').value = "video.mp4";
+        document.getElementById('cam-feat-counter').checked = true;
+        document.getElementById('cam-feat-roi').checked = false;
+        document.getElementById('cam-feat-face').checked = false;
+        document.getElementById('cam-feat-fall').checked = false;
+        document.getElementById('cam-sched-enabled').checked = false;
+        document.getElementById('cam-sched-start').value = "23:00";
+        document.getElementById('cam-sched-end').value = "06:00";
+        toggleSchedInputs(false);
+        document.getElementById('camera-modal').style.display = "flex";
+    }
+
+    function openEditCameraModal(cameraId) {
+        const cam = activeCameras.find(c => c.camera_id === cameraId);
+        if (!cam) return;
+
+        document.getElementById('camera-modal-title').innerText = `Chỉnh Sửa Camera: ${cameraId}`;
+        document.getElementById('camera-modal-action').value = "edit";
+        document.getElementById('cam-id-input').value = cam.camera_id;
+        document.getElementById('cam-id-input').disabled = true;
+        document.getElementById('cam-source-input').value = cam.source;
+        
+        document.getElementById('cam-feat-counter').checked = cam.features.includes('people_counter');
+        document.getElementById('cam-feat-roi').checked = cam.features.includes('intrusion_roi');
+        document.getElementById('cam-feat-face').checked = cam.features.includes('face_id');
+        document.getElementById('cam-feat-fall').checked = cam.features.includes('fall_detection');
+        
+        document.getElementById('cam-sched-enabled').checked = cam.schedule_enabled || false;
+        document.getElementById('cam-sched-start').value = cam.schedule_start || "23:00";
+        document.getElementById('cam-sched-end').value = cam.schedule_end || "06:00";
+        toggleSchedInputs(cam.schedule_enabled || false);
+        
+        document.getElementById('camera-modal').style.display = "flex";
+    }
+
+    function closeCameraModal() {
+        document.getElementById('camera-modal').style.display = "none";
+    }
+
+    async function saveCameraConfig() {
+        const action = document.getElementById('camera-modal-action').value;
+        const cameraId = document.getElementById('cam-id-input').value.trim();
+        const source = document.getElementById('cam-source-input').value.trim();
+        
+        if (!cameraId || !source) return alert("Vui lòng nhập đầy đủ thông tin bắt buộc!");
+
+        const features = [];
+        if (document.getElementById('cam-feat-counter').checked) features.push('people_counter');
+        if (document.getElementById('cam-feat-roi').checked) features.push('intrusion_roi');
+        if (document.getElementById('cam-feat-face').checked) features.push('face_id');
+        if (document.getElementById('cam-feat-fall').checked) features.push('fall_detection');
+
+        let existingLine = [[100, 180], [540, 180]];
+        let existingRoi = [[100, 100], [540, 100], [540, 300], [100, 300]];
+        if (action === 'edit') {
+            const oldCam = activeCameras.find(c => c.camera_id === cameraId);
+            if (oldCam) {
+                if (oldCam.line) existingLine = oldCam.line;
+                if (oldCam.roi) existingRoi = oldCam.roi;
+            }
+        }
+
+        const payload = {
+            camera_id: cameraId,
+            source: source,
+            features: features,
+            line: existingLine,
+            roi: existingRoi,
+            schedule_enabled: document.getElementById('cam-sched-enabled').checked,
+            schedule_start: document.getElementById('cam-sched-start').value,
+            schedule_end: document.getElementById('cam-sched-end').value
+        };
+
+        const url = action === 'add' ? '/api/cameras' : `/api/cameras/${cameraId}`;
+        const method = action === 'add' ? 'POST' : 'PUT';
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Cấu hình camera đã được cập nhật thành công!");
+                closeCameraModal();
+                // Tải lại danh sách camera
+                fetch('/api/cameras')
+                    .then(r => r.json())
+                    .then(data => {
+                        activeCameras = data;
+                        loadCamerasConfig();
+                    });
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch (err) {
+            alert("Lỗi khi lưu cấu hình camera!");
+        }
+    }
+
+    async function deleteCamera(cameraId) {
+        if (!confirm(`Bạn có chắc chắn muốn xóa camera '${cameraId}'?`)) return;
+        try {
+            const response = await fetch(`/api/cameras/${cameraId}`, { method: 'DELETE' });
+            if (response.ok) {
+                alert("Đã xóa camera!");
+                // Tải lại danh sách camera
+                fetch('/api/cameras')
+                    .then(r => r.json())
+                    .then(data => {
+                        activeCameras = data;
+                        loadCamerasConfig();
+                    });
+            } else {
+                alert("Lỗi khi xóa camera!");
+            }
+        } catch (e) {
+            alert("Lỗi khi xóa camera!");
+        }
+    }
+</script>
+{% endblock %}

@@ -80,7 +80,7 @@
     },
     {
         "camera_id": "Cam_Hanh_Lang",
-        "source": "video.mp4",
+        "source": "0",
         "features": [
             "fall_detection"
         ],

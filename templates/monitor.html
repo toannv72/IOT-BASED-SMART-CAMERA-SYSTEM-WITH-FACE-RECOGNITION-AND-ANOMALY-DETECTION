@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+
+{% block title %}Giám Sát Live - AI Surveillance{% endblock %}
+{% block page_title %}Giám Sát Live{% endblock %}
+
+{% block content %}
+<!-- Lưới Camera Live -->
+<div class="camera-grid" id="camera-streams-grid">
+    <!-- Sinh tự động qua JavaScript -->
+</div>
+
+<!-- Nhật ký sự kiện trực tuyến -->
+<div class="glass-card" style="margin-top: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-size: 16px; font-weight: 600;"><i class="fa-solid fa-list-ul"></i> Nhật Ký Sự Kiện Hệ Thống Trực Tuyến</h3>
+        <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="clearLogs()">Xóa Nhật Ký</button>
+    </div>
+    <div class="log-container" id="log-list">
+        <div class="log-item success">
+            <span>Khởi động hệ thống AI thành công. Sẵn sàng giám sát.</span>
+            <span class="log-time">Vừa xong</span>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Vẽ Vạch / Vùng Cấm ROI -->
+<div id="draw-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div class="glass-card" style="width: 700px; padding: 24px; margin-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 id="draw-modal-title" style="font-size: 18px; font-weight: 600;">Thiết Lập Tọa Độ Camera</h3>
+            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closeDrawModal()">&times;</span>
+        </div>
+        
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+            <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="setDrawMode('line')">
+                <i class="fa-solid fa-grip-lines" style="color: var(--warning);"></i> Vẽ vạch đếm
+            </button>
+            <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="setDrawMode('roi')">
+                <i class="fa-solid fa-draw-polygon" style="color: var(--success);"></i> Vẽ vùng cấm ROI
+            </button>
+            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="clearDrawingPoints()">
+                <i class="fa-solid fa-eraser"></i> Xóa vẽ nháp
+            </button>
+            <button id="btn-close-roi" class="btn btn-success" style="padding: 6px 12px; font-size: 12px; display: none;" onclick="closeRoiPolygon()">
+                <i class="fa-solid fa-link"></i> Đóng Vùng ROI
+            </button>
+        </div>
+
+        <div style="position: relative; width: 640px; height: 360px; background: #000; margin: 0 auto; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+            <img id="draw-preview-img" style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: contain; pointer-events: none;" alt="Camera preview">
+            <canvas id="draw-canvas" width="640" height="360" style="position: absolute; top:0; left:0; width:100%; height:100%; cursor: crosshair; z-index: 10;"></canvas>
+        </div>
+        
+        <p id="draw-help-text" style="font-size: 12px; color: var(--warning); margin-top: 12px; text-align: center;">Vui lòng chọn chế độ vẽ.</p>
+
+        <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;">
+            <button class="btn" onclick="closeDrawModal()">Hủy bỏ</button>
+            <button class="btn btn-primary" onclick="saveDrawCoords()">Lưu và Áp dụng</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let drawingPoints = []; // Các điểm tọa độ vẽ vạch/ROI
+    let drawMode = 'line'; // 'line' hoặc 'roi'
+    let currentDrawCamId = '';
+    let roiClosed = false;
+
+    // Tự động gọi khi danh sách camera tải xong từ base.html
+    function onCamerasLoaded() {
+        renderCamerasGrid();
+    }
+
+    function renderCamerasGrid() {
+        const grid = document.getElementById('camera-streams-grid');
+        grid.innerHTML = ''; // Xóa sạch dữ liệu cũ
+
+        if (activeCameras.length === 0) {
+            grid.innerHTML = '<div class="glass-card" style="grid-column: span 2; text-align: center; padding: 40px; color: var(--text-muted);">Không có camera nào được kết nối. Hãy thêm camera trong tab Cấu hình hệ thống!</div>';
+            return;
+        }
+
+        activeCameras.forEach(cam => {
+            let featuresHtml = '';
+            const features = cam.features || [];
+            if (features.includes('people_counter')) {
+                featuresHtml += `<span class="badge" style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); color: var(--success); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-people-arrows"></i> Đếm vạch kép</span>`;
+            }
+            if (features.includes('intrusion_roi')) {
+                featuresHtml += `<span class="badge" style="background: rgba(245, 158, 11, 0.1); border: 1px solid var(--warning); color: var(--warning); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> Vùng ROI</span>`;
+            }
+            if (features.includes('face_id')) {
+                featuresHtml += `<span class="badge" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-face-smile"></i> Face ID</span>`;
+            }
+            if (features.includes('fall_detection')) {
+                featuresHtml += `<span class="badge" style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-person-falling"></i> Phát hiện ngã</span>`;
+            }
+            
+            let schedHtml = `<span style="color: var(--text-muted);"><i class="fa-solid fa-globe"></i> Hoạt động 24/7</span>`;
+            if (cam.schedule_enabled) {
+                schedHtml = `<span style="color: var(--warning); font-weight: 500;"><i class="fa-solid fa-clock"></i> Lịch: ${cam.schedule_start} - ${cam.schedule_end}</span>`;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'glass-card camera-card';
+            card.innerHTML = `
+                <div class="camera-header">
+                    <span class="camera-title"><i class="fa-solid fa-video" style="color: var(--primary);"></i> ${cam.camera_id}</span>
+                    <span class="status-badge" id="badge-${cam.camera_id}"><div class="status-dot"></div> Off</span>
+                </div>
+                <div class="camera-stream-wrapper">
+                    <img id="stream-${cam.camera_id}" class="camera-stream" style="display: none;" alt="${cam.camera_id} Stream">
+                    <div id="placeholder-${cam.camera_id}" class="camera-placeholder">
+                        <i class="fa-solid fa-circle-play"></i>
+                        <span>Chưa bật camera</span>
+                    </div>
+                </div>
+                <div class="stream-controls" style="display: flex; gap: 8px;">
+                    <button class="btn btn-primary" onclick="toggleDynamicStream('${cam.camera_id}', '/video_feed/${cam.camera_id}')" style="flex: 1;">
+                        <i class="fa-solid fa-power-off"></i> Bật/Tắt
+                    </button>
+                    <button class="btn" onclick="openDrawModal('${cam.camera_id}')" style="padding: 6px 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: #fff;">
+                        <i class="fa-solid fa-pen-ruler" style="color: var(--warning);"></i> Vẽ Vạch/ROI
+                    </button>
+                </div>
+                <div style="font-size: 11px; padding: 10px 12px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.15);">
+                    <div>${featuresHtml}</div>
+                    <div style="display: flex; justify-content: space-between; font-size: 10px;">
+                        <span>Cảnh báo an ninh:</span>
+                        <span>${schedHtml}</span>
+                    </div>
+                </div>
+            `;
+            grid.appendChild(card);
+            
+            // Khôi phục trạng thái stream nếu có
+            if (streamStates[cam.camera_id]) {
+                const img = document.getElementById(`stream-${cam.camera_id}`);
+                const placeholder = document.getElementById(`placeholder-${cam.camera_id}`);
+                const sBadge = document.getElementById(`badge-${cam.camera_id}`);
+                img.src = `/video_feed/${cam.camera_id}?rand=${Math.random()}`;
+                img.style.display = "block";
+                placeholder.style.display = "none";
+                sBadge.innerHTML = '<div class="status-dot" style="background-color: var(--success); box-shadow: 0 0 8px var(--success-glow);"></div> Running';
+            }
+        });
+    }
+
+    function toggleDynamicStream(cameraId, endpoint) {
+        const img = document.getElementById(`stream-${cameraId}`);
+        const placeholder = document.getElementById(`placeholder-${cameraId}`);
+        const sBadge = document.getElementById(`badge-${cameraId}`);
+        
+        if (streamStates[cameraId]) {
+            img.src = "";
+            img.style.display = "none";
+            placeholder.style.display = "flex";
+            streamStates[cameraId] = false;
+            sBadge.innerHTML = '<div class="status-dot"></div> Off';
+            addLog(`Tắt camera: ${cameraId}`, 'muted');
+        } else {
+            img.src = endpoint + "?rand=" + Math.random();
+            img.style.display = "block";
+            placeholder.style.display = "none";
+            streamStates[cameraId] = true;
+            sBadge.innerHTML = '<div class="status-dot" style="background-color: var(--success); box-shadow: 0 0 8px var(--success-glow); animation: pulse 1s infinite;"></div> Running';
+            addLog(`Bật camera: ${cameraId}`, 'success');
+        }
+        saveStreamStates();
+    }
+
+    // =========================================================================
+    // 🎨 CANVAS DRAWING LOGIC (VẼ VẠCH ĐẾM & VÙNG ROI)
+    // =========================================================================
+    function openDrawModal(cameraId) {
+        currentDrawCamId = cameraId;
+        drawingPoints = [];
+        roiClosed = false;
+        
+        const cam = activeCameras.find(c => c.camera_id === cameraId);
+        if (!cam) return;
+
+        document.getElementById('draw-modal-title').innerText = `Thiết Lập Tọa Độ - Camera: ${cameraId}`;
+        document.getElementById('draw-preview-img').src = `/video_feed/${cameraId}?rand=${Math.random()}`;
+        
+        if (cam.features.includes('intrusion_roi') && cam.roi && cam.roi.length > 0) {
+            drawMode = 'roi';
+            drawingPoints = JSON.parse(JSON.stringify(cam.roi));
+            roiClosed = true;
+        } else {
+            drawMode = 'line';
+            if (cam.line && cam.line.length > 0) {
+                drawingPoints = JSON.parse(JSON.stringify(cam.line));
+            }
+        }
+
+        document.getElementById('draw-modal').style.display = "flex";
+        setDrawMode(drawMode);
+        setTimeout(redrawCanvas, 300);
+    }
+
+    function closeDrawModal() {
+        document.getElementById('draw-modal').style.display = "none";
+        document.getElementById('draw-preview-img').src = ""; 
+    }
+
+    function setDrawMode(mode) {
+        drawMode = mode;
+        drawingPoints = [];
+        roiClosed = false;
+        
+        document.getElementById('btn-close-roi').style.display = mode === 'roi' ? 'inline-block' : 'none';
+        
+        const helpTexts = {
+            'line': 'Vẽ Vạch Đếm: Click chuột trái 2 lần lên ảnh preview để xác định điểm A và điểm B.',
+            'roi': 'Vẽ Vùng Cấm ROI: Click chuột liên tục để tạo các góc. Xong thì click nút "Đóng Vùng ROI" để khép kín đa giác.'
+        };
+        document.getElementById('draw-help-text').innerText = helpTexts[mode];
+        redrawCanvas();
+    }
+
+    function clearDrawingPoints() {
+        drawingPoints = [];
+        roiClosed = false;
+        redrawCanvas();
+    }
+
+    function closeRoiPolygon() {
+        if (drawMode !== 'roi') return;
+        if (drawingPoints.length < 3) return alert("Đa giác ROI cấm phải có tối thiểu 3 góc!");
+        roiClosed = true;
+        redrawCanvas();
+        document.getElementById('draw-help-text').innerText = "Đã nối kín đa giác ROI! Hãy kiểm tra và click 'Lưu và Áp dụng'.";
+    }
+
+    const canvas = document.getElementById('draw-canvas');
+    canvas.addEventListener('click', (e) => {
+        if (roiClosed && drawMode === 'roi') {
+            alert("Vùng ROI đã đóng kín. Vui lòng bấm 'Xóa vẽ nháp' nếu vẽ lại!");
+            return;
+        }
+        
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.round((e.clientX - rect.left) * (canvas.width / rect.width));
+        const y = Math.round((e.clientY - rect.top) * (canvas.height / rect.height));
+        
+        if (drawMode === 'line') {
+            if (drawingPoints.length >= 2) {
+                drawingPoints = []; 
+            }
+            drawingPoints.push([x, y]);
+            if (drawingPoints.length === 2) {
+                document.getElementById('draw-help-text').innerText = "Đã hoàn thành vạch kẻ! Click 'Lưu và Áp dụng'.";
+            }
+        } else if (drawMode === 'roi') {
+            drawingPoints.push([x, y]);
+        }
+        redrawCanvas();
+    });
+
+    function redrawCanvas() {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        if (drawingPoints.length === 0) return;
+
+        ctx.lineWidth = 3;
+        ctx.font = "11px Outfit, sans-serif";
+        
+        if (drawMode === 'line') {
+            ctx.strokeStyle = '#f59e0b';
+            ctx.fillStyle = '#f59e0b';
+            
+            ctx.beginPath();
+            ctx.arc(drawingPoints[0][0], drawingPoints[0][1], 5, 0, 2*Math.PI);
+            ctx.fill();
+            ctx.fillText("Vạch Ngoài (A)", drawingPoints[0][0] + 8, drawingPoints[0][1] - 8);
+            
+            if (drawingPoints.length === 2) {
+                ctx.beginPath();
+                ctx.arc(drawingPoints[1][0], drawingPoints[1][1], 5, 0, 2*Math.PI);
+                ctx.fill();
+                ctx.fillText("Vạch Trong (B)", drawingPoints[1][0] + 8, drawingPoints[1][1] - 8);
+                
+                ctx.beginPath();
+                ctx.moveTo(drawingPoints[0][0], drawingPoints[0][1]);
+                ctx.lineTo(drawingPoints[1][0], drawingPoints[1][1]);
+                ctx.stroke();
+            }
+        } else if (drawMode === 'roi') {
+            ctx.strokeStyle = roiClosed ? '#ef4444' : '#10b981';
+            ctx.fillStyle = roiClosed ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.1)';
+            
+            ctx.beginPath();
+            ctx.moveTo(drawingPoints[0][0], drawingPoints[0][1]);
+            
+            drawingPoints.forEach((pt, idx) => {
+                ctx.lineTo(pt[0], pt[1]);
+                ctx.fillText(`P${idx+1}`, pt[0]+6, pt[1]-6);
+            });
+            
+            if (roiClosed) {
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.stroke();
+            
+            ctx.fillStyle = '#3b82f6';
+            drawingPoints.forEach(pt => {
+                ctx.beginPath();
+                ctx.arc(pt[0], pt[1], 4, 0, 2*Math.PI);
+                ctx.fill();
+            });
+        }
+    }
+
+    async function saveDrawCoords() {
+        if (drawingPoints.length === 0) return alert("Hãy vẽ tọa độ lên hình trước!");
+        if (drawMode === 'line' && drawingPoints.length < 2) return alert("Vui lòng vẽ đủ 2 điểm của vạch đếm!");
+        if (drawMode === 'roi' && !roiClosed) return alert("Đa giác ROI cấm chưa được khép kín! Hãy click 'Đóng Vùng ROI'.");
+
+        const cam = activeCameras.find(c => c.camera_id === currentDrawCamId);
+        if (!cam) return;
+
+        if (drawMode === 'line') {
+            cam.line = drawingPoints;
+        } else if (drawMode === 'roi') {
+            cam.roi = drawingPoints;
+        }
+
+        try {
+            const response = await fetch(`/api/cameras/${currentDrawCamId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cam)
+            });
+            if (response.ok) {
+                alert("Cập nhật tọa độ thiết lập thành công!");
+                closeDrawModal();
+                // Tải lại danh sách camera để đồng bộ
+                fetch('/api/cameras')
+                    .then(r => r.json())
+                    .then(data => {
+                        activeCameras = data;
+                        renderCamerasGrid();
+                    });
+            } else {
+                alert("Lỗi máy chủ khi lưu!");
+            }
+        } catch (err) {
+            alert("Lỗi kết nối!");
+        }
+    }
+
+    // =========================================================================
+    // 📈 LOGS MANAGEMENT
+    // =========================================================================
+    function addLog(msg, type = '') {
+        const list = document.getElementById('log-list');
+        const item = document.createElement('div');
+        item.className = `log-item ${type}`;
+        item.innerHTML = `<span>${msg}</span><span class="log-time">${new Date().toLocaleTimeString()}</span>`;
+        list.appendChild(item);
+        if (list.children.length > 30) list.removeChild(list.firstChild);
+    }
+
+    function clearLogs() {
+        document.getElementById('log-list').innerHTML = '';
+        addLog("Đã xóa nhật ký.", 'muted');
+    }
+
+    // handleSystemStatusUpdate được gọi định kỳ từ base.html để nhận log sự kiện
+    function handleSystemStatusUpdate(data) {
+        if (data.new_logs) {
+            data.new_logs.forEach(log => addLog(log.msg, log.type));
+        }
+    }
+</script>
+{% endblock %}

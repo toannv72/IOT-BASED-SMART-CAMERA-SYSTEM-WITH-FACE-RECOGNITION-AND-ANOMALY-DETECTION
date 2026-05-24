@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Quản Lý Tài Khoản - AI Surveillance{% endblock %}
+{% block page_title %}Quản Lý Tài Khoản Quản Trị{% endblock %}
+
+{% block content %}
+<div class="db-layout">
+    <!-- Danh sách tài khoản -->
+    <div class="glass-card">
+        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+            <i class="fa-solid fa-user-shield"></i> Danh Sách Tài Khoản Quản Trị
+        </h3>
+        <div class="faces-table-container">
+            <table class="faces-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Tên Tài Khoản</th>
+                        <th style="text-align: right;">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody id="users-list-tbody">
+                    <tr>
+                        <td colspan="3" style="text-align: center; color: var(--text-muted);">Đang tải danh sách tài khoản...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tạo tài khoản mới -->
+    <div class="glass-card">
+        <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+            <i class="fa-solid fa-user-plus"></i> Tạo Tài Khoản Mới
+        </h3>
+        <div class="form-group">
+            <label class="form-label">Tên tài khoản (Username)</label>
+            <input type="text" id="new-user-username" class="form-input" placeholder="Nhập username...">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Mật khẩu (Password)</label>
+            <input type="password" id="new-user-password" class="form-input" placeholder="Nhập mật khẩu...">
+        </div>
+        <div style="margin-top: 20px;">
+            <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="createNewUser()">
+                <i class="fa-solid fa-user-check"></i> Tạo Tài Khoản
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.addEventListener('DOMContentLoaded', () => {
+        loadUsers();
+    });
+
+    async function loadUsers() {
+        const tbody = document.getElementById('users-list-tbody');
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Đang tải danh sách tài khoản...</td></tr>';
+        try {
+            const response = await fetch('/api/users');
+            const users = await response.json();
+            tbody.innerHTML = '';
+            
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Không có tài khoản nào.</td></tr>';
+                return;
+            }
+
+            users.forEach(u => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${u.id}</td>
+                    <td><strong>${u.username}</strong></td>
+                    <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="promptChangePassword(${u.id}, '${u.username}')">
+                            <i class="fa-solid fa-key"></i> Đổi Pass
+                        </button>
+                        <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteUser(${u.id}, '${u.username}')">
+                            <i class="fa-solid fa-trash"></i> Xóa
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--danger);">Lỗi tải danh sách người dùng.</td></tr>';
+        }
+    }
+
+    async function createNewUser() {
+        const userEl = document.getElementById('new-user-username');
+        const passEl = document.getElementById('new-user-password');
+        const username = userEl.value.trim();
+        const password = passEl.value;
+
+        if (!username || !password) return alert("Vui lòng điền đủ tên tài khoản và mật khẩu!");
+
+        const form = new FormData();
+        form.append('username', username);
+        form.append('password', password);
+
+        try {
+            const response = await fetch('/api/users', { method: 'POST', body: form });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Tạo tài khoản quản trị thành công!");
+                userEl.value = '';
+                passEl.value = '';
+                loadUsers();
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch (err) {
+            alert("Lỗi kết nối server!");
+        }
+    }
+
+    async function promptChangePassword(userId, username) {
+        const newPassword = prompt(`Nhập mật khẩu mới cho tài khoản '${username}':`);
+        if (newPassword === null) return;
+        if (newPassword.trim() === "") return alert("Mật khẩu không được bỏ trống!");
+
+        try {
+            const response = await fetch(`/api/users/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: newPassword })
+            });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Đổi mật khẩu thành công!");
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch (e) {
+            alert("Lỗi mạng khi đổi mật khẩu!");
+        }
+    }
+
+    async function deleteUser(userId, username) {
+        if (!confirm(`Bạn có chắc chắn muốn xóa tài khoản quản trị '${username}'?`)) return;
+        try {
+            const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Đã xóa tài khoản!");
+                loadUsers();
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch (err) {
+            alert("Lỗi khi xóa tài khoản!");
+        }
+    }
+</script>
+{% endblock %}
