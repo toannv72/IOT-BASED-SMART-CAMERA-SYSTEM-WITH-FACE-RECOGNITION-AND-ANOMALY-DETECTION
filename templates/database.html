@@ -123,15 +123,10 @@
             tbody.innerHTML = '';
             faces.forEach(face => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${face.id}</td>
-                    <td><strong>${face.name}</strong></td>
-                    <td><span style="font-size: 12px; color: var(--text-muted);">${face.created_at}</span></td>
-                    <td><span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">${face.created_by}</span></td>
                 let actionsHtml = '';
                 if (userRole === 'admin') {
                     actionsHtml = `
-                        <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+                        <td class="admin-only-cell" style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
                             <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="promptEditFaceName(${face.id}, '${face.name}')">
                                 <i class="fa-solid fa-pen-to-square"></i> Sửa Tên
                             </button>

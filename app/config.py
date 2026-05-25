@@ -6,7 +6,7 @@ CONFIG_FILE = "cameras_config.json"
 
 # Cài đặt mặc định của hệ thống
 DEFAULT_SETTINGS = {
-    "telegram_token": "8788292129:AAG-BKlK_c9YbdArYQ4QoqyKZBD-29esw50",
+    "telegram_token": "YOUR_TELEGRAM_BOT_TOKEN",
     "telegram_chats": ["8438973190"],
     "conf_threshold": 0.25,
     "counter_cooldown": 45,

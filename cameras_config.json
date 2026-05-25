@@ -60,27 +60,31 @@
         "in_direction": "up",
         "roi": [
             [
-                150,
-                150
+                448,
+                333
             ],
             [
-                550,
-                150
+                500,
+                232
             ],
             [
-                580,
-                350
+                594,
+                240
             ],
             [
-                120,
-                350
+                575,
+                326
+            ],
+            [
+                455,
+                336
             ]
         ],
         "schedule_enabled": false,
         "schedule_start": "23:00",
         "schedule_end": "06:00",
-        "map_x": 88.0,
-        "map_y": 74.0
+        "map_x": 88,
+        "map_y": 74
     },
     {
         "camera_id": "Cam_Hanh_Lang",
@@ -161,7 +165,7 @@
         "schedule_start": "23:00",
         "schedule_end": "06:00",
         "in_direction": "down",
-        "map_x": 23.5,
-        "map_y": 82.0
+        "map_x": 23.76,
+        "map_y": 82.62
     }
 ]

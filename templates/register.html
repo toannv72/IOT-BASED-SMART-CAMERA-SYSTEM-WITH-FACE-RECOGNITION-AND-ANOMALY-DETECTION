@@ -42,7 +42,9 @@
             pointer-events: none;
         }
         .card {
-            width: 400px;
+            width: 100%;
+            max-width: 400px;
+            margin: 0 16px;
             background: var(--panel-bg);
             backdrop-filter: blur(16px);
             border: 1px solid var(--border-color);
@@ -51,6 +53,11 @@
             z-index: 2;
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
             text-align: center;
+        }
+        @media (max-width: 440px) {
+            .card {
+                padding: 24px;
+            }
         }
         h2 { font-weight: 600; margin-bottom: 24px; letter-spacing: -0.5px; }
         .input-group {

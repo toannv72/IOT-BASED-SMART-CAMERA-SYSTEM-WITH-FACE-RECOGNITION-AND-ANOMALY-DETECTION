@@ -122,6 +122,26 @@
         visibility: visible;
         opacity: 1;
     }
+
+    @media (max-width: 768px) {
+        .camera-marker {
+            width: 32px;
+            height: 32px;
+        }
+        .camera-marker i {
+            font-size: 14px;
+        }
+        .marker-label {
+            top: 36px;
+            font-size: 9px;
+            padding: 2px 6px;
+        }
+        .marker-tooltip {
+            bottom: 42px;
+            width: 160px;
+            padding: 8px 10px;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -210,7 +230,7 @@
 
 <!-- Modal xem nhanh live stream camera -->
 <div id="preview-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
-    <div class="glass-card" style="width: 640px; padding: 20px; margin-bottom: 0;">
+    <div class="glass-card" style="width: 100%; max-width: 640px; margin: 0 16px; padding: 20px; margin-bottom: 0;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h3 id="preview-title" style="font-size: 16px; font-weight: 600;"><i class="fa-solid fa-video"></i> Live Stream Camera</h3>
             <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closePreviewModal()">&times;</span>
@@ -321,8 +341,9 @@
                 </div>
             `;
             
-            // Gắn sự kiện drag mouse
+            // Gắn sự kiện drag mouse / touch
             marker.addEventListener('mousedown', startDrag);
+            marker.addEventListener('touchstart', startDrag, { passive: false });
             marker.addEventListener('click', (e) => {
                 // Chỉ mở live stream nếu KHÔNG kéo thả
                 if (marker.classList.contains('was-dragged')) {
@@ -381,38 +402,48 @@
         } catch(e){}
     }
 
-    // Logic Kéo thả biểu tượng camera
+    // Logic Kéo thả biểu tượng camera (Hỗ trợ cả Mouse và Touch)
     function startDrag(e) {
         if (e.target.closest('.marker-tooltip')) return;
+        
+        const touch = e.type === 'touchstart' ? e.touches[0] : e;
         
         isDragging = true;
         dragTarget = e.currentTarget;
         dragTarget.classList.remove('was-dragged');
         
-        const rect = document.getElementById('emap-area').getBoundingClientRect();
-        
-        // Tọa độ click chuột
-        startX = e.clientX;
-        startY = e.clientY;
+        // Tọa độ click / touch
+        startX = touch.clientX;
+        startY = touch.clientY;
         
         // Tọa độ bắt đầu của marker dạng %
         startLeft = parseFloat(dragTarget.style.left);
         startTop = parseFloat(dragTarget.style.top);
         
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', endDrag);
-        e.preventDefault();
+        if (e.type === 'touchstart') {
+            document.addEventListener('touchmove', drag, { passive: false });
+            document.addEventListener('touchend', endDrag);
+        } else {
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', endDrag);
+        }
+        
+        if (e.cancelable) {
+            e.preventDefault();
+        }
     }
 
     function drag(e) {
         if (!isDragging || !dragTarget) return;
         
+        const touch = e.type === 'touchmove' ? e.touches[0] : e;
+        
         const mapArea = document.getElementById('emap-area');
         const rect = mapArea.getBoundingClientRect();
         
         // Tính khoảng cách thay đổi dạng pixel
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
         
         // Quy đổi sang tỷ lệ %
         const percentX = (dx / rect.width) * 100;
@@ -430,12 +461,19 @@
         dragTarget.style.top = `${newY.toFixed(2)}%`;
         
         dragTarget.classList.add('was-dragged');
+        
+        if (e.cancelable) {
+            e.preventDefault();
+        }
     }
 
     async function endDrag(e) {
         isDragging = false;
+        
         document.removeEventListener('mousemove', drag);
         document.removeEventListener('mouseup', endDrag);
+        document.removeEventListener('touchmove', drag);
+        document.removeEventListener('touchend', endDrag);
         
         if (!dragTarget) return;
         

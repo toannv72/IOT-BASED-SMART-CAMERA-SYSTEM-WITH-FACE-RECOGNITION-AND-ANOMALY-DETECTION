@@ -225,6 +225,41 @@ async def update_settings_route(request: Request):
     SystemStatus.add_log("Cấu hình hệ thống đã được cập nhật trực tiếp.", "success")
     return {"message": "Đã cập nhật cài đặt!"}
 
+@app.post("/api/settings/test_telegram")
+async def test_telegram_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+        
+    check_admin(request)
+    
+    token = config.settings.get("telegram_token")
+    chats = config.settings.get("telegram_chats", [])
+    
+    if not token or token == "YOUR_TELEGRAM_BOT_TOKEN" or token.strip() == "":
+        raise HTTPException(status_code=400, detail="Vui lòng thay đổi Token mặc định thành Token thực tế của bạn!")
+        
+    if not chats:
+        raise HTTPException(status_code=400, detail="Vui lòng thêm ít nhất một Chat ID hợp lệ!")
+        
+    import cv2
+    # Tạo một ảnh màu đen giả lập camera để gửi test
+    test_frame = np.zeros((360, 640, 3), dtype=np.uint8)
+    cv2.putText(test_frame, "TEST TELEGRAM OK", (120, 190), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)
+    cv2.circle(test_frame, (320, 180), 120, (59, 130, 246), 2)
+    
+    from app.alerts import send_telegram_alert, last_alert_times
+    
+    # Xóa cooldown của camera test nếu có để gửi được luôn
+    cooldown_key = "intrusion_Cam_Test"
+    if cooldown_key in last_alert_times:
+        del last_alert_times[cooldown_key]
+        
+    time_str = time.strftime("%H:%M:%S")
+    message = f"🔔 [HỆ THỐNG TEST] Kiểm tra kết nối Telegram Bot thành công lúc {time_str}!"
+    
+    send_telegram_alert(message, test_frame, alert_type="intrusion", camera_id="Cam_Test")
+    return {"message": "Đã gửi yêu cầu test đến Telegram Bot. Vui lòng kiểm tra chat Telegram!"}
+
 # API Quy định an ninh hệ thống
 @app.get("/api/regulations")
 def get_regulations_api(request: Request):

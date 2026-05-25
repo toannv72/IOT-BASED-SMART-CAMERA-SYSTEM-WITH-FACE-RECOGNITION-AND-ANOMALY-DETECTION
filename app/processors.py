@@ -684,6 +684,11 @@ def pause_camera_alerts(camera_id: str, duration_minutes: int):
     paused_cameras[camera_id] = time.time() + duration_minutes * 60
     print(f"[PROCESSORS] Camera '{camera_id}' alerts paused for {duration_minutes} minutes.")
 
+def resume_camera_alerts(camera_id: str):
+    paused_cameras[camera_id] = 0
+    print(f"[PROCESSORS] Camera '{camera_id}' alerts resumed immediately.")
+
+
 class CameraState:
     def __init__(self):
         self.track_states = {}

@@ -143,14 +143,27 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
 def telegram_polling_loop():
     time.sleep(5)  # Đợi hệ thống khởi chạy ổn định
     offset = 0
+    last_token = None
     print("[TELEGRAM] Bắt đầu khởi chạy luồng Polling bot tương tác 2 chiều...")
     
     while True:
         token = settings.get("telegram_token")
-        if not token or token == "8788292129:AAG-BKlK_c9YbdArYQ4QoqyKZBD-29esw50" or token.strip() == "":
+        if not token or token == "YOUR_TELEGRAM_BOT_TOKEN" or token.strip() == "":
             # Bỏ qua nếu token mặc định giả lập hoặc trống
             time.sleep(15)
             continue
+            
+        # Nếu đổi token mới hoặc khởi chạy lần đầu với token thực, xóa webhook cũ để kích hoạt Long Polling
+        if token != last_token:
+            try:
+                print(f"[TELEGRAM] Cấu hình bot nhận thấy token mới/thực tế. Đang xóa Webhook để nhận updates...")
+                del_webhook_url = f"https://api.telegram.org/bot{token}/deleteWebhook"
+                res = requests.post(del_webhook_url, json={"drop_pending_updates": True}, timeout=10)
+                if res.status_code == 200:
+                    print("[TELEGRAM] Đã xóa Webhook và xóa sạch các bản tin cũ đang đợi trên Telegram.")
+                last_token = token
+            except Exception as e:
+                print(f"[TELEGRAM] Lỗi khi xóa Webhook: {e}")
             
         url = f"https://api.telegram.org/bot{token}/getUpdates"
         try:
@@ -170,15 +183,59 @@ def telegram_polling_loop():
                             message_id = cb["message"]["message_id"]
                             
                             response_text = ""
+                            new_markup = None
+                            
+                            # Trích xuất camera_id từ markup hiện tại nếu có
+                            camera_id = None
+                            try:
+                                markup = cb["message"].get("reply_markup", {})
+                                for row in markup.get("inline_keyboard", []):
+                                    for btn in row:
+                                        data = btn.get("callback_data", "")
+                                        if data.startswith("pause_"):
+                                            parts = data.split("_")
+                                            camera_id = "_".join(parts[1:-1])
+                                            break
+                                        elif data.startswith("resume_"):
+                                            camera_id = data.split("resume_")[-1]
+                                            break
+                            except Exception:
+                                pass
+
                             if cb_data == "mute_alerts":
                                 settings["alerts_enabled"] = False
                                 from app.config import save_settings, SystemStatus
                                 save_settings()
                                 SystemStatus.add_log("Telegram Bot: Đã tắt cảnh báo an ninh hệ thống.", "warning")
                                 response_text = "🔕 Đã tắt cảnh báo an ninh hệ thống."
+                                
+                                keyboard = [
+                                    [
+                                        {"text": "🔔 Bật Lại Báo Động", "callback_data": "unmute_alerts"}
+                                    ]
+                                ]
+                                if camera_id:
+                                    keyboard[0].append({"text": "⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
+                                new_markup = {"inline_keyboard": keyboard}
+                                
+                            elif cb_data == "unmute_alerts":
+                                settings["alerts_enabled"] = True
+                                from app.config import save_settings, SystemStatus
+                                save_settings()
+                                SystemStatus.add_log("Telegram Bot: Đã bật lại cảnh báo an ninh hệ thống.", "success")
+                                response_text = "🔔 Đã bật lại cảnh báo an ninh hệ thống."
+                                
+                                keyboard = [
+                                    [
+                                        {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"}
+                                    ]
+                                ]
+                                if camera_id:
+                                    keyboard[0].append({"text": "⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
+                                new_markup = {"inline_keyboard": keyboard}
+                                
                             elif cb_data.startswith("pause_"):
                                 parts = cb_data.split("_")
-                                # Cấu trúc: pause_CameraID_30
                                 cam_id = "_".join(parts[1:-1])
                                 duration = int(parts[-1])
                                 
@@ -186,21 +243,57 @@ def telegram_polling_loop():
                                 pause_camera_alerts(cam_id, duration)
                                 response_text = f"⏸️ Đã tạm ngắt cảnh báo camera '{cam_id}' trong {duration} phút."
                                 
+                                new_markup = {
+                                    "inline_keyboard": [
+                                        [
+                                            {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"},
+                                            {"text": "▶️ Bật Lại Cam", "callback_data": f"resume_{cam_id}"}
+                                        ]
+                                    ]
+                                }
+                                
+                            elif cb_data.startswith("resume_"):
+                                cam_id = cb_data.split("resume_")[-1]
+                                
+                                from app.processors import resume_camera_alerts
+                                resume_camera_alerts(cam_id)
+                                response_text = f"▶️ Đã bật lại cảnh báo camera '{cam_id}' thành công."
+                                
+                                new_markup = {
+                                    "inline_keyboard": [
+                                        [
+                                            {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"},
+                                            {"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{cam_id}_30"}
+                                        ]
+                                    ]
+                                }
+                                
                             # Phản hồi lại Telegram xác nhận bấm nút thành công
                             answer_url = f"https://api.telegram.org/bot{token}/answerCallbackQuery"
                             requests.post(answer_url, json={"callback_query_id": cb_id, "text": response_text}, timeout=5)
                             
-                            # Cập nhật nhãn caption của bức ảnh
+                            # Cập nhật nhãn caption và nút bấm của bức ảnh
                             edit_url = f"https://api.telegram.org/bot{token}/editMessageCaption"
                             original_caption = cb["message"].get("caption", "")
-                            requests.post(edit_url, json={
+                            if "\n\n👉 [Hệ Thống]" in original_caption:
+                                original_caption = original_caption.split("\n\n👉 [Hệ Thống]")[0]
+                                
+                            edit_payload = {
                                 "chat_id": chat_id,
                                 "message_id": message_id,
                                 "caption": original_caption + f"\n\n👉 [Hệ Thống] {response_text}"
-                            }, timeout=5)
+                            }
+                            if new_markup:
+                                edit_payload["reply_markup"] = json.dumps(new_markup)
+                                
+                            requests.post(edit_url, json=edit_payload, timeout=5)
+            else:
+                # Nếu có lỗi (ví dụ: token sai) thì ghi nhận lỗi và tạm nghỉ
+                print(f"[TELEGRAM] getUpdates trả về status code {response.status_code}: {response.text}")
+                time.sleep(10)
         except Exception as e:
-            # Tránh làm crash luồng polling
-            pass
+            print(f"[TELEGRAM] Lỗi trong luồng Polling: {e}")
+            time.sleep(5)
         time.sleep(2)
 
 # Khởi chạy luồng Polling ngầm

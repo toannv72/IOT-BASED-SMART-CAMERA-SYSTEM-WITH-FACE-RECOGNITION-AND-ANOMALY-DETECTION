@@ -4,7 +4,7 @@
 {% block page_title %}Cấu Hình Hệ Thống{% endblock %}
 
 {% block content %}
-<div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: start;">
+<div class="settings-layout">
     <!-- Cấu hình hệ thống -->
     <div class="glass-card">
         <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
@@ -71,9 +71,12 @@
             <label class="form-label">Cooldown Log Trùng Khuôn Mặt (Giây)</label>
             <input type="number" id="setting-face-cooldown" class="form-input" min="5">
         </div>
-        <div style="margin-top: 24px;">
+        <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 10px;">
             <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="saveSettings()">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình Hệ Thống
+            </button>
+            <button class="btn btn-primary" style="width: 100%; justify-content: center; background-color: var(--primary);" onclick="testTelegramConnection()">
+                <i class="fa-solid fa-paper-plane"></i> Gửi Tin Nhắn Thử Nghiệm Telegram
             </button>
         </div>
     </div>
@@ -111,7 +114,7 @@
 
 <!-- Modal Thêm/Sửa Camera -->
 <div id="camera-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
-    <div class="glass-card" style="width: 500px; margin-bottom: 0;">
+    <div class="glass-card" style="width: 100%; max-width: 500px; margin: 0 16px; margin-bottom: 0;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 id="camera-modal-title" style="font-size: 18px; font-weight: 600;">Thêm Camera Mới</h3>
             <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closeCameraModal()">&times;</span>
@@ -429,6 +432,36 @@
             }
         } catch (e) {
             alert("Lỗi khi xóa camera!");
+        }
+    }
+
+    async function testTelegramConnection() {
+        if (userRole === 'operator') return alert("Bạn không có quyền test cấu hình!");
+        
+        const token = document.getElementById('setting-token').value.trim();
+        const chats = document.getElementById('setting-chats').value.trim();
+        
+        if (!token || token === "YOUR_TELEGRAM_BOT_TOKEN" || token === "") {
+            return alert("Vui lòng cấu hình Token thực tế của bạn trước khi thử nghiệm!");
+        }
+        if (!chats) {
+            return alert("Vui lòng cấu hình Chat ID hợp lệ!");
+        }
+        
+        if (confirm("Hệ thống sẽ lưu cấu hình hiện tại và gửi tin nhắn test. Bạn có chắc chắn muốn tiếp tục?")) {
+            await saveSettings();
+            
+            try {
+                const response = await fetch('/api/settings/test_telegram', { method: 'POST' });
+                const res = await response.json();
+                if (response.ok) {
+                    alert(res.message);
+                } else {
+                    alert("Lỗi thử nghiệm: " + res.detail);
+                }
+            } catch (err) {
+                alert("Lỗi kết nối khi gửi yêu cầu test!");
+            }
         }
     }
 </script>

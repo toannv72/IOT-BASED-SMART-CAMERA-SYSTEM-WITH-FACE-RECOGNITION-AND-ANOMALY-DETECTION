@@ -22,7 +22,8 @@
                 </thead>
                 <tbody id="users-list-tbody">
                     <tr>
-                        <td colspan="4" style="text-align: center; color: var(--text-muted);">Đang tải danh sách tài khoản...</td>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted);">Đang tải danh sách tài
+                            khoản...</td>
                     </tr>
                 </tbody>
             </table>
@@ -45,12 +46,13 @@
         <div class="form-group">
             <label class="form-label">Vai Trò (Role)</label>
             <select id="new-user-role" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
-                <option value="operator">Operator (Chỉ xem live & sơ đồ)</option>
-                <option value="admin">Administrator (Toàn quyền hệ thống)</option>
+                <option style="color: black;" value="operator">Operator (Chỉ xem live & sơ đồ)</option>
+                <option style="color: black;" value="admin">Administrator (Toàn quyền hệ thống)</option>
             </select>
         </div>
         <div style="margin-top: 20px;">
-            <button id="btn-create-user" class="btn btn-success" style="width: 100%; justify-content: center;" onclick="createNewUser()">
+            <button id="btn-create-user" class="btn btn-success" style="width: 100%; justify-content: center;"
+                onclick="createNewUser()">
                 <i class="fa-solid fa-user-check"></i> Tạo Tài Khoản
             </button>
         </div>
@@ -73,7 +75,7 @@
             if (createCard) {
                 createCard.style.display = 'none';
             }
-            
+
             // Ẩn cột Thao Tác trong tiêu đề bảng
             const headerCells = document.querySelectorAll('.admin-only-cell');
             headerCells.forEach(cell => cell.style.display = 'none');
@@ -87,7 +89,7 @@
             const response = await fetch('/api/users');
             const users = await response.json();
             tbody.innerHTML = '';
-            
+
             if (users.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Không có tài khoản nào.</td></tr>';
                 return;
@@ -95,10 +97,10 @@
 
             users.forEach(u => {
                 const tr = document.createElement('tr');
-                const roleLabel = u.role === 'admin' ? 
-                    `<span class="badge" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 11px;">Administrator</span>` : 
+                const roleLabel = u.role === 'admin' ?
+                    `<span class="badge" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 11px;">Administrator</span>` :
                     `<span class="badge" style="background: rgba(156, 163, 175, 0.1); border: 1px solid var(--text-muted); color: var(--text-muted); padding: 2px 6px; border-radius: 4px; font-size: 11px;">Operator</span>`;
-                
+
                 let actionsHtml = '';
                 if (userRole === 'admin') {
                     actionsHtml = `
@@ -114,7 +116,7 @@
                 } else {
                     actionsHtml = ''; // Ẩn hoàn toàn cột thao tác đối với operator
                 }
-                
+
                 tr.innerHTML = `
                     <td>${u.id}</td>
                     <td><strong>${u.username}</strong></td>
@@ -130,7 +132,7 @@
 
     async function createNewUser() {
         if (userRole === 'operator') return alert("Bạn không có quyền thực hiện!");
-        
+
         const userEl = document.getElementById('new-user-username');
         const passEl = document.getElementById('new-user-password');
         const roleEl = document.getElementById('new-user-role');
@@ -163,7 +165,7 @@
 
     async function promptChangePassword(userId, username) {
         if (userRole === 'operator') return alert("Bạn không có quyền thực hiện!");
-        
+
         const newPassword = prompt(`Nhập mật khẩu mới cho tài khoản '${username}':`);
         if (newPassword === null) return;
         if (newPassword.trim() === "") return alert("Mật khẩu không được bỏ trống!");
