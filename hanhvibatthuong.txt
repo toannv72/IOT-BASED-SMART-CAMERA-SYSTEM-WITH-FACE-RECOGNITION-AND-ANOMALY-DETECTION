@@ -1,0 +1,83 @@
+================================================================================
+TÀI LIỆU THIẾT KẾ & THUẬT TOÁN PHÁT HIỆN HÀNH VI BẤT THƯỜNG TRÊN CAMERA AI
+================================================================================
+
+Tài liệu này đặc tả kiến trúc triển khai thuật toán tính điểm rủi ro (Risk Score)
+cho hệ thống AI Camera giám sát đột nhập dựa trên các hành vi/dáng đi (Pseudo-Gait)
+và ngữ cảnh (Context) thay vì nhận diện trực tiếp "trộm".
+
+--------------------------------------------------------------------------------
+1. QUY TẮC TÍNH ĐIỂM RỦI RO (RISK SCORE)
+--------------------------------------------------------------------------------
+Hệ thống giám sát liên tục theo dõi vị trí và quỹ đạo của từng đối tượng (tracker_id)
+trong khung hình (độ phân giải nội bộ 640x360). Điểm rủi ro (Risk Score) được cộng
+dồn dựa theo các hành vi được kích hoạt:
+
+   STT | Hành vi / Ngữ cảnh             | Điểm cộng | Điều kiện kích hoạt
+   ----+-------------------------------+-----------+---------------------------------------------------
+    1  | Xuất hiện ban đêm (Night Time) |    +20    | Thời gian hệ thống nằm trong khoảng 22:00 - 05:00.
+    2  | Vào vùng cấm (Forbidden Zone)  |    +40    | Điểm chân/trọng tâm nằm trong đa giác ROI của Cam.
+    3  | Đứng quá lâu (Loitering)       |    +20    | Ở trong khung hình > 8 giây & dịch chuyển < 30px.
+    4  | Di chuyển nhanh (Running)      |    +10    | Vận tốc Euclidean trong 1.5 giây > 120 pixels/s.
+    5  | Hành vi leo rào (Climbing)     |    +50    | Vận tốc dọc Y > 70px/s hoặc chiều cao hộp tăng > 40%.
+    6  | Không nhận diện được mặt (Str) |    +15    | Phát hiện người lạ (Unknown) hoặc không có mặt.
+
+--------------------------------------------------------------------------------
+2. CÁC MỨC ĐÁNH GIÁ NGUY HIỂM (RISK LEVEL)
+--------------------------------------------------------------------------------
+Dựa trên tổng điểm rủi ro thu được của đối tượng, hệ thống phân loại mức độ nguy hiểm:
+   - Risk Score < 30 : BÌNH THƯỜNG (Normal) -> Hộp bao màu Xanh Lá Cây.
+   - 30 <= Risk Score <= 60 : NGHI NGỜ (Suspicious) -> Hộp bao màu Cam / Vàng.
+   - Risk Score > 60 : CẢNH BÁO ĐỘT NHẬP (Intrusion Alert) -> Hộp bao màu Đỏ.
+
+--------------------------------------------------------------------------------
+3. CHI TIẾT THUẬT TOÁN VÀ CÔNG THỨC VẬT LÝ
+--------------------------------------------------------------------------------
+
+3.1. ĐĂNG KÝ VÀ THEO DÕI VẾT (TRACKING & TRAJECTORY)
+- Sử dụng mô hình YOLOv8 kết hợp ByteTrack để cấp một mã `tracker_id` duy nhất cho mỗi người.
+- Hàng đợi trượt `track_histories[tid]` lưu trữ tối đa 150 điểm vị trí gần nhất:
+  Mỗi điểm ghi nhận dạng: `(timestamp, [x1, y1, x2, y2], [center_x, center_y])`
+
+3.2. CÔNG THỨC PHÁT HIỆN ĐỨNG LÂU (LOITERING)
+- Điều kiện 1: Thời gian từ khi xuất hiện đến hiện tại: `t_hiện_tại - t_đầu_tiên > 8.0` giây.
+- Điều kiện 2: Tính khoảng cách dịch chuyển tối đa trong 8 giây gần nhất:
+  `disp_max = sqrt((max_x - min_x)^2 + (max_y - min_y)^2) < 30` pixels.
+  => Nếu thỏa mãn cả 2 điều kiện, đối tượng đang lẩn quẩn/đứng im dò xét.
+
+3.3. CÔNG THỨC TÍNH VẬN TỐC DI CHUYỂN (RUNNING SPEED)
+- Lấy các điểm định vị trong khoảng 1.5 giây gần nhất của đối tượng.
+- Tính khoảng cách Euclidean giữa điểm đầu (`p0`) và điểm cuối (`p1`) trong khoảng này:
+  `dist = sqrt((x1 - x0)^2 + (y1 - y0)^2)`
+- Tốc độ di chuyển thực tế: `speed = dist / dt` (pixels/giây).
+  => Nếu `speed > 120`, đối tượng đang chạy nhanh (hoảng loạn hoặc cố tẩu thoát).
+
+3.4. CÔNG THỨC PHÁT HIỆN LEO RÀO (CLIMBING DETECT)
+- Theo dõi vận tốc theo chiều dọc (Y-axis speed):
+  `v_y = (y_cuối - y_đầu) / dt` (pixels/giây).
+- Theo dõi biến động chiều cao hộp bao (bounding box height ratio):
+  `height_ratio = abs(h_cuối - h_đầu) / h_đầu`
+  => Nếu `abs(v_y) > 70` hoặc `height_ratio > 0.40` trong vòng 1.5 giây, đối tượng có hành vi
+     vươn người leo rào hoặc nhảy từ trên cao xuống.
+
+3.5. LIÊN KẾT KHUÔN MẶT VỚI MÃ THEO DÕI (FACE TO TRACK ID ASSOCIATOR)
+- Để xác định đối tượng là người quen hay người lạ, hệ thống đối chiếu tọa độ hộp mặt phát hiện
+  bởi MTCNN với hộp người phát hiện bởi YOLOv8.
+- Tính tỷ lệ giao nhau (Intersection Over Face Area - IoFA) giữa hộp mặt `F` và hộp người `P`:
+  `Giao_x1 = max(Fx1, Px1), Giao_y1 = max(Fy1, Py1)`
+  `Giao_x2 = min(Fx2, Px2), Giao_y2 = min(Fy2, Py2)`
+  `Diện_tích_giao = max(0, Giao_x2 - Giao_x1) * max(0, Giao_y2 - Giao_y1)`
+  `Tỷ_lệ_giao = Diện_tích_giao / Diện_tích_hộp_mặt`
+- Nếu `Tỷ_lệ_giao > 0.5`, khuôn mặt này được gán cho người mang mã `tracker_id` đó.
+- **Tính Bám Vết & Bỏ Qua Người Nhà (Family Member Bypass):**
+  1. Trạng thái người quen/người nhà sau khi được khớp thành công sẽ được duy trì bền vững trong suốt quá trình theo dõi đối tượng đó (không bị ghi đè thành người lạ khi đổi góc nhìn hoặc mất dấu khuôn mặt).
+  2. Nếu xác định được là người nhà, điểm rủi ro (Risk Score) của đối tượng tự động đưa về 0, hiển thị trạng thái `Nguoi Nha (Tên người)` và hệ thống sẽ loại bỏ đối tượng này khỏi mọi kịch bản kích hoạt còi, TTS hoặc gửi tin nhắn cảnh báo Telegram (cho dù họ có thực hiện hành động nào).
+
+--------------------------------------------------------------------------------
+4. KIỂU PHẢN HỒI KHI CÓ CẢNH BÁO ĐỘT NHẬP (RISK SCORE > 60)
+--------------------------------------------------------------------------------
+1. **Trễ Xác Minh (5 Giây Delay)**: Khi đối tượng vượt quá 60 điểm rủi ro, hệ thống sẽ KHÔNG báo động ngay. Hệ thống sẽ hiển thị nhãn đếm ngược `Xác minh: {5..1}s...` dưới hộp bao đối tượng để chờ xác thực xem đối tượng có phải là người nhà hay không. Nếu trong 5 giây này họ được xác minh là người quen hoặc điểm rủi ro giảm xuống, cảnh báo sẽ được HỦY bỏ hoàn toàn.
+2. **Giao Diện Web**: Đổi màu hộp người sang Đỏ rực, hiển thị dòng text cảnh báo nguy hiểm kèm điểm số ngay phía trên đối tượng.
+3. **Hệ Thống Âm Thanh (TTS)**: Đọc thông báo tiếng Việt qua loa trình duyệt: "Cảnh báo: Phát hiện hành vi đột nhập bất thường tại [Tên Camera]!"
+4. **Cảnh Báo Telegram**: Gửi ảnh snapshot khoanh vùng đối tượng vi phạm kèm chi tiết các hành vi vi phạm (Ví dụ: `Xuất hiện đêm khuya, Vào vùng cấm, Đứng quá lâu, Người lạ`).
+5. **Nút Bấm Telegram**: Đính kèm bộ nút tương tác 2 chiều động để quản trị viên có thể tắt báo động hoặc tạm dừng camera ngay lập tức.

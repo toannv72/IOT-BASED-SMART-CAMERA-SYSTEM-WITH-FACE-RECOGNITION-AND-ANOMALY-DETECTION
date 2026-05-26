@@ -702,6 +702,14 @@ class CameraState:
         self.frame_buffer = collections.deque(maxlen=150)
         self.intrusion_entry_times = {}
         self.last_face_log_times = {}
+        self.track_histories = {}           # tid -> collections.deque of (timestamp, bbox, center)
+        self.track_first_seen = {}          # tid -> first_seen_timestamp
+        self.track_face_status = {}         # tid -> name or "unknown"
+        self.behavior_alert_cooldowns = {}  # tid -> last_alert_timestamp
+        self.track_high_risk_start_times = {} # tid -> timestamp of when they first exceeded score 60
+        self.intrusion_active = False
+        self.fall_active = False
+
 
 def is_time_in_schedule(start_str, end_str):
     """
@@ -721,6 +729,10 @@ def is_time_in_schedule(start_str, end_str):
             return now >= start_time or now <= end_time
     except Exception:
         return True
+
+def is_near_border(bbox, margin_x=60, margin_y=40):
+    x1, y1, x2, y2 = bbox
+    return (x1 < margin_x or x2 > 640 - margin_x or y1 < margin_y or y2 > 360 - margin_y)
 
 def gen_dynamic_stream(camera_id: str):
     """
@@ -796,7 +808,7 @@ def gen_dynamic_stream(camera_id: str):
             if new_cfg:
                 cfg = new_cfg
             
-            if "face_id" in cfg.get("features", []):
+            if "face_id" in cfg.get("features", []) or "abnormal_behavior" in cfg.get("features", []):
                 db = SessionLocal()
                 records = db.query(FaceRecord).all()
                 db.close()
@@ -814,9 +826,11 @@ def gen_dynamic_stream(camera_id: str):
         if cfg.get("schedule_enabled", False):
             alert_allowed_by_schedule = is_time_in_schedule(cfg.get("schedule_start", "00:00"), cfg.get("schedule_end", "24:00"))
 
-        run_yolo = ("people_counter" in features) or ("intrusion_roi" in features)
-        run_face = "face_id" in features
+        run_yolo = ("people_counter" in features) or ("intrusion_roi" in features) or ("abnormal_behavior" in features)
+        run_face = "face_id" in features or "abnormal_behavior" in features
         run_fall = "fall_detection" in features
+        if not run_fall:
+            state.fall_active = False
 
         detections = None
         if run_yolo:
@@ -954,8 +968,9 @@ def gen_dynamic_stream(camera_id: str):
                         send_telegram_alert(f"📤 [{camera_id}] Có {diff_out} người vừa đi ra.", frame, "counter", camera_id, frame_buffer=list(state.frame_buffer))
 
             labels = [f"#{tid}" for tid in (detections.tracker_id if detections.tracker_id is not None else [])]
-            annotated_frame = box_annotator.annotate(scene=annotated_frame, detections=detections)
-            annotated_frame = label_annotator.annotate(scene=annotated_frame, detections=detections, labels=labels)
+            if "abnormal_behavior" not in features:
+                annotated_frame = box_annotator.annotate(scene=annotated_frame, detections=detections)
+                annotated_frame = label_annotator.annotate(scene=annotated_frame, detections=detections, labels=labels)
             cv2.putText(annotated_frame, f"IN: {state.count_in} | OUT: {state.count_out}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         if "intrusion_roi" in features and detections is not None:
@@ -976,6 +991,9 @@ def gen_dynamic_stream(camera_id: str):
                         ]
                         for cp in check_points:
                             if cv2.pointPolygonTest(pts, cp, False) >= 0:
+                                # BỎ QUA nếu người này là người nhà
+                                if state.track_face_status.get(tid) not in [None, "Unknown"]:
+                                    continue
                                 person_in_roi = True
                                 is_this_roi_violated = True
                                 active_tids_in_roi.add(tid)
@@ -1008,35 +1026,39 @@ def gen_dynamic_stream(camera_id: str):
                         loitering_detected = True
                         cv2.putText(annotated_frame, f"LẢNG VẢNG ID #{tid}: {int(elapsed)}s", (10, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
                         
-                        if alerts_enabled and alert_allowed_by_schedule and not is_paused:
-                            SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện lảng vảng ID #{tid} quá {loitering_threshold} giây!", "danger")
-                            send_telegram_alert(
-                                message=f"⚠️ [{camera_id}] Phát hiện người lảng vảng ID #{tid} ở lại vùng cấm {int(elapsed)} giây!",
-                                frame=frame,
-                                alert_type="intrusion",
-                                camera_id=camera_id,
-                                frame_buffer=list(state.frame_buffer)
-                            )
+                        if "abnormal_behavior" not in features:
+                            if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                                SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện lảng vảng ID #{tid} quá {loitering_threshold} giây!", "danger")
+                                send_telegram_alert(
+                                    message=f"⚠️ [{camera_id}] Phát hiện người lảng vảng ID #{tid} ở lại vùng cấm {int(elapsed)} giây!",
+                                    frame=frame,
+                                    alert_type="intrusion",
+                                    camera_id=camera_id,
+                                    frame_buffer=list(state.frame_buffer)
+                                )
 
             for tid in list(state.intrusion_entry_times.keys()):
                 if tid not in active_tids_in_roi:
                     state.intrusion_entry_times.pop(tid, None)
 
             if person_in_roi:
-                SystemStatus.intrusion_active = True
+                if "abnormal_behavior" not in features:
+                    state.intrusion_active = True
                 if not loitering_detected:
                     cv2.putText(annotated_frame, "CANH BAO XAM NHAP!", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-                    if alerts_enabled and alert_allowed_by_schedule and not is_paused:
-                        SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện xâm nhập vùng cấm!", "danger")
-                        send_telegram_alert(
-                            message=f"⚠️ [{camera_id}] Phát hiện người xâm nhập vùng cấm!",
-                            frame=frame,
-                            alert_type="intrusion",
-                            camera_id=camera_id,
-                            frame_buffer=list(state.frame_buffer)
-                        )
+                    if "abnormal_behavior" not in features:
+                        if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                            SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện xâm nhập vùng cấm!", "danger")
+                            send_telegram_alert(
+                                message=f"⚠️ [{camera_id}] Phát hiện người xâm nhập vùng cấm!",
+                                frame=frame,
+                                alert_type="intrusion",
+                                camera_id=camera_id,
+                                frame_buffer=list(state.frame_buffer)
+                            )
             else:
-                SystemStatus.intrusion_active = False
+                if "abnormal_behavior" not in features:
+                    state.intrusion_active = False
 
         if run_face:
             img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -1060,37 +1082,281 @@ def gen_dynamic_stream(camera_id: str):
                                 best_match_name = names[min_idx]
                                 best_distance = min_dist
 
-                        color = (0, 255, 0) if best_match_name != "Unknown" else (0, 0, 255)
-                        cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
-                        text = f"{best_match_name} ({best_distance:.2f})" if best_match_name != "Unknown" else "Unknown"
-                        cv2.putText(annotated_frame, text, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                        # Liên kết khuôn mặt với tracker_id của YOLOv8 bằng độ chồng khớp hình học (overlap)
+                        overlap_tid = None
+                        if detections is not None and detections.tracker_id is not None:
+                            best_overlap = 0.0
+                            for det_idx, tid in enumerate(detections.tracker_id):
+                                px1, py1, px2, py2 = detections.xyxy[det_idx]
+                                ix1 = max(x_1, px1)
+                                iy1 = max(y_1, py1)
+                                ix2 = min(x_2, px2)
+                                iy2 = min(y_2, py2)
+                                if ix2 > ix1 and iy2 > iy1:
+                                    area = (ix2 - ix1) * (iy2 - iy1)
+                                    face_area = (x_2 - x_1) * (y_2 - y_1)
+                                    overlap_ratio = area / float(face_area)
+                                    if overlap_ratio > 0.5 and overlap_ratio > best_overlap:
+                                        best_overlap = overlap_ratio
+                                        overlap_tid = tid
+                        if overlap_tid is not None:
+                            old_face = state.track_face_status.get(overlap_tid)
+                            if old_face is None or old_face == "Unknown" or (best_match_name != "Unknown" and old_face != best_match_name):
+                                state.track_face_status[overlap_tid] = best_match_name
 
-                        last_log_time = state.last_face_log_times.get(best_match_name, 0)
-                        if current_time - last_log_time > face_log_cooldown:
-                            state.last_face_log_times[best_match_name] = current_time
+                        if "face_id" in features:
+                            color = (0, 255, 0) if best_match_name != "Unknown" else (0, 0, 255)
+                            cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
+                            text = f"{best_match_name} ({best_distance:.2f})" if best_match_name != "Unknown" else "Unknown"
+                            cv2.putText(annotated_frame, text, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+                            last_log_time = state.last_face_log_times.get(best_match_name, 0)
+                            if current_time - last_log_time > face_log_cooldown:
+                                state.last_face_log_times[best_match_name] = current_time
+                                
+                                if best_match_name == "Unknown":
+                                    if "abnormal_behavior" not in features:
+                                        if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                                            SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện khuôn mặt lạ!", "danger")
+                                            send_telegram_alert(
+                                                message=f"⚠️ [{camera_id}] Phát hiện khuôn mặt lạ xuất hiện!",
+                                                frame=frame,
+                                                alert_type="face",
+                                                camera_id=camera_id,
+                                                frame_buffer=list(state.frame_buffer),
+                                                face_name="Unknown"
+                                            )
+                                else:
+                                    if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                                        SystemStatus.add_log(f"👤 {camera_id}: Nhận diện thành công khuôn mặt: {best_match_name}", "info")
+                                        send_telegram_alert(
+                                            message=f"👤 [{camera_id}] Nhận diện thành công khuôn mặt: {best_match_name}",
+                                            frame=frame,
+                                            alert_type="face",
+                                            camera_id=camera_id,
+                                            frame_buffer=list(state.frame_buffer),
+                                            face_name=best_match_name
+                                        )
+
+        if "abnormal_behavior" in features:
+            current_time = time.time()
+            is_night = False
+            try:
+                from datetime import datetime
+                current_hour = datetime.now().hour
+                is_night = (current_hour >= 22) or (current_hour < 5)
+            except Exception:
+                pass
+
+            if not hasattr(state, "track_high_risk_start_times"):
+                state.track_high_risk_start_times = {}
+
+            any_intrusion_active = False
+
+            if detections is None or detections.tracker_id is None:
+                state.intrusion_active = False
+                if hasattr(state, "track_histories"):
+                    state.track_histories.clear()
+                    state.track_first_seen.clear()
+                    state.track_face_status.clear()
+                    state.behavior_alert_cooldowns.clear()
+                    state.track_high_risk_start_times.clear()
+            else:
+                active_tids = set()
+                for det_idx, tid in enumerate(detections.tracker_id):
+                    active_tids.add(tid)
+                    bbox = detections.xyxy[det_idx]
+                    center = ((bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0)
+                    
+                    if tid not in state.track_histories:
+                        state.track_histories[tid] = collections.deque(maxlen=150)
+                        state.track_first_seen[tid] = current_time
+                        if tid not in state.track_face_status:
+                            state.track_face_status[tid] = None
+                        
+                        # Kiểm tra bàn giao người nhà từ camera khác nếu đối tượng mới xuất hiện sát biên
+                        if is_near_border(bbox):
+                            handover_name = SystemStatus.find_matching_handover(camera_id, current_time)
+                            if handover_name:
+                                state.track_face_status[tid] = handover_name
+                                print(f"[CROSS-CAM] Bàn giao thành công: Đối tượng ID #{tid} trên '{camera_id}' thừa hưởng trạng thái người nhà '{handover_name}'")
                             
-                            if best_match_name == "Unknown":
+                    state.track_histories[tid].append((current_time, bbox, center))
+                    
+                # Dọn dẹp tracks cũ nếu không xuất hiện liên tục quá 3.0 giây
+                for tid in list(state.track_histories.keys()):
+                    history = state.track_histories[tid]
+                    if history:
+                        last_seen_time = history[-1][0]
+                        if current_time - last_seen_time > 3.0:
+                            state.track_histories.pop(tid, None)
+                            state.track_first_seen.pop(tid, None)
+                            state.track_face_status.pop(tid, None)
+                            state.behavior_alert_cooldowns.pop(tid, None)
+                            state.track_high_risk_start_times.pop(tid, None)
+                    else:
+                        state.track_histories.pop(tid, None)
+                        state.track_first_seen.pop(tid, None)
+                        state.track_face_status.pop(tid, None)
+                        state.behavior_alert_cooldowns.pop(tid, None)
+                        state.track_high_risk_start_times.pop(tid, None)
+                        
+                # Đánh giá hành vi của từng đối tượng
+                for det_idx, tid in enumerate(detections.tracker_id):
+                    bbox = detections.xyxy[det_idx]
+                    x1_b, y1_b, x2_b, y2_b = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+                    
+                    score = 0
+                    reasons = []
+                    
+                    # 1. Ban đêm (+20)
+                    if is_night:
+                        score += 20
+                        reasons.append("Ban Dem")
+                        
+                    # 2. Vùng cấm (+40)
+                    rois = cfg.get("rois", [cfg.get("roi", [[100, 100], [540, 100], [540, 300], [100, 300]])])
+                    in_roi = False
+                    check_points = [
+                        (int((bbox[0] + bbox[2]) / 2), int(bbox[3])),  # Điểm chân
+                        (int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2))  # Trọng tâm
+                    ]
+                    for roi_poly in rois:
+                        pts = np.array(roi_poly, np.int32).reshape((-1, 1, 2))
+                        for cp in check_points:
+                            if cv2.pointPolygonTest(pts, cp, False) >= 0:
+                                in_roi = True
+                                break
+                        if in_roi: break
+                        
+                    if in_roi:
+                        score += 40
+                        reasons.append("Vung Cam")
+                        
+                    # 3. Đứng quá lâu (+20)
+                    trajectory = state.track_histories.get(tid, [])
+                    first_seen = state.track_first_seen.get(tid, current_time)
+                    duration = current_time - first_seen
+                    is_standing = False
+                    if duration > 8.0:
+                        recent_pts = [p for t_val, b_val, p in trajectory if current_time - t_val <= 8.0]
+                        if recent_pts:
+                            xs = [p[0] for p in recent_pts]
+                            ys = [p[1] for p in recent_pts]
+                            max_disp = math.sqrt((max(xs) - min(xs))**2 + (max(ys) - min(ys))**2)
+                            if max_disp < 30.0:
+                                is_standing = True
+                    if is_standing:
+                        score += 20
+                        reasons.append("Dung Lau")
+                        
+                    # 4. Chạy nhanh (+10)
+                    is_running = False
+                    recent_1s = [item for item in trajectory if current_time - item[0] <= 1.0]
+                    if len(recent_1s) >= 2:
+                        t_diff = recent_1s[-1][0] - recent_1s[0][0]
+                        if t_diff > 0.1:
+                            dist = math.dist(recent_1s[-1][2], recent_1s[0][2])
+                            speed = dist / t_diff
+                            if speed > 120.0:
+                                is_running = True
+                    if is_running:
+                        score += 10
+                        reasons.append("Chay Nhanh")
+                        
+                    # 5. Leo rào (+50)
+                    is_climbing = False
+                    recent_1_5s = [item for item in trajectory if current_time - item[0] <= 1.5]
+                    if len(recent_1_5s) >= 2:
+                        t0_val, bbox0_val, p0_val = recent_1_5s[0]
+                        t1_val, bbox1_val, p1_val = recent_1_5s[-1]
+                        dt_val = t1_val - t0_val
+                        if dt_val > 0.2:
+                            v_y_val = (p1_val[1] - p0_val[1]) / dt_val
+                            h0_val = bbox0_val[3] - bbox0_val[1]
+                            h1_val = bbox1_val[3] - bbox1_val[1]
+                            if abs(v_y_val) > 70.0 or (abs(h1_val - h0_val) / max(h0_val, 1) > 0.40):
+                                is_climbing = True
+                    if is_climbing:
+                        score += 50
+                        reasons.append("Leo Rao")
+                        
+                    # 6. Người lạ / Không nhận dạng được mặt (+15)
+                    face_status = state.track_face_status.get(tid)
+                    is_family_member = (face_status is not None) and (face_status != "Unknown")
+                    
+                    if is_family_member:
+                        # Cập nhật bàn giao nếu là người nhà và đang ở sát biên
+                        if is_near_border(bbox):
+                            SystemStatus.add_handover(camera_id, face_status, current_time)
+                        score = 0
+                        reasons = [f"Nguoi Nha ({face_status})"]
+                    else:
+                        score += 15
+                        reasons.append("Nguoi La")
+                        
+                    # Phân loại rủi ro
+                    if is_family_member:
+                        status = f"Nguoi Nha ({face_status})"
+                        color = (0, 255, 0)
+                    elif score < 30:
+                        status = "Normal"
+                        color = (0, 255, 0)
+                    elif score <= 60:
+                        status = "Suspicious"
+                        color = (0, 165, 255)
+                    else:
+                        status = "Intrusion Alert"
+                        color = (0, 0, 255)
+                        
+                    # Vẽ hộp bao và nhãn rủi ro lên khung hình
+                    cv2.rectangle(annotated_frame, (x1_b, y1_b), (x2_b, y2_b), color, 2)
+                    label_text = f"ID #{tid} | Risk: {score} ({status})"
+                    cv2.putText(annotated_frame, label_text, (x1_b, y1_b - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    
+                    if reasons:
+                        behavior_str = ", ".join(reasons)
+                        cv2.putText(annotated_frame, f"Beh: {behavior_str}", (x1_b, y2_b + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                        
+                    # Gửi cảnh báo Telegram bất đồng bộ nếu rủi ro cực cao (Cảnh báo trễ 5 giây)
+                    if score > 60:
+                        if tid not in state.track_high_risk_start_times:
+                            state.track_high_risk_start_times[tid] = current_time
+                            
+                        high_risk_duration = current_time - state.track_high_risk_start_times[tid]
+                        
+                        if high_risk_duration < 5.0:
+                            countdown = 5 - int(high_risk_duration)
+                            cv2.putText(annotated_frame, f"Xác minh: {countdown}s...", (x1_b, y2_b + 32), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 165, 255), 1)
+                        else:
+                            any_intrusion_active = True
+                            last_alert_t = state.behavior_alert_cooldowns.get(tid, 0)
+                            telegram_cooldown = config.settings.get("telegram_cooldown", 15)
+                            
+                            if current_time - last_alert_t > telegram_cooldown:
+                                state.behavior_alert_cooldowns[tid] = current_time
+                                
+                                log_msg = f"⚠️ CẢNH BÁO: Phát hiện hành vi đột nhập bất thường từ ID #{tid} (Rủi ro: {score}). Chi tiết: {', '.join(reasons)}."
+                                SystemStatus.add_log(log_msg, "danger")
+                                
                                 if alerts_enabled and alert_allowed_by_schedule and not is_paused:
-                                    SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện khuôn mặt lạ!", "danger")
                                     send_telegram_alert(
-                                        message=f"⚠️ [{camera_id}] Phát hiện khuôn mặt lạ xuất hiện!",
+                                        message=f"🚨 [CẢNH BÁO ĐỘT NHẬP] Phát hiện hành vi bất thường từ đối tượng ID #{tid}!\n\nĐiểm rủi ro: {score} / 100\nChi tiết vi phạm: {', '.join(reasons)}",
                                         frame=frame,
-                                        alert_type="face",
+                                        alert_type="intrusion",
                                         camera_id=camera_id,
-                                        frame_buffer=list(state.frame_buffer),
-                                        face_name="Unknown"
+                                        frame_buffer=list(state.frame_buffer)
                                     )
-                            else:
-                                if alerts_enabled and alert_allowed_by_schedule and not is_paused:
-                                    SystemStatus.add_log(f"👤 {camera_id}: Nhận diện thành công khuôn mặt: {best_match_name}", "info")
-                                    send_telegram_alert(
-                                        message=f"👤 [{camera_id}] Nhận diện thành công khuôn mặt: {best_match_name}",
-                                        frame=frame,
-                                        alert_type="face",
-                                        camera_id=camera_id,
-                                        frame_buffer=list(state.frame_buffer),
-                                        face_name=best_match_name
-                                    )
+                    else:
+                        state.track_high_risk_start_times.pop(tid, None)
+                                
+            # Vẽ nét mỏng vùng đa giác ROI của tính năng hành vi
+            rois = cfg.get("rois", [cfg.get("roi", [[100, 100], [540, 100], [540, 300], [100, 300]])])
+            for roi_poly in rois:
+                pts = np.array(roi_poly, np.int32).reshape((-1, 1, 2))
+                cv2.polylines(annotated_frame, [pts], True, (0, 255, 255), 1)
+
+            state.intrusion_active = any_intrusion_active
 
         if run_fall:
             fall_in_frame = False
@@ -1157,7 +1423,7 @@ def gen_dynamic_stream(camera_id: str):
             if fall_in_frame:
                 state.fall_counter += 1
                 if state.fall_counter >= 12:
-                    SystemStatus.fall_active = True
+                    state.fall_active = True
                     cv2.putText(annotated_frame, "PHÁT HIỆN NGÃ!", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
                     if alerts_enabled and alert_allowed_by_schedule and not is_paused:
                         SystemStatus.add_log(f"🚨 {camera_id}: Phát hiện người bị ngã!", "danger")
@@ -1170,6 +1436,12 @@ def gen_dynamic_stream(camera_id: str):
                         )
             else:
                 state.fall_counter = max(0, state.fall_counter - 1)
+                if state.fall_counter == 0:
+                    state.fall_active = False
+
+        # Cập nhật trạng thái hệ thống dùng chung từ tất cả các camera để tránh xung đột ghi đè
+        SystemStatus.intrusion_active = any(s.intrusion_active for s in camera_states.values())
+        SystemStatus.fall_active = any(s.fall_active for s in camera_states.values())
 
         # Trạng thái lịch trình
         if not alert_allowed_by_schedule:

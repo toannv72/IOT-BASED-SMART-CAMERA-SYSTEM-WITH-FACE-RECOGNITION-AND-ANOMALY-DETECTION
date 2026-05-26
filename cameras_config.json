@@ -38,8 +38,8 @@
         "schedule_enabled": false,
         "schedule_start": "23:00",
         "schedule_end": "06:00",
-        "map_x": 23.5,
-        "map_y": 38.0
+        "map_x": 25.65,
+        "map_y": 39.23
     },
     {
         "camera_id": "Cam_Cua_Sau",
@@ -124,8 +124,8 @@
         "schedule_enabled": false,
         "schedule_start": "23:00",
         "schedule_end": "06:00",
-        "map_x": 68.39,
-        "map_y": 48.37
+        "map_x": 70.72,
+        "map_y": 49.14
     },
     {
         "camera_id": "quét khuôn mặt",
@@ -167,5 +167,46 @@
         "in_direction": "down",
         "map_x": 23.76,
         "map_y": 82.62
+    },
+    {
+        "camera_id": "sân sau",
+        "source": "0",
+        "features": [
+            "abnormal_behavior"
+        ],
+        "line": [
+            [
+                100,
+                180
+            ],
+            [
+                540,
+                180
+            ]
+        ],
+        "roi": [
+            [
+                100,
+                100
+            ],
+            [
+                540,
+                100
+            ],
+            [
+                540,
+                300
+            ],
+            [
+                100,
+                300
+            ]
+        ],
+        "schedule_enabled": false,
+        "schedule_start": "23:00",
+        "schedule_end": "06:00",
+        "low_light_enhance": true,
+        "enhance_clip_limit": 2,
+        "in_direction": "down"
     }
 ]

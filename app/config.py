@@ -122,6 +122,7 @@ def save_full_cameras_config(cameras):
 load_settings()
 
 import threading
+import time
 from datetime import datetime
 
 # Trạng thái hệ thống thời gian thực dùng chung
@@ -130,6 +131,10 @@ class SystemStatus:
     fall_active = False
     new_logs = []
     log_lock = threading.Lock()
+    
+    # Hỗ trợ bàn giao người nhà liên camera (Cross-Camera Whitelist Handover)
+    handovers = []  # Danh sách các sự kiện bàn giao: [{"cam_id": str, "name": str, "timestamp": float}]
+    handover_lock = threading.Lock()
     
     @classmethod
     def add_log(cls, msg, log_type=""):
@@ -141,4 +146,28 @@ class SystemStatus:
             })
             if len(cls.new_logs) > 50:
                 cls.new_logs.pop(0)
+
+    @classmethod
+    def add_handover(cls, cam_id, name, timestamp):
+        with cls.handover_lock:
+            # Dọn dẹp các sự kiện cũ quá 10 giây
+            cls.handovers = [h for h in cls.handovers if timestamp - h["timestamp"] <= 10.0]
+            cls.handovers.append({
+                "cam_id": cam_id,
+                "name": name,
+                "timestamp": timestamp
+            })
+            print(f"[CROSS-CAM] Đăng ký sự kiện bàn giao người nhà '{name}' từ camera '{cam_id}'")
+
+    @classmethod
+    def find_matching_handover(cls, current_cam_id, current_time):
+        with cls.handover_lock:
+            # Dọn dẹp các sự kiện cũ quá 10 giây
+            cls.handovers = [h for h in cls.handovers if current_time - h["timestamp"] <= 10.0]
+            # Tìm sự kiện bàn giao gần nhất từ camera khác
+            for h in sorted(cls.handovers, key=lambda x: x["timestamp"], reverse=True):
+                if h["cam_id"] != current_cam_id:
+                    cls.handovers.remove(h)
+                    return h["name"]
+            return None
 

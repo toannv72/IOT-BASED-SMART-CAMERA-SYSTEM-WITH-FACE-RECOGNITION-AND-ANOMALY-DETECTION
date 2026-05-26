@@ -145,6 +145,9 @@
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
                     <input type="checkbox" id="cam-feat-fall"> Phát hiện người ngã
                 </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" id="cam-feat-behavior"> Hành vi bất thường
+                </label>
             </div>
         </div>
         
@@ -268,6 +271,7 @@
             if (cam.features.includes('intrusion_roi')) feats.push('ROI cấm');
             if (cam.features.includes('face_id')) feats.push('Face ID');
             if (cam.features.includes('fall_detection')) feats.push('Ngã');
+            if (cam.features.includes('abnormal_behavior')) feats.push('Hành vi');
 
             let schedText = '24/7';
             if (cam.schedule_enabled) {
@@ -311,6 +315,7 @@
         document.getElementById('cam-feat-roi').checked = false;
         document.getElementById('cam-feat-face').checked = false;
         document.getElementById('cam-feat-fall').checked = false;
+        document.getElementById('cam-feat-behavior').checked = false;
         document.getElementById('cam-sched-enabled').checked = false;
         document.getElementById('cam-sched-start').value = "23:00";
         document.getElementById('cam-sched-end').value = "06:00";
@@ -335,6 +340,7 @@
         document.getElementById('cam-feat-roi').checked = cam.features.includes('intrusion_roi');
         document.getElementById('cam-feat-face').checked = cam.features.includes('face_id');
         document.getElementById('cam-feat-fall').checked = cam.features.includes('fall_detection');
+        document.getElementById('cam-feat-behavior').checked = cam.features.includes('abnormal_behavior');
         
         document.getElementById('cam-sched-enabled').checked = cam.schedule_enabled || false;
         document.getElementById('cam-sched-start').value = cam.schedule_start || "23:00";
@@ -362,6 +368,7 @@
         if (document.getElementById('cam-feat-roi').checked) features.push('intrusion_roi');
         if (document.getElementById('cam-feat-face').checked) features.push('face_id');
         if (document.getElementById('cam-feat-fall').checked) features.push('fall_detection');
+        if (document.getElementById('cam-feat-behavior').checked) features.push('abnormal_behavior');
 
         let existingLine = [[100, 180], [540, 180]];
         let existingRoi = [[100, 100], [540, 100], [540, 300], [100, 300]];
