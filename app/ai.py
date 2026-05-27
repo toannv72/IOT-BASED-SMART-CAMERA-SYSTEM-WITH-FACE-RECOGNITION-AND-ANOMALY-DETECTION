@@ -46,3 +46,28 @@ if os.path.exists(yolov8_fall_model_path):
         print(f"[AI MODEL] [ERROR] Lỗi nạp mô hình ngã tự train: {e}")
 else:
     print("[AI MODEL] Không tìm thấy mô hình ngã tự train. Sử dụng pose estimation làm dự phòng.")
+
+# 4c. YOLOv8 phát hiện cháy nổ
+yolov8_fire_custom_path = "yolov8n_fire_custom.pt"
+yolov8_fire_fallback_path = "yolov8n_fire.pt"
+yolov8_fire_model = None
+
+if os.path.exists(yolov8_fire_custom_path):
+    print(f"[AI MODEL] Phát hiện mô hình cháy nổ tự train: {yolov8_fire_custom_path}. Đang nạp...")
+    try:
+        yolov8_fire_model = YOLO(yolov8_fire_custom_path)
+        yolov8_fire_model.to(device)
+        print("[AI MODEL] Đã nạp thành công mô hình cháy nổ tự train!")
+    except Exception as e:
+        print(f"[AI MODEL] [ERROR] Lỗi nạp mô hình cháy nổ tự train: {e}")
+elif os.path.exists(yolov8_fire_fallback_path):
+    print(f"[AI MODEL] Sử dụng mô hình cháy nổ dự phòng (HuggingFace): {yolov8_fire_fallback_path}. Đang nạp...")
+    try:
+        yolov8_fire_model = YOLO(yolov8_fire_fallback_path)
+        yolov8_fire_model.to(device)
+        print("[AI MODEL] Đã nạp thành công mô hình cháy nổ dự phòng!")
+    except Exception as e:
+        print(f"[AI MODEL] [ERROR] Lỗi nạp mô hình cháy nổ dự phòng: {e}")
+else:
+    print("[AI MODEL] Không tìm thấy mô hình cháy nổ. Vui lòng chạy train hoặc chuẩn bị tệp weights!")
+

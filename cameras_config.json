@@ -208,5 +208,48 @@
         "low_light_enhance": true,
         "enhance_clip_limit": 2,
         "in_direction": "down"
+    },
+    {
+        "camera_id": "bếp",
+        "source": "video1.mp4",
+        "features": [
+            "fire_detection"
+        ],
+        "line": [
+            [
+                100,
+                180
+            ],
+            [
+                540,
+                180
+            ]
+        ],
+        "roi": [
+            [
+                100,
+                100
+            ],
+            [
+                540,
+                100
+            ],
+            [
+                540,
+                300
+            ],
+            [
+                100,
+                300
+            ]
+        ],
+        "schedule_enabled": false,
+        "schedule_start": "23:00",
+        "schedule_end": "06:00",
+        "low_light_enhance": false,
+        "enhance_clip_limit": 2,
+        "in_direction": "down",
+        "map_x": 46.66,
+        "map_y": 78.8
     }
 ]

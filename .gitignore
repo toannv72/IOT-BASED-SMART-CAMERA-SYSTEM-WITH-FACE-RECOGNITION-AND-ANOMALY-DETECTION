@@ -1,3 +1,43 @@
-/kaggle_cache
-/dataset
-/videotest
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Operating system files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific caches and datasets
+/kaggle_cache/
+/dataset/
+/dataset_fire/
+/videotest/
+/runs/
+
+# Large weights and model files
+*.pt
+*.onnx
+*.engine
+
+# Dynamic databases and sensitive settings
+faces.db
+settings.json
+
+# Local logs
+*.log
+
+# Large media files and runtime output
+/static/alerts/
+/output_events/
+*.mp4
+*.avi
+*.mkv
+/yolov8n_fire.pt

@@ -12,7 +12,7 @@ import supervision as sv
 # Import các biến cấu hình và mô hình AI từ các package
 import app.config as config
 from app.config import SystemStatus
-from app.ai import device, mtcnn_multi, resnet, yolov5_model, yolov8_model, yolov8_pose_model, yolov8_fall_model
+from app.ai import device, mtcnn_multi, resnet, yolov5_model, yolov8_model, yolov8_pose_model, yolov8_fall_model, yolov8_fire_model
 from app.alerts import send_telegram_alert
 from app.database import SessionLocal, FaceRecord
 
@@ -35,6 +35,10 @@ def gen_face_stream():
     
     names = [r.name for r in records]
     db_embeddings = np.array([json.loads(r.embedding) for r in records]) if records else np.array([])
+    if len(db_embeddings) > 0:
+        norms = np.linalg.norm(db_embeddings, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        db_embeddings = db_embeddings / norms
     
     # 2. Mở Camera chính diện (Webcam 0)
     cap = cv2.VideoCapture(0)
@@ -42,7 +46,7 @@ def gen_face_stream():
         print("[PROCESSORS] [ERROR] Không thể mở webcam cho luồng khuôn mặt!")
         return
 
-    THRESHOLD = 0.8  # Ngưỡng cosine distance để nhận diện người quen
+    THRESHOLD = 0.65  # Ngưỡng Euclid distance sau chuẩn hóa L2 (tương đương cosine distance) để nhận diện người quen
     frame_cnt = 0
     print("[PROCESSORS] Khởi tạo thành công luồng nhận diện khuôn mặt.")
 
@@ -60,6 +64,10 @@ def gen_face_stream():
             db.close()
             names = [r.name for r in records]
             db_embeddings = np.array([json.loads(r.embedding) for r in records]) if records else np.array([])
+            if len(db_embeddings) > 0:
+                norms = np.linalg.norm(db_embeddings, axis=1, keepdims=True)
+                norms[norms == 0] = 1.0
+                db_embeddings = db_embeddings / norms
 
         # 3. Phát hiện khuôn mặt bằng MTCNN
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -75,6 +83,11 @@ def gen_face_stream():
                     x1, y1, x2, y2 = [int(b) for b in box]
                     best_match_name = "Unknown"
                     best_distance = float("inf")
+                    
+                    # Chuẩn hóa L2-norm cho vector nhúng hiện tại
+                    norm_val = np.linalg.norm(emb)
+                    if norm_val > 0:
+                        emb = emb / norm_val
                     
                     # 4. So khớp khoảng cách Euclid/Cosine với CSDL
                     if len(db_embeddings) > 0:
@@ -709,6 +722,8 @@ class CameraState:
         self.track_high_risk_start_times = {} # tid -> timestamp of when they first exceeded score 60
         self.intrusion_active = False
         self.fall_active = False
+        self.fire_active = False
+        self.fire_counter = 0
 
 
 def is_time_in_schedule(start_str, end_str):
@@ -767,6 +782,10 @@ def gen_dynamic_stream(camera_id: str):
     db.close()
     names = [r.name for r in records]
     db_embeddings = np.array([json.loads(r.embedding) for r in records]) if records else np.array([])
+    if len(db_embeddings) > 0:
+        norms = np.linalg.norm(db_embeddings, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        db_embeddings = db_embeddings / norms
 
     print(f"[PROCESSORS] Bắt đầu khởi chạy luồng dynamic camera: {camera_id}")
 
@@ -814,9 +833,15 @@ def gen_dynamic_stream(camera_id: str):
                 db.close()
                 names = [r.name for r in records]
                 db_embeddings = np.array([json.loads(r.embedding) for r in records]) if records else np.array([])
+                if len(db_embeddings) > 0:
+                    norms = np.linalg.norm(db_embeddings, axis=1, keepdims=True)
+                    norms[norms == 0] = 1.0
+                    db_embeddings = db_embeddings / norms
 
         features = cfg.get("features", [])
         conf_thr = config.settings.get("conf_threshold", 0.25)
+        fire_conf_thr = config.settings.get("fire_conf_threshold", 0.55)
+        fire_frame_buf_thr = config.settings.get("fire_frame_buffer", 25)
         cooldown_thr = config.settings.get("counter_cooldown", 45)
         alerts_enabled = config.settings.get("alerts_enabled", True)
 
@@ -831,6 +856,10 @@ def gen_dynamic_stream(camera_id: str):
         run_fall = "fall_detection" in features
         if not run_fall:
             state.fall_active = False
+
+        run_fire = "fire_detection" in features
+        if not run_fire:
+            state.fire_active = False
 
         detections = None
         if run_yolo:
@@ -1074,11 +1103,16 @@ def gen_dynamic_stream(camera_id: str):
                         x_1, y_1, x_2, y_2 = [int(b) for b in box]
                         best_match_name = "Unknown"
                         best_distance = float("inf")
+                        # Chuẩn hóa L2-norm cho vector nhúng hiện tại
+                        norm_val = np.linalg.norm(emb)
+                        if norm_val > 0:
+                            emb = emb / norm_val
+
                         if len(db_embeddings) > 0:
                             distances = np.linalg.norm(db_embeddings - emb, axis=1)
                             min_idx = np.argmin(distances)
                             min_dist = distances[min_idx]
-                            if min_dist < 0.8:
+                            if min_dist < 0.65:
                                 best_match_name = names[min_idx]
                                 best_distance = min_dist
 
@@ -1439,9 +1473,56 @@ def gen_dynamic_stream(camera_id: str):
                 if state.fall_counter == 0:
                     state.fall_active = False
 
+        if run_fire:
+            fire_in_frame = False
+            if yolov8_fire_model is not None:
+                results = yolov8_fire_model(frame, verbose=False, device=device)
+                if len(results) > 0 and results[0].boxes is not None:
+                    boxes = results[0].boxes
+                    for box in boxes:
+                        cls_id = int(box.cls[0].cpu().item())
+                        conf = float(box.conf[0].cpu().item())
+                        if conf > fire_conf_thr:
+                            x_1, y_1, x_2, y_2 = [int(b) for b in box.xyxy[0].cpu().numpy()[:4]]
+                            label_name = yolov8_fire_model.names.get(cls_id, f"Class {cls_id}").capitalize()
+                            
+                            if "fire" in label_name.lower():
+                                color = (0, 0, 255)
+                                fire_in_frame = True
+                            elif "smoke" in label_name.lower():
+                                color = (128, 128, 128)
+                                fire_in_frame = True
+                            else:
+                                color = (0, 165, 255)
+                                fire_in_frame = True
+                                
+                            label = f"{label_name} ({conf:.2f})"
+                            cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
+                            cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+            if fire_in_frame:
+                state.fire_counter += 1
+                if state.fire_counter >= fire_frame_buf_thr:
+                    state.fire_active = True
+                    cv2.putText(annotated_frame, "🚨 PHÁT HIỆN CHÁY NỔ!", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                        SystemStatus.add_log(f"🚨 {camera_id}: Phát hiện ngọn lửa hoặc khói bất thường!", "danger")
+                        send_telegram_alert(
+                            message=f"🚨 [{camera_id}] Cảnh báo: Phát hiện ngọn lửa hoặc khói bất thường tại camera!",
+                            frame=frame,
+                            alert_type="fire",
+                            camera_id=camera_id,
+                            frame_buffer=list(state.frame_buffer)
+                        )
+            else:
+                state.fire_counter = max(0, state.fire_counter - 1)
+                if state.fire_counter == 0:
+                    state.fire_active = False
+
         # Cập nhật trạng thái hệ thống dùng chung từ tất cả các camera để tránh xung đột ghi đè
         SystemStatus.intrusion_active = any(s.intrusion_active for s in camera_states.values())
         SystemStatus.fall_active = any(s.fall_active for s in camera_states.values())
+        SystemStatus.fire_active = any(s.fire_active for s in camera_states.values())
 
         # Trạng thái lịch trình
         if not alert_allowed_by_schedule:

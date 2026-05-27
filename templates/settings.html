@@ -71,6 +71,14 @@
             <label class="form-label">Cooldown Log Trùng Khuôn Mặt (Giây)</label>
             <input type="number" id="setting-face-cooldown" class="form-input" min="5">
         </div>
+        <div class="form-group">
+            <label class="form-label">Ngưỡng Tin Cậy Nhận Diện Cháy Nổ (Confidence)</label>
+            <input type="number" id="setting-fire-conf" class="form-input" step="0.05" min="0.1" max="0.95" value="0.55">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Bộ Lọc Trễ Xác Minh Cháy Nổ (Frames)</label>
+            <input type="number" id="setting-fire-buffer" class="form-input" min="5" max="150" value="25">
+        </div>
         <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 10px;">
             <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="saveSettings()">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình Hệ Thống
@@ -148,6 +156,9 @@
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
                     <input type="checkbox" id="cam-feat-behavior"> Hành vi bất thường
                 </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" id="cam-feat-fire"> Phát hiện cháy nổ
+                </label>
             </div>
         </div>
         
@@ -223,6 +234,8 @@
             document.getElementById('setting-tts-voice').value = settings.tts_voice || "vi-VN";
             document.getElementById('setting-loitering-threshold').value = settings.loitering_threshold !== undefined ? settings.loitering_threshold : 10;
             document.getElementById('setting-face-cooldown').value = settings.face_log_cooldown !== undefined ? settings.face_log_cooldown : 30;
+            document.getElementById('setting-fire-conf').value = settings.fire_conf_threshold !== undefined ? settings.fire_conf_threshold : 0.55;
+            document.getElementById('setting-fire-buffer').value = settings.fire_frame_buffer !== undefined ? settings.fire_frame_buffer : 25;
         } catch(e) {
             console.error("Lỗi khi nạp cấu hình hệ thống:", e);
         }
@@ -243,7 +256,9 @@
             tts_enabled: document.getElementById('setting-tts-enabled').value === "true",
             tts_voice: document.getElementById('setting-tts-voice').value.trim(),
             loitering_threshold: parseInt(document.getElementById('setting-loitering-threshold').value),
-            face_log_cooldown: parseInt(document.getElementById('setting-face-cooldown').value)
+            face_log_cooldown: parseInt(document.getElementById('setting-face-cooldown').value),
+            fire_conf_threshold: parseFloat(document.getElementById('setting-fire-conf').value),
+            fire_frame_buffer: parseInt(document.getElementById('setting-fire-buffer').value)
         };
         try {
             const response = await fetch('/api/settings', { 
@@ -272,6 +287,7 @@
             if (cam.features.includes('face_id')) feats.push('Face ID');
             if (cam.features.includes('fall_detection')) feats.push('Ngã');
             if (cam.features.includes('abnormal_behavior')) feats.push('Hành vi');
+            if (cam.features.includes('fire_detection')) feats.push('Cháy nổ');
 
             let schedText = '24/7';
             if (cam.schedule_enabled) {
@@ -316,6 +332,7 @@
         document.getElementById('cam-feat-face').checked = false;
         document.getElementById('cam-feat-fall').checked = false;
         document.getElementById('cam-feat-behavior').checked = false;
+        document.getElementById('cam-feat-fire').checked = false;
         document.getElementById('cam-sched-enabled').checked = false;
         document.getElementById('cam-sched-start').value = "23:00";
         document.getElementById('cam-sched-end').value = "06:00";
@@ -341,6 +358,7 @@
         document.getElementById('cam-feat-face').checked = cam.features.includes('face_id');
         document.getElementById('cam-feat-fall').checked = cam.features.includes('fall_detection');
         document.getElementById('cam-feat-behavior').checked = cam.features.includes('abnormal_behavior');
+        document.getElementById('cam-feat-fire').checked = cam.features.includes('fire_detection');
         
         document.getElementById('cam-sched-enabled').checked = cam.schedule_enabled || false;
         document.getElementById('cam-sched-start').value = cam.schedule_start || "23:00";
@@ -369,6 +387,7 @@
         if (document.getElementById('cam-feat-face').checked) features.push('face_id');
         if (document.getElementById('cam-feat-fall').checked) features.push('fall_detection');
         if (document.getElementById('cam-feat-behavior').checked) features.push('abnormal_behavior');
+        if (document.getElementById('cam-feat-fire').checked) features.push('fire_detection');
 
         let existingLine = [[100, 180], [540, 180]];
         let existingRoi = [[100, 100], [540, 100], [540, 300], [100, 300]];

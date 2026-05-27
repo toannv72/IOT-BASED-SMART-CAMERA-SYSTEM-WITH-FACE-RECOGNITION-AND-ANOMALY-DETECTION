@@ -18,7 +18,9 @@ DEFAULT_SETTINGS = {
     "cleanup_max_size_gb": 2.0,
     "cleanup_older_than_days": 7,
     "loitering_threshold": 10,
-    "face_log_cooldown": 30
+    "face_log_cooldown": 30,
+    "fire_conf_threshold": 0.55,
+    "fire_frame_buffer": 25
 }
 
 # Tải cài đặt lúc khởi chạy
@@ -129,6 +131,7 @@ from datetime import datetime
 class SystemStatus:
     intrusion_active = False
     fall_active = False
+    fire_active = False
     new_logs = []
     log_lock = threading.Lock()
     

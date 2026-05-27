@@ -190,6 +190,7 @@ def get_system_status(request: Request):
     return {
         "intrusion_alert": SystemStatus.intrusion_active,
         "fall_alert": SystemStatus.fall_active,
+        "fire_alert": SystemStatus.fire_active,
         "new_logs": logs_to_return
     }
 
@@ -210,9 +211,9 @@ async def update_settings_route(request: Request):
     for k, v in payload.items():
         if k in config.DEFAULT_SETTINGS:
             # Chuyển đổi kiểu dữ liệu phù hợp
-            if k == "conf_threshold":
+            if k in ["conf_threshold", "fire_conf_threshold"]:
                 config.settings[k] = float(v)
-            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown"]:
+            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer"]:
                 config.settings[k] = int(v)
             elif k in ["alerts_enabled", "tts_enabled", "auto_cleanup_enabled"]:
                 config.settings[k] = bool(v)
@@ -411,7 +412,10 @@ async def register_face(request: Request, name: str = Form(...), file: UploadFil
         
     face = face.unsqueeze(0).to(device)
     embedding = resnet(face).detach().cpu().numpy()[0]
-    
+    # Chuẩn hóa L2-norm trước khi lưu vào CSDL để tăng độ chính xác so khớp
+    norm = np.linalg.norm(embedding)
+    if norm > 0:
+        embedding = embedding / norm
     emb_list = embedding.tolist()
     emb_json = json.dumps(emb_list)
     
