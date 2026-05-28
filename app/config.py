@@ -3,6 +3,35 @@ import json
 
 SETTINGS_FILE = "settings.json"
 CONFIG_FILE = "cameras_config.json"
+MAPS_FILE = "maps_config.json"
+
+# Cấu hình mặt bằng mặc định
+DEFAULT_MAPS = [
+    {"map_id": "khu_a_tang_1", "name": "Khu A - Tầng 1", "image_path": "/static/emap_khu_a_tang_1.png"},
+    {"map_id": "khu_a_tang_2", "name": "Khu A - Tầng 2", "image_path": "/static/emap_khu_a_tang_2.png"},
+    {"map_id": "khu_a_tang_3", "name": "Khu A - Tầng 3", "image_path": "/static/emap_khu_a_tang_3.png"},
+    {"map_id": "khu_b_tang_1", "name": "Khu B - Tầng 1", "image_path": "/static/emap_khu_b_tang_1.png"},
+    {"map_id": "khu_b_tang_2", "name": "Khu B - Tầng 2", "image_path": "/static/emap_khu_b_tang_2.png"},
+]
+
+def get_maps_config():
+    if os.path.exists(MAPS_FILE):
+        try:
+            with open(MAPS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[CONFIG] Lỗi tải maps_config.json: {e}")
+    # Khởi tạo mặc định nếu file chưa tồn tại
+    save_maps_config(DEFAULT_MAPS)
+    return DEFAULT_MAPS
+
+def save_maps_config(maps):
+    try:
+        with open(MAPS_FILE, "w", encoding="utf-8") as f:
+            json.dump(maps, f, indent=4, ensure_ascii=False)
+        print(f"[CONFIG] Đã lưu cấu hình bản đồ vào {MAPS_FILE}")
+    except Exception as e:
+        print(f"[CONFIG] Lỗi ghi maps_config.json: {e}")
 
 # Cài đặt mặc định của hệ thống
 DEFAULT_SETTINGS = {
@@ -54,7 +83,16 @@ def get_cameras_config():
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                cams = json.load(f)
+                # Đảm bảo mỗi camera đều có map_id
+                updated = False
+                for cam in cams:
+                    if "map_id" not in cam:
+                        cam["map_id"] = "khu_a_tang_1"
+                        updated = True
+                if updated:
+                    save_full_cameras_config(cams)
+                return cams
         except Exception as e:
             print(f"[CONFIG] Lỗi tải cameras_config.json: {e}")
     # Trả về cấu hình mặc định nếu file lỗi hoặc không tồn tại
@@ -70,7 +108,8 @@ def get_cameras_config():
             "schedule_start": "23:00",
             "schedule_end": "06:00",
             "map_x": 23.5,
-            "map_y": 38.0
+            "map_y": 38.0,
+            "map_id": "khu_a_tang_1"
         },
         {
             "camera_id": "Cam_Cua_Sau",
@@ -83,7 +122,8 @@ def get_cameras_config():
             "schedule_start": "23:00",
             "schedule_end": "06:00",
             "map_x": 88.0,
-            "map_y": 74.0
+            "map_y": 74.0,
+            "map_id": "khu_a_tang_1"
         },
         {
             "camera_id": "Cam_Hanh_Lang",
@@ -96,7 +136,8 @@ def get_cameras_config():
             "schedule_start": "23:00",
             "schedule_end": "06:00",
             "map_x": 69.5,
-            "map_y": 42.0
+            "map_y": 42.0,
+            "map_id": "khu_a_tang_1"
         }
     ]
 

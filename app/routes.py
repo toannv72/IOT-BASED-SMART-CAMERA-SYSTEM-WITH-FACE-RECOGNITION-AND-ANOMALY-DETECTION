@@ -307,6 +307,93 @@ async def upload_emap_background(request: Request, file: UploadFile = File(...))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi lưu ảnh mặt bằng: {e}")
 
+# =========================================================================
+# API QUẢN LÝ BẢN ĐỒ / MẶT BẰNG (MAPS & FLOORS MANAGEMENT ENDPOINTS)
+# =========================================================================
+@app.get("/api/maps")
+def get_maps_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    return config.get_maps_config()
+
+@app.post("/api/maps")
+async def add_map_route(request: Request):
+    check_admin(request)
+    payload = await request.json()
+    name = payload.get("name")
+    if not name or name.strip() == "":
+        raise HTTPException(status_code=400, detail="Tên mặt bằng không được để trống!")
+    
+    # Vietnamese character mapping to ASCII
+    co_dau = "áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ"
+    khong_dau = "aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd"
+    char_map = str.maketrans(co_dau, khong_dau)
+    name_ascii = name.lower().translate(char_map)
+    import re
+    map_id = re.sub(r'[^a-z0-9_]', '_', name_ascii)
+    map_id = re.sub(r'_+', '_', map_id).strip('_')
+    
+    if not map_id:
+        raise HTTPException(status_code=400, detail="Tên mặt bằng không hợp lệ!")
+        
+    maps = config.get_maps_config()
+    if any(m["map_id"] == map_id for m in maps):
+        raise HTTPException(status_code=400, detail="Mặt bằng này đã tồn tại!")
+        
+    new_map = {
+        "map_id": map_id,
+        "name": name.strip(),
+        "image_path": f"/static/emap_{map_id}.png"
+    }
+    maps.append(new_map)
+    config.save_maps_config(maps)
+    SystemStatus.add_log(f"Đã thêm mặt bằng mới: {name}", "success")
+    return {"message": "Đã thêm mặt bằng thành công!", "map": new_map}
+
+@app.delete("/api/maps/{map_id}")
+def delete_map_route(map_id: str, request: Request):
+    check_admin(request)
+    # Kiểm tra xem có camera nào đang sử dụng map_id này không
+    cameras = config.get_cameras_config()
+    used_cams = [c["camera_id"] for c in cameras if c.get("map_id") == map_id]
+    if used_cams:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Không thể xóa mặt bằng này vì đang có camera đang gán ({', '.join(used_cams)})!"
+        )
+        
+    maps = config.get_maps_config()
+    filtered_maps = [m for m in maps if m["map_id"] != map_id]
+    if len(filtered_maps) == len(maps):
+        raise HTTPException(status_code=404, detail="Không tìm thấy mặt bằng cần xóa!")
+        
+    config.save_maps_config(filtered_maps)
+    
+    # Xóa ảnh nền liên quan nếu có
+    custom_path = os.path.join("static", f"emap_{map_id}.png")
+    if os.path.exists(custom_path):
+        try:
+            os.remove(custom_path)
+        except Exception:
+            pass
+            
+    SystemStatus.add_log(f"Đã xóa mặt bằng: {map_id}", "danger")
+    return {"message": "Đã xóa mặt bằng thành công!"}
+
+@app.post("/api/emap/upload/{map_id}")
+async def upload_emap_map_background(map_id: str, request: Request, file: UploadFile = File(...)):
+    check_admin(request)
+    try:
+        file_bytes = await file.read()
+        os.makedirs("static", exist_ok=True)
+        custom_path = os.path.join("static", f"emap_{map_id}.png")
+        with open(custom_path, "wb") as f:
+            f.write(file_bytes)
+        SystemStatus.add_log(f"Đã tải lên ảnh mặt bằng mới cho bản đồ '{map_id}'.", "success")
+        return {"message": "Tải ảnh mặt bằng thành công!", "path": f"/static/emap_{map_id}.png"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi lưu ảnh mặt bằng: {e}")
+
 # API Dữ liệu phân tích thống kê (Analytics API)
 @app.get("/api/analytics")
 def get_analytics_api(request: Request):
@@ -700,6 +787,7 @@ async def add_camera(request: Request):
     if "schedule_enabled" not in new_cam: new_cam["schedule_enabled"] = False
     if "schedule_start" not in new_cam: new_cam["schedule_start"] = "23:00"
     if "schedule_end" not in new_cam: new_cam["schedule_end"] = "06:00"
+    if "map_id" not in new_cam: new_cam["map_id"] = "khu_a_tang_1"
 
     cameras.append(new_cam)
     config.save_full_cameras_config(cameras)

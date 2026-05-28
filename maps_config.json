@@ -1,0 +1,27 @@
+[
+    {
+        "map_id": "khu_a_tang_1",
+        "name": "Khu A - Tầng 1",
+        "image_path": "/static/emap_khu_a_tang_1.png"
+    },
+    {
+        "map_id": "khu_a_tang_2",
+        "name": "Khu A - Tầng 2",
+        "image_path": "/static/emap_khu_a_tang_2.png"
+    },
+    {
+        "map_id": "khu_a_tang_3",
+        "name": "Khu A - Tầng 3",
+        "image_path": "/static/emap_khu_a_tang_3.png"
+    },
+    {
+        "map_id": "khu_b_tang_1",
+        "name": "Khu B - Tầng 1",
+        "image_path": "/static/emap_khu_b_tang_1.png"
+    },
+    {
+        "map_id": "khu_b_tang_2",
+        "name": "Khu B - Tầng 2",
+        "image_path": "/static/emap_khu_b_tang_2.png"
+    }
+]

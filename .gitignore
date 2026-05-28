@@ -41,3 +41,4 @@ settings.json
 *.avi
 *.mkv
 /yolov8n_fire.pt
+/MSE_Triển khai DATN_2025

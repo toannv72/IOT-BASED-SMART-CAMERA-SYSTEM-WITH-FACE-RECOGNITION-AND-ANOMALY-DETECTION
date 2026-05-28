@@ -153,12 +153,19 @@
             <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Kéo thả biểu tượng Camera để cập nhật vị trí trực quan. Click để xem live stream nhanh.</p>
         </div>
         
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <!-- Nút Tải ảnh mặt bằng tùy chỉnh -->
-            <label class="btn" style="cursor: pointer;">
-                <i class="fa-solid fa-upload"></i> Đổi Ảnh Mặt Bằng
-                <input type="file" id="upload-map-input" accept="image/*" style="display: none;" onchange="uploadMapFile()">
-            </label>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <!-- Select Map Dropdown -->
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 13px; font-weight: 500; color: var(--text-muted);">Mặt bằng:</span>
+                <select id="current-map-select" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff; width: 180px; padding: 8px 12px; font-size: 13px;" onchange="switchMap(this.value)">
+                    <!-- Dữ liệu nạp động -->
+                </select>
+            </div>
+
+            <!-- Nút Quản lý bản đồ -->
+            <button class="btn btn-primary" onclick="openMapManagerModal()">
+                <i class="fa-solid fa-folder-open"></i> Quản Lý Bản Đồ
+            </button>
             
             <!-- Nút Tải E-map -->
             <button class="btn btn-success" onclick="downloadEmapLayout()">
@@ -169,8 +176,13 @@
 
     <!-- Khung Bản Đồ -->
     <div class="map-container" id="emap-area">
+        <!-- Overlay nhãn sơ đồ mẫu mẫu -->
+        <div id="map-blueprint-label" style="position: absolute; top: 20px; left: 20px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--primary); backdrop-filter: blur(4px); pointer-events: none; z-index: 10;">
+            <i class="fa-solid fa-circle-info"></i> Sơ đồ mẫu: <span id="blueprint-map-name">Khu A - Tầng 1</span>
+        </div>
+
         <!-- Ảnh nền mặt bằng (Sẽ tải tùy chỉnh nếu có, nếu không sẽ hiển thị blueprint SVG mặc định) -->
-        <img id="map-background-img" style="display: none;" alt="Custom Floor Plan" onerror="showBlueprintFallback()">
+        <img id="map-background-img" style="display: none;" alt="Custom Floor Plan" onload="onMapBackgroundLoad()" onerror="showBlueprintFallback()">
         
         <!-- Blueprint Mặc định SVG vẽ mặt bằng 3D/2D bằng nét neon cực ngầu -->
         <div id="fallback-blueprint" style="width: 100%; height: 100%;">
@@ -238,6 +250,35 @@
         <div style="width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
             <img id="preview-stream-img" style="width: 100%; height: 100%; object-fit: contain;" alt="Live stream preview">
         </div>
+</div>
+
+<!-- Modal Quản Lý Bản Đồ -->
+<div id="map-manager-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div class="glass-card" style="width: 100%; max-width: 600px; margin: 0 16px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0;">
+            <h3 style="font-size: 18px; font-weight: 600;"><i class="fa-solid fa-folder-open"></i> Quản Lý Danh Sách Bản Đồ</h3>
+            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closeMapManagerModal()">&times;</span>
+        </div>
+        
+        <!-- Form thêm bản đồ mới -->
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); flex-shrink: 0; align-items: flex-end;">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                <label class="form-label" style="font-size: 12px; color: var(--text-muted);">Tên mặt bằng mới (Ví dụ: Khu C - Tầng 1)</label>
+                <input type="text" id="new-map-name-input" class="form-input" style="padding: 8px 12px;" placeholder="Tên mặt bằng...">
+            </div>
+            <button class="btn btn-success" style="padding: 10px 16px;" onclick="addNewMap()">
+                <i class="fa-solid fa-plus"></i> Thêm
+            </button>
+        </div>
+
+        <!-- Danh sách bản đồ hiện có -->
+        <div style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;" id="map-manager-list">
+            <!-- Render động bằng JS -->
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px; flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 15px;">
+            <button class="btn" onclick="closeMapManagerModal()">Đóng</button>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -250,10 +291,10 @@
     let startLeft = 0, startTop = 0;
     let cameraStatusData = { intrusion_alert: false, fall_alert: false };
 
+    let currentMapId = localStorage.getItem('currentMapId') || 'khu_a_tang_1';
+    let mapsList = [];
+
     window.addEventListener('DOMContentLoaded', () => {
-        // Tải ảnh nền custom nếu có
-        checkCustomMap();
-        
         // Nhận log cập nhật trạng thái
         setInterval(async () => {
             try {
@@ -265,27 +306,166 @@
     });
 
     // Gọi sau khi activeCameras được tải xong từ base.html
-    function onCamerasLoaded() {
-        renderCameraMarkers();
+    async function onCamerasLoaded() {
+        await loadMaps();
     }
 
-    // Kiểm tra và tải ảnh mặt bằng custom
-    function checkCustomMap() {
+    // Tải danh sách mặt bằng
+    async function loadMaps() {
+        try {
+            const response = await fetch('/api/maps');
+            mapsList = await response.json();
+            
+            // Nếu currentMapId không nằm trong danh sách nữa thì chọn cái đầu tiên
+            if (!mapsList.some(m => m.map_id === currentMapId) && mapsList.length > 0) {
+                currentMapId = mapsList[0].map_id;
+            }
+            
+            // Cập nhật dropdown chọn map
+            const select = document.getElementById('current-map-select');
+            if (select) {
+                select.innerHTML = mapsList.map(m => `<option value="${m.map_id}">${m.name}</option>`).join('');
+                select.value = currentMapId;
+            }
+            
+            // Vẽ danh sách trong Modal quản lý bản đồ
+            renderMapManagerList();
+            
+            // Tải ảnh nền cho map hiện tại
+            loadMapBackground(currentMapId);
+            
+            // Hiển thị camera marker
+            renderCameraMarkers();
+        } catch(e) {
+            console.error("Lỗi tải bản đồ:", e);
+        }
+    }
+
+    function loadMapBackground(mapId) {
         const bgImg = document.getElementById('map-background-img');
-        // Cache-busting parameter rand
-        bgImg.src = "/static/emap_custom.png?rand=" + Math.random();
+        const blueprintLabel = document.getElementById('map-blueprint-label');
+        const activeMap = mapsList.find(m => m.map_id === mapId);
+        const mapName = activeMap ? activeMap.name : mapId;
+        
+        // Cập nhật tên sơ đồ
+        document.getElementById('blueprint-map-name').innerText = mapName;
+        
+        // Cache-busting
+        bgImg.src = `/static/emap_${mapId}.png?rand=` + Math.random();
         bgImg.style.display = "block";
         document.getElementById('fallback-blueprint').style.display = "none";
+        if (blueprintLabel) blueprintLabel.style.display = "none";
+    }
+
+    function onMapBackgroundLoad() {
+        document.getElementById('map-background-img').style.display = "block";
+        document.getElementById('fallback-blueprint').style.display = "none";
+        const blueprintLabel = document.getElementById('map-blueprint-label');
+        if (blueprintLabel) blueprintLabel.style.display = "none";
     }
 
     function showBlueprintFallback() {
         document.getElementById('map-background-img').style.display = "none";
         document.getElementById('fallback-blueprint').style.display = "block";
+        const blueprintLabel = document.getElementById('map-blueprint-label');
+        if (blueprintLabel) blueprintLabel.style.display = "block";
     }
 
-    // Upload mặt bằng custom mới
-    async function uploadMapFile() {
-        const fileInput = document.getElementById('upload-map-input');
+    function switchMap(mapId) {
+        currentMapId = mapId;
+        localStorage.setItem('currentMapId', mapId);
+        loadMapBackground(mapId);
+        renderCameraMarkers();
+    }
+
+    // Modal quản lý bản đồ
+    function openMapManagerModal() {
+        renderMapManagerList();
+        document.getElementById('map-manager-modal').style.display = "flex";
+    }
+
+    function closeMapManagerModal() {
+        document.getElementById('map-manager-modal').style.display = "none";
+    }
+
+    function renderMapManagerList() {
+        const wrapper = document.getElementById('map-manager-list');
+        if (!wrapper) return;
+        wrapper.innerHTML = '';
+        
+        mapsList.forEach(m => {
+            const item = document.createElement('div');
+            item.style.display = "flex";
+            item.style.justifyContent = "space-between";
+            item.style.alignItems = "center";
+            item.style.padding = "12px";
+            item.style.background = "rgba(0,0,0,0.2)";
+            item.style.borderRadius = "8px";
+            item.style.border = "1px solid var(--border-color)";
+            
+            item.innerHTML = `
+                <div>
+                    <strong style="color: #fff;">${m.name}</strong>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">ID: ${m.map_id}</div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <label class="btn" style="padding: 6px 12px; font-size: 12px; cursor: pointer; margin-bottom: 0;">
+                        <i class="fa-solid fa-upload"></i> Upload Ảnh
+                        <input type="file" accept="image/*" style="display: none;" onchange="uploadMapFileForMap('${m.map_id}', this)">
+                    </label>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="deleteMap('${m.map_id}')">
+                        <i class="fa-solid fa-trash"></i> Xóa
+                    </button>
+                </div>
+            `;
+            wrapper.appendChild(item);
+        });
+    }
+
+    async function addNewMap() {
+        const input = document.getElementById('new-map-name-input');
+        const name = input.value.trim();
+        if (!name) return alert("Vui lòng nhập tên mặt bằng!");
+        
+        try {
+            const response = await fetch('/api/maps', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Đã thêm mặt bằng mới!");
+                input.value = '';
+                await loadMaps();
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch(e) {
+            alert("Lỗi kết nối khi thêm mặt bằng!");
+        }
+    }
+
+    async function deleteMap(mapId) {
+        if (!confirm(`Bạn có chắc chắn muốn xóa mặt bằng '${mapId}'?`)) return;
+        
+        try {
+            const response = await fetch(`/api/maps/${mapId}`, {
+                method: 'DELETE'
+            });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Đã xóa mặt bằng thành công!");
+                await loadMaps();
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch(e) {
+            alert("Lỗi kết nối khi xóa mặt bằng!");
+        }
+    }
+
+    async function uploadMapFileForMap(mapId, fileInput) {
         if (fileInput.files.length === 0) return;
         
         const file = fileInput.files[0];
@@ -293,13 +473,15 @@
         formData.append("file", file);
         
         try {
-            const response = await fetch('/api/emap/upload', {
+            const response = await fetch(`/api/emap/upload/${mapId}`, {
                 method: 'POST',
                 body: formData
             });
             if (response.ok) {
                 alert("Đã cập nhật ảnh mặt bằng mới thành công!");
-                checkCustomMap();
+                if (mapId === currentMapId) {
+                    loadMapBackground(mapId);
+                }
             } else {
                 alert("Lỗi tải ảnh lên máy chủ!");
             }
@@ -313,12 +495,13 @@
         const wrapper = document.getElementById('camera-markers-wrapper');
         wrapper.innerHTML = '';
         
-        activeCameras.forEach((cam, index) => {
-            // Thiết lập vị trí mặc định nếu chưa được cấu hình tọa độ trước đó
+        // Lọc camera thuộc bản đồ đang chọn
+        const filteredCameras = activeCameras.filter(c => (c.map_id || 'khu_a_tang_1') === currentMapId);
+        
+        filteredCameras.forEach((cam, index) => {
             let x = cam.map_x !== undefined ? cam.map_x : (15 + index * 18);
             let y = cam.map_y !== undefined ? cam.map_y : 35;
             
-            // Giới hạn trong khoảng 2% đến 98% để tránh tràn lề
             x = Math.max(2, Math.min(98, x));
             y = Math.max(2, Math.min(98, y));
             
@@ -329,8 +512,7 @@
             marker.style.top = `${y}%`;
             marker.dataset.cameraId = cam.camera_id;
             
-            // Vẽ biểu tượng và tooltip
-            let featuresText = cam.features.join(', ') || 'Không có';
+            let featuresText = (cam.features || []).join(', ') || 'Không có';
             marker.innerHTML = `
                 <i class="fa-solid fa-video"></i>
                 <div class="marker-label">${cam.camera_id}</div>
@@ -341,11 +523,9 @@
                 </div>
             `;
             
-            // Gắn sự kiện drag mouse / touch
             marker.addEventListener('mousedown', startDrag);
             marker.addEventListener('touchstart', startDrag, { passive: false });
             marker.addEventListener('click', (e) => {
-                // Chỉ mở live stream nếu KHÔNG kéo thả
                 if (marker.classList.contains('was-dragged')) {
                     marker.classList.remove('was-dragged');
                     return;
@@ -362,7 +542,6 @@
     // Cập nhật trạng thái hiển thị màu sắc dựa theo FPS và Cảnh báo hoạt động
     async function updateMarkerStates() {
         try {
-            // Lấy thông số health của camera để biết trạng thái bật tắt
             const r = await fetch('/api/system_health');
             const data = await r.json();
             
@@ -373,27 +552,23 @@
                 const fpsVal = data.fps[cam.camera_id] || 0;
                 const statusTextSpan = marker.querySelector('.status-text');
                 
-                // Mặc định offline
                 marker.className = 'camera-marker marker-offline';
                 statusTextSpan.innerText = 'Offline';
                 statusTextSpan.style.color = 'var(--text-muted)';
                 
-                // Kiểm tra xem camera có đang chạy không
                 if (streamStates[cam.camera_id]) {
                     marker.className = 'camera-marker marker-running';
                     statusTextSpan.innerText = 'Running';
                     statusTextSpan.style.color = 'var(--success)';
                 }
                 
-                // Kiểm tra nếu loại camera này đang báo động xâm nhập
-                if (cameraStatusData.intrusion_alert && cam.features.includes('intrusion_roi')) {
+                if (cameraStatusData.intrusion_alert && (cam.features || []).includes('intrusion_roi')) {
                     marker.className = 'camera-marker marker-alerting';
                     statusTextSpan.innerText = '⚠️ INTRUSION ALERT!';
                     statusTextSpan.style.color = 'var(--danger)';
                 }
                 
-                // Nếu camera ngã đang báo động
-                if (cameraStatusData.fall_alert && cam.features.includes('fall_detection')) {
+                if (cameraStatusData.fall_alert && (cam.features || []).includes('fall_detection')) {
                     marker.className = 'camera-marker marker-alerting';
                     statusTextSpan.innerText = '⚠️ FALL DETECTED!';
                     statusTextSpan.style.color = 'var(--danger)';
@@ -598,20 +773,29 @@
             });
             
             // Kích hoạt tải ảnh xuống
+            const activeMap = mapsList.find(m => m.map_id === currentMapId);
+            const mapNameClean = activeMap ? activeMap.name.replace(/\s+/g, '_') : currentMapId;
             const link = document.createElement('a');
-            link.download = `sodo_emap_${new Date().toISOString().slice(0,10)}.png`;
+            link.download = `sodo_emap_${mapNameClean}_${new Date().toISOString().slice(0,10)}.png`;
             link.href = canvas.toDataURL("image/png");
             link.click();
         };
 
         // Nếu có hình nền tải lên custom
-        if (bgImg.style.display !== "none" && bgImg.complete) {
+        const activeMap = mapsList.find(m => m.map_id === currentMapId);
+        if (bgImg.style.display !== "none" && bgImg.complete && bgImg.naturalWidth > 0) {
             ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
             drawMarkers();
         } else {
             // Vẽ sơ đồ blueprint mặc định bằng code vẽ trực tiếp lên canvas cực kỳ sắc nét
             ctx.fillStyle = "#0d121f";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Nhãn chữ tên mặt bằng ở đầu sơ đồ mẫu
+            ctx.font = "bold 18px Arial, sans-serif";
+            ctx.fillStyle = "rgba(59, 130, 246, 0.8)";
+            ctx.textAlign = "center";
+            ctx.fillText((activeMap ? activeMap.name : currentMapId).toUpperCase() + " (SƠ ĐỒ MẪU)", 640, 35);
             
             // Vẽ lưới ô vuông nhạt
             ctx.strokeStyle = "rgba(255, 255, 255, 0.02)";

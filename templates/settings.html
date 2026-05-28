@@ -137,6 +137,12 @@
             <label class="form-label">Nguồn Stream (Index webcam, file video hoặc link RTSP)</label>
             <input type="text" id="cam-source-input" class="form-input" placeholder="Ví dụ: 0 hoặc video.mp4 hoặc rtsp://...">
         </div>
+        <div class="form-group">
+            <label class="form-label">Mặt bằng E-map (Khu vực - Tầng)</label>
+            <select id="cam-map-input" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
+                <!-- Dữ liệu được nạp động từ API /api/maps -->
+            </select>
+        </div>
         
         <div class="form-group">
             <label class="form-label">Kích Hoạt Tính Năng AI</label>
@@ -212,9 +218,27 @@
         }
     });
 
+    let availableMaps = [];
+
     // onCamerasLoaded được gọi từ base.html sau khi lấy được activeCameras
-    function onCamerasLoaded() {
+    async function onCamerasLoaded() {
+        await loadAvailableMaps();
         loadCamerasConfig();
+    }
+
+    async function loadAvailableMaps() {
+        try {
+            const response = await fetch('/api/maps');
+            availableMaps = await response.json();
+            
+            // Populate dropdown in Modal
+            const select = document.getElementById('cam-map-input');
+            if (select) {
+                select.innerHTML = availableMaps.map(m => `<option value="${m.map_id}">${m.name}</option>`).join('');
+            }
+        } catch(e) {
+            console.error("Lỗi tải danh sách mặt bằng:", e);
+        }
     }
 
     async function loadSettings() {
@@ -294,16 +318,24 @@
                 schedText = `Bật (${cam.schedule_start} - ${cam.schedule_end})`;
             }
 
+            const mapObj = availableMaps.find(m => m.map_id === cam.map_id);
+            const mapName = mapObj ? mapObj.name : 'Chưa gán';
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><strong>${cam.camera_id}</strong></td>
+                <td>
+                    <strong>${cam.camera_id}</strong>
+                    <div style="font-size: 10px; color: var(--primary); margin-top: 2px;">
+                        <i class="fa-solid fa-map"></i> ${mapName}
+                    </div>
+                </td>
                 <td style="font-family: monospace; font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${cam.source}</td>
                 <td><span style="font-size: 11px;">${feats.join(', ') || 'Không có'}</span></td>
                 <td><span style="font-size: 11px; font-weight: 500;">${schedText}</span></td>
                 <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
                     ${userRole === 'admin' ? `
                         <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="openEditCameraModal('${cam.camera_id}')">
-                            <i class="fa-solid fa-pen"></i> Sửa
+                             <i class="fa-solid fa-pen"></i> Sửa
                         </button>
                         <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteCamera('${cam.camera_id}')">
                             <i class="fa-solid fa-trash"></i> Xóa
@@ -327,6 +359,9 @@
         document.getElementById('cam-id-input').value = "";
         document.getElementById('cam-id-input').disabled = false;
         document.getElementById('cam-source-input').value = "video.mp4";
+        if (document.getElementById('cam-map-input').options.length > 0) {
+            document.getElementById('cam-map-input').selectedIndex = 0;
+        }
         document.getElementById('cam-feat-counter').checked = true;
         document.getElementById('cam-feat-roi').checked = false;
         document.getElementById('cam-feat-face').checked = false;
@@ -352,6 +387,7 @@
         document.getElementById('cam-id-input').value = cam.camera_id;
         document.getElementById('cam-id-input').disabled = true;
         document.getElementById('cam-source-input').value = cam.source;
+        document.getElementById('cam-map-input').value = cam.map_id || "khu_a_tang_1";
         
         document.getElementById('cam-feat-counter').checked = cam.features.includes('people_counter');
         document.getElementById('cam-feat-roi').checked = cam.features.includes('intrusion_roi');
@@ -391,11 +427,15 @@
 
         let existingLine = [[100, 180], [540, 180]];
         let existingRoi = [[100, 100], [540, 100], [540, 300], [100, 300]];
+        let mapX = 50.0;
+        let mapY = 50.0;
         if (action === 'edit') {
             const oldCam = activeCameras.find(c => c.camera_id === cameraId);
             if (oldCam) {
                 if (oldCam.line) existingLine = oldCam.line;
                 if (oldCam.roi) existingRoi = oldCam.roi;
+                if (oldCam.map_x !== undefined) mapX = oldCam.map_x;
+                if (oldCam.map_y !== undefined) mapY = oldCam.map_y;
             }
         }
 
@@ -409,7 +449,10 @@
             schedule_start: document.getElementById('cam-sched-start').value,
             schedule_end: document.getElementById('cam-sched-end').value,
             low_light_enhance: document.getElementById('cam-lowlight-enhance').checked,
-            enhance_clip_limit: parseFloat(document.getElementById('cam-lowlight-clip').value)
+            enhance_clip_limit: parseFloat(document.getElementById('cam-lowlight-clip').value),
+            map_id: document.getElementById('cam-map-input').value,
+            map_x: mapX,
+            map_y: mapY
         };
 
         const url = action === 'add' ? '/api/cameras' : `/api/cameras/${cameraId}`;
