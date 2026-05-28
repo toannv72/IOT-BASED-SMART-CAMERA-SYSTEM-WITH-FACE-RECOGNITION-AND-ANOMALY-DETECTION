@@ -95,9 +95,14 @@
             <h3 style="font-size: 18px; font-weight: 600;">
                 <i class="fa-solid fa-video"></i> Quản Lý Danh Sách Camera
             </h3>
-            <button class="btn btn-primary" onclick="openAddCameraModal()">
-                <i class="fa-solid fa-plus"></i> Thêm Camera Mới
-            </button>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn" style="padding: 8px 16px; font-weight: 500;" onclick="openMapManagerModal()">
+                    <i class="fa-solid fa-folder-open"></i> Quản Lý Bản Đồ
+                </button>
+                <button class="btn btn-primary" onclick="openAddCameraModal()">
+                    <i class="fa-solid fa-plus"></i> Thêm Camera Mới
+                </button>
+            </div>
         </div>
         <div class="faces-table-container">
             <table class="faces-table">
@@ -198,6 +203,36 @@
         <div style="display: flex; gap: 12px; justify-content: flex-end;">
             <button class="btn" onclick="closeCameraModal()">Hủy</button>
             <button class="btn btn-success" onclick="saveCameraConfig()">Lưu Thay Đổi</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Quản Lý Bản Đồ -->
+<div id="map-manager-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div class="glass-card" style="width: 100%; max-width: 600px; margin: 0 16px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0;">
+            <h3 style="font-size: 18px; font-weight: 600;"><i class="fa-solid fa-folder-open"></i> Quản Lý Danh Sách Bản Đồ</h3>
+            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closeMapManagerModal()">&times;</span>
+        </div>
+        
+        <!-- Form thêm bản đồ mới -->
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); flex-shrink: 0; align-items: flex-end;">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                <label class="form-label" style="font-size: 12px; color: var(--text-muted);">Tên mặt bằng mới (Ví dụ: Khu C - Tầng 1)</label>
+                <input type="text" id="new-map-name-input" class="form-input" style="padding: 8px 12px;" placeholder="Tên mặt bằng...">
+            </div>
+            <button class="btn btn-success" style="padding: 10px 16px;" onclick="addNewMap()">
+                <i class="fa-solid fa-plus"></i> Thêm
+            </button>
+        </div>
+
+        <!-- Danh sách bản đồ hiện có -->
+        <div style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;" id="map-manager-list">
+            <!-- Render động bằng JS -->
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px; flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 15px;">
+            <button class="btn" onclick="closeMapManagerModal()">Đóng</button>
         </div>
     </div>
 </div>
@@ -531,6 +566,152 @@
             } catch (err) {
                 alert("Lỗi kết nối khi gửi yêu cầu test!");
             }
+        }
+    }
+
+    // Modal quản lý bản đồ
+    function openMapManagerModal() {
+        if (userRole === 'operator') return;
+        renderMapManagerList();
+        document.getElementById('map-manager-modal').style.display = "flex";
+    }
+
+    function closeMapManagerModal() {
+        document.getElementById('map-manager-modal').style.display = "none";
+    }
+
+    function renderMapManagerList() {
+        const wrapper = document.getElementById('map-manager-list');
+        if (!wrapper) return;
+        wrapper.innerHTML = '';
+        
+        availableMaps.forEach(m => {
+            const item = document.createElement('div');
+            item.style.display = "flex";
+            item.style.justifyContent = "space-between";
+            item.style.alignItems = "center";
+            item.style.padding = "12px";
+            item.style.background = "rgba(0,0,0,0.2)";
+            item.style.borderRadius = "8px";
+            item.style.border = "1px solid var(--border-color)";
+            
+            item.innerHTML = `
+                <div>
+                    <strong style="color: #fff;">${m.name}</strong>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">ID: ${m.map_id}</div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="btn" style="padding: 6px 12px; font-size: 12px; margin-bottom: 0;" onclick="renameMap('${m.map_id}', '${m.name}')">
+                        <i class="fa-solid fa-pen"></i> Đổi tên
+                    </button>
+                    <label class="btn" style="padding: 6px 12px; font-size: 12px; cursor: pointer; margin-bottom: 0;">
+                        <i class="fa-solid fa-upload"></i> Upload
+                        <input type="file" accept="image/*" style="display: none;" onchange="uploadMapFileForMap('${m.map_id}', this)">
+                    </label>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="deleteMap('${m.map_id}')">
+                        <i class="fa-solid fa-trash"></i> Xóa
+                    </button>
+                </div>
+            `;
+            wrapper.appendChild(item);
+        });
+    }
+
+    async function addNewMap() {
+        const input = document.getElementById('new-map-name-input');
+        const name = input.value.trim();
+        if (!name) return alert("Vui lòng nhập tên mặt bằng!");
+        
+        try {
+            const response = await fetch('/api/maps', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Đã thêm mặt bằng mới!");
+                input.value = '';
+                await loadAvailableMaps();
+                renderMapManagerList();
+                loadCamerasConfig();
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch(e) {
+            alert("Lỗi kết nối khi thêm mặt bằng!");
+        }
+    }
+
+    async function deleteMap(mapId) {
+        if (!confirm(`Bạn có chắc chắn muốn xóa mặt bằng '${mapId}'?`)) return;
+        
+        try {
+            const response = await fetch(`/api/maps/${mapId}`, {
+                method: 'DELETE'
+            });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Đã xóa mặt bằng thành công!");
+                await loadAvailableMaps();
+                renderMapManagerList();
+                loadCamerasConfig();
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch(e) {
+            alert("Lỗi kết nối khi xóa mặt bằng!");
+        }
+    }
+
+    async function renameMap(mapId, oldName) {
+        const newName = prompt("Nhập tên mới cho mặt bằng:", oldName);
+        if (newName === null) return; // Hủy bỏ
+        const name = newName.trim();
+        if (!name) return alert("Tên mặt bằng không được để trống!");
+        if (name === oldName) return;
+        
+        try {
+            const response = await fetch(`/api/maps/${mapId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Đã đổi tên mặt bằng thành công!");
+                await loadAvailableMaps();
+                renderMapManagerList();
+                loadCamerasConfig();
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch(e) {
+            alert("Lỗi kết nối khi đổi tên mặt bằng!");
+        }
+    }
+
+    async function uploadMapFileForMap(mapId, fileInput) {
+        if (fileInput.files.length === 0) return;
+        
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append("file", file);
+        
+        try {
+            const response = await fetch(`/api/emap/upload/${mapId}`, {
+                method: 'POST',
+                body: formData
+            });
+            if (response.ok) {
+                alert("Đã cập nhật ảnh mặt bằng mới thành công!");
+                await loadAvailableMaps();
+                renderMapManagerList();
+            } else {
+                alert("Lỗi tải ảnh lên máy chủ!");
+            }
+        } catch(e) {
+            alert("Lỗi kết nối!");
         }
     }
 </script>

@@ -409,6 +409,9 @@
                     <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">ID: ${m.map_id}</div>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="btn" style="padding: 6px 12px; font-size: 12px; margin-bottom: 0;" onclick="renameMap('${m.map_id}', '${m.name}')">
+                        <i class="fa-solid fa-pen"></i> Đổi tên
+                    </button>
                     <label class="btn" style="padding: 6px 12px; font-size: 12px; cursor: pointer; margin-bottom: 0;">
                         <i class="fa-solid fa-upload"></i> Upload Ảnh
                         <input type="file" accept="image/*" style="display: none;" onchange="uploadMapFileForMap('${m.map_id}', this)">
@@ -462,6 +465,31 @@
             }
         } catch(e) {
             alert("Lỗi kết nối khi xóa mặt bằng!");
+        }
+    }
+
+    async function renameMap(mapId, oldName) {
+        const newName = prompt("Nhập tên mới cho mặt bằng:", oldName);
+        if (newName === null) return; // Hủy bỏ
+        const name = newName.trim();
+        if (!name) return alert("Tên mặt bằng không được để trống!");
+        if (name === oldName) return;
+        
+        try {
+            const response = await fetch(`/api/maps/${mapId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Đã đổi tên mặt bằng thành công!");
+                await loadMaps();
+            } else {
+                alert("Lỗi: " + res.detail);
+            }
+        } catch(e) {
+            alert("Lỗi kết nối khi đổi tên mặt bằng!");
         }
     }
 

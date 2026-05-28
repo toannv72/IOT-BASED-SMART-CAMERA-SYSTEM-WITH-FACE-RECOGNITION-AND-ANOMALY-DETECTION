@@ -380,6 +380,29 @@ def delete_map_route(map_id: str, request: Request):
     SystemStatus.add_log(f"Đã xóa mặt bằng: {map_id}", "danger")
     return {"message": "Đã xóa mặt bằng thành công!"}
 
+@app.put("/api/maps/{map_id}")
+async def update_map_route(map_id: str, request: Request):
+    check_admin(request)
+    payload = await request.json()
+    new_name = payload.get("name")
+    if not new_name or new_name.strip() == "":
+        raise HTTPException(status_code=400, detail="Tên mặt bằng không được để trống!")
+        
+    maps = config.get_maps_config()
+    found = False
+    for m in maps:
+        if m["map_id"] == map_id:
+            m["name"] = new_name.strip()
+            found = True
+            break
+            
+    if not found:
+        raise HTTPException(status_code=404, detail="Không tìm thấy mặt bằng!")
+        
+    config.save_maps_config(maps)
+    SystemStatus.add_log(f"Đã cập nhật tên mặt bằng '{map_id}' thành '{new_name}'", "info")
+    return {"message": "Đã cập nhật tên mặt bằng thành công!"}
+
 @app.post("/api/emap/upload/{map_id}")
 async def upload_emap_map_background(map_id: str, request: Request, file: UploadFile = File(...)):
     check_admin(request)
