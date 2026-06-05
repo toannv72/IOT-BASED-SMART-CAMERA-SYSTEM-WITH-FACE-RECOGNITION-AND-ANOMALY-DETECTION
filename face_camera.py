@@ -40,12 +40,16 @@ def main():
     # Tối ưu: Tự động chạy trên GPU (CUDA) nếu có, nếu không thì CPU
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Khởi tạo FaceNet trên {device}...")
-    mtcnn = MTCNN(keep_all=True, device=device) 
+    mtcnn = MTCNN(keep_all=True, thresholds=[0.5, 0.6, 0.6], device=device) 
     resnet = InceptionResnetV1(pretrained='vggface2').eval().to(device)
 
     names, db_embeddings = load_registered_faces()
 
-    cap = cv2.VideoCapture(0)
+    import sys
+    if sys.platform.startswith('win'):
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    else:
+        cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Không thể mở webcam!")
         return

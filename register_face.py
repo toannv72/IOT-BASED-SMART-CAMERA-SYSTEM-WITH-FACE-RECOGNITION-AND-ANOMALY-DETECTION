@@ -5,7 +5,11 @@ import numpy as np
 API_URL = "http://localhost:8000/register"
 
 def main():
-    cap = cv2.VideoCapture(0)
+    import sys
+    if sys.platform.startswith('win'):
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    else:
+        cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Không thể mở webcam!")
         return

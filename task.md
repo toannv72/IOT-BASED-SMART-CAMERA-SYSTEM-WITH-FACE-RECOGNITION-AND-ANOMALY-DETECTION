@@ -59,3 +59,22 @@
 - [x] Cấu hình động thông số AI trực tiếp trên giao diện Dashboard không cần restart
 - [x] Loại bỏ file monolithic `web_app.py` và cập nhật các tệp tin batch khởi chạy `chay_he_thong.bat` và hướng dẫn vận hành
 - [x] Chạy thử nghiệm và xác nhận toàn bộ hệ thống hoạt động chính xác
+
+## 11. Hỗ trợ nhiều tài khoản Telegram nhận thông báo & Tích hợp hướng dẫn sử dụng cho người mới
+- [x] Thêm hướng dẫn cấu hình kết nối Telegram Bot chi tiết từng bước (Tạo bot với @BotFather, lấy Chat ID cá nhân/nhóm chat).
+- [x] Thiết kế hộp hướng dẫn (collapsible card) dạng Glassmorphism sang trọng, trực quan trên trang Cấu hình.
+- [x] Cập nhật placeholder và label hướng dẫn nhập danh sách các Chat ID phân tách bằng dấu phẩy.
+- [x] Xác nhận cơ chế lưu danh sách và gửi tin nhắn cảnh báo song song đến tất cả các Chat ID cấu hình thành công.
+
+## 12. Cải tiến nhận diện khuôn mặt góc nghiêng / quay ngang (Profile/Tilted Face Recognition)
+- [x] Hạ thấp ngưỡng phát hiện MTCNN (`thresholds=[0.5, 0.6, 0.6]`) để phát hiện mặt nghiêng nhạy hơn.
+- [x] Đưa ngưỡng khoảng cách so khớp khuôn mặt (`face_threshold`) vào trang Cấu hình (mặc định `0.65`) cho phép tùy chỉnh độ nhạy/chặt chẽ trực tiếp trên UI.
+- [x] Thêm hướng dẫn đăng ký đa góc ảnh (chính diện, nghiêng trái, nghiêng phải, cúi/ngửa) tại trang Cơ Sở Dữ Liệu giúp người dùng tối ưu hóa độ chính xác bám bắt.
+- [x] Đồng bộ hóa logic so khớp Numpy Vectorization của hệ thống để so sánh với toàn bộ các mẫu góc đăng ký của cùng một người, lấy khoảng cách nhỏ nhất.
+
+## 13. Lưu trữ và phát lại video sự cố tự động (Automated Event Video Recording & Playback)
+- [x] Sửa lỗi bộ đệm camera bằng cách liên tục đẩy các khung hình đã vẽ AI vào `state.frame_buffer` (lưu trữ tối đa 10 giây gần nhất).
+- [x] Cải tiến cơ chế ghi video bất đồng bộ trong `app/alerts.py` với cấu hình codec H.264 (`avc1`) tương thích trình duyệt và cơ chế tự động fallback về `mp4v`.
+- [x] Cập nhật API trả về lịch sử `/api/logs` trong `app/routes.py` để bổ sung trường `video_path` cho frontend sử dụng.
+- [x] Kích hoạt và kiểm thử thành công nút "Phát Video" (Play Video) trên giao diện Nhật Ký Cảnh Báo (`templates/logs.html`) để xem lại clip 10 giây sự cố của tất cả các cảnh báo (xâm nhập, ngã, lửa khói, người lạ).
+- [x] Sửa lỗi kết nối camera thật (webcam USB) trên hệ điều hành Windows bằng cách ép buộc sử dụng driver DirectShow (`cv2.CAP_DSHOW`) thay thế bộ MSMF mặc định để tránh lỗi không thể lấy khung hình (`grabFrame failed`).

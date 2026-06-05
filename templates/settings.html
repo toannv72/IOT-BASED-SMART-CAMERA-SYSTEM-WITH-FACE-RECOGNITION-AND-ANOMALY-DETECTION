@@ -16,11 +16,70 @@
         </div>
         <div class="form-group">
             <label class="form-label">Telegram Chat IDs (cách nhau bằng dấu phẩy)</label>
-            <input type="text" id="setting-chats" class="form-input" placeholder="Ví dụ: 8438973190...">
+            <input type="text" id="setting-chats" class="form-input" placeholder="Ví dụ: 8438973190, -100123456789...">
+            <div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; color: var(--text-muted);">
+                    Hỗ trợ gửi cho nhiều tài khoản cá nhân hoặc nhóm chat
+                </span>
+                <a href="javascript:void(0)" onclick="toggleTelegramGuide()" style="color: var(--primary); font-size: 11px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; font-weight: 500;">
+                    <i class="fa-solid fa-circle-info"></i> Hướng dẫn cấu hình Telegram
+                </a>
+            </div>
+        </div>
+
+        <!-- Collapsible Telegram Guide (Beginner Friendly) -->
+        <div id="telegram-guide-card" style="display: none; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--text-main); max-height: 400px; overflow-y: auto;">
+            <h4 style="font-size: 13px; font-weight: 600; color: #60a5fa; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                <i class="fa-brands fa-telegram" style="font-size: 16px;"></i> HƯỚNG DẪN KẾT NỐI TELEGRAM BOT
+            </h4>
+            
+            <p style="margin-bottom: 12px; color: var(--text-muted); font-size: 12px;">Hệ thống hỗ trợ gửi thông báo cảnh báo (kèm hình ảnh sự cố và nút tương tác tắt còi từ xa) đến <strong>nhiều tài khoản Telegram cá nhân hoặc Nhóm chat</strong> cùng một lúc.</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div>
+                    <strong style="color: #fff; display: block; margin-bottom: 4px; font-size: 12px;">Bước 1: Tạo Bot Telegram mới (Lấy Bot Token)</strong>
+                    <ol style="padding-left: 18px; margin: 0; color: var(--text-muted); font-size: 12px; display: flex; flex-direction: column; gap: 3px;">
+                        <li>Tìm kiếm bot <code style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@BotFather</code> trên ứng dụng Telegram và nhấn <strong>Start</strong>.</li>
+                        <li>Gửi tin nhắn <code style="color: #60a5fa;">/newbot</code> và làm theo hướng dẫn của nó để đặt tên hiển thị và username cho bot (username viết liền không dấu, kết thúc bằng chữ "bot", ví dụ: <code style="color: #e5e7eb;">MyHomeAlarm_bot</code>).</li>
+                        <li>Sau khi hoàn thành, BotFather sẽ cấp cho bạn một đoạn mã <strong>HTTP API Token</strong> (ví dụ: <code style="color: #10b981; font-size: 11px;">8788292129:AAG-BKl...</code>). Sao chép và dán mã này vào ô <strong>Telegram Bot Token</strong> ở trên.</li>
+                    </ol>
+                </div>
+                
+                <div>
+                    <strong style="color: #fff; display: block; margin-bottom: 4px; font-size: 12px;">Bước 2: Lấy Chat ID của người nhận thông báo</strong>
+                    <ul style="padding-left: 18px; margin: 0; color: var(--text-muted); font-size: 12px; display: flex; flex-direction: column; gap: 6px; list-style-type: square;">
+                        <li>
+                            <span style="color: #fff; font-weight: 500;">Nhận cảnh báo Cá nhân:</span>
+                            Tìm kiếm bot <code style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@GetMyChatID_Bot</code> hoặc <code style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@userinfobot</code> trên Telegram. Nhấn <strong>Start</strong>, bot sẽ gửi lại mã Chat ID cá nhân của bạn (chuỗi số ví dụ: <code style="color: #e5e7eb;">8438973190</code>).
+                        </li>
+                        <li>
+                            <span style="color: #fff; font-weight: 500;">Nhận cảnh báo nhóm (Group Chat):</span>
+                            <br>1. Thêm Bot của bạn (được tạo ở Bước 1) vào Nhóm chat đó.
+                            <br>2. Thêm tạm thời bot <code style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@RawDataBot</code> vào Nhóm chat. Nó sẽ gửi thông tin chi tiết của nhóm. Hãy tìm mã <code style="color: #e5e7eb;">"chat": {"id": -100xxxxxxxxxx}</code>. Đó chính là Chat ID nhóm (luôn có dấu trừ <code style="color: #ef4444;">-</code> phía trước, ví dụ: <code style="color: #e5e7eb;">-1002244556677</code>). Xóa bot RawDataBot sau khi lấy xong ID.
+                        </li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <strong style="color: #fff; display: block; margin-bottom: 4px; font-size: 12px;">Bước 3: Bắt đầu và kích hoạt nhận tin</strong>
+                    <ol style="padding-left: 18px; margin: 0; color: var(--text-muted); font-size: 12px; display: flex; flex-direction: column; gap: 3px;">
+                        <li><span style="color: var(--warning); font-weight: bold;">Lưu ý quan trọng:</span> Bạn (và các thành viên nhận tin) bắt buộc phải truy cập vào Bot Telegram của bạn và nhấn nút <strong>Bắt đầu (Start)</strong> hoặc gửi tin nhắn bất kỳ cho nó trước khi lưu. Nếu không, Telegram sẽ chặn không cho Bot gửi tin nhắn tự động.</li>
+                        <li>Để cấu hình nhận cho <strong>nhiều tài khoản/nhóm</strong>: Nhập các Chat ID vào ô cấu hình cách nhau bằng dấu phẩy. Ví dụ: <code style="color: #10b981; font-size: 11px;">8438973190, -10022445566, 987654321</code>.</li>
+                        <li>Nhấn <strong>Lưu Cấu Hình Hệ Thống</strong> ở bên dưới. Sau đó nhấn nút <strong>Gửi Tin Nhắn Thử Nghiệm Telegram</strong> để kiểm tra kết nối xem tất cả mọi người/nhóm đã nhận được tin nhắn test chưa.</li>
+                    </ol>
+                </div>
+            </div>
         </div>
         <div class="form-group">
             <label class="form-label">Ngưỡng Tin Cậy YOLO (Confidence Threshold)</label>
             <input type="number" id="setting-conf" class="form-input" step="0.05" min="0.1" max="0.9">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Ngưỡng Nhận Diện Khuôn Mặt (Face Threshold)</label>
+            <input type="number" id="setting-face-threshold" class="form-input" step="0.05" min="0.3" max="0.95" placeholder="Mặc định: 0.65">
+            <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">
+                Khoảng cách khớp. Số càng lớn càng dễ nhận diện nghiêng/quay ngang (nhưng tăng rủi ro nhận nhầm), số nhỏ càng khắt khe chỉ nhận chính diện.
+            </span>
         </div>
         <div class="form-group">
             <label class="form-label">Thời Gian Cooldown Vạch Đếm (Frames)</label>
@@ -283,6 +342,7 @@
             document.getElementById('setting-token').value = settings.telegram_token || "";
             document.getElementById('setting-chats').value = settings.telegram_chats.join(", ") || "";
             document.getElementById('setting-conf').value = settings.conf_threshold || 0.25;
+            document.getElementById('setting-face-threshold').value = settings.face_threshold !== undefined ? settings.face_threshold : 0.65;
             document.getElementById('setting-counter-cooldown').value = settings.counter_cooldown || 45;
             document.getElementById('setting-telegram-cooldown').value = settings.telegram_cooldown || 15;
             document.getElementById('setting-alerts-enabled').value = settings.alerts_enabled ? "true" : "false";
@@ -306,6 +366,7 @@
             telegram_token: document.getElementById('setting-token').value.trim(),
             telegram_chats: document.getElementById('setting-chats').value.split(',').map(s => s.trim()).filter(s => s !== ""),
             conf_threshold: parseFloat(document.getElementById('setting-conf').value),
+            face_threshold: parseFloat(document.getElementById('setting-face-threshold').value),
             counter_cooldown: parseInt(document.getElementById('setting-counter-cooldown').value),
             telegram_cooldown: parseInt(document.getElementById('setting-telegram-cooldown').value),
             alerts_enabled: document.getElementById('setting-alerts-enabled').value === "true",
@@ -712,6 +773,16 @@
             }
         } catch(e) {
             alert("Lỗi kết nối!");
+        }
+    }
+
+    function toggleTelegramGuide() {
+        const guideCard = document.getElementById('telegram-guide-card');
+        if (guideCard.style.display === 'none') {
+            guideCard.style.display = 'block';
+            guideCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            guideCard.style.display = 'none';
         }
     }
 </script>

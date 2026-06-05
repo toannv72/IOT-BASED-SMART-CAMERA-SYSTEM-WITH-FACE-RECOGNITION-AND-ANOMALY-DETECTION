@@ -11,9 +11,9 @@ print(f"==================================================")
 
 # 1. FaceNet và MTCNN phục vụ nhận diện khuôn mặt
 # mtcnn_single: Dùng cho trang đăng ký khuôn mặt mới (chỉ lấy 1 mặt chính diện)
-mtcnn_single = MTCNN(keep_all=False, device=device)
+mtcnn_single = MTCNN(keep_all=False, thresholds=[0.5, 0.6, 0.6], device=device)
 # mtcnn_multi: Dùng cho camera nhận diện thời gian thực (phát hiện nhiều mặt)
-mtcnn_multi = MTCNN(keep_all=True, device=device)
+mtcnn_multi = MTCNN(keep_all=True, thresholds=[0.5, 0.6, 0.6], device=device)
 # resnet: Trích xuất face embedding vector
 resnet = InceptionResnetV1(pretrained='vggface2').eval().to(device)
 
@@ -70,4 +70,19 @@ elif os.path.exists(yolov8_fire_fallback_path):
         print(f"[AI MODEL] [ERROR] Lỗi nạp mô hình cháy nổ dự phòng: {e}")
 else:
     print("[AI MODEL] Không tìm thấy mô hình cháy nổ. Vui lòng chạy train hoặc chuẩn bị tệp weights!")
+
+# Hâm nóng (warmup) các mô hình YOLO để đồng bộ tải trước bộ nhớ (tránh race condition đa luồng khi lazy-loading Conv/BN)
+import numpy as np
+dummy_frame = np.zeros((64, 64, 3), dtype=np.uint8)
+print("[AI MODEL] Đang hâm nóng (warmup) các mô hình YOLO...")
+try:
+    yolov8_model(dummy_frame, verbose=False)
+    yolov8_pose_model(dummy_frame, verbose=False)
+    if yolov8_fall_model is not None:
+        yolov8_fall_model(dummy_frame, verbose=False)
+    if yolov8_fire_model is not None:
+        yolov8_fire_model(dummy_frame, verbose=False)
+    print("[AI MODEL] Hâm nóng mô hình thành công! Bộ nhớ và layers đã được thiết lập sẵn sàng.")
+except Exception as e:
+    print(f"[AI MODEL] [WARNING] Hâm nóng mô hình gặp lỗi (không nghiêm trọng): {e}")
 

@@ -12,6 +12,16 @@ from app.database import SessionLocal, SystemEventLog
 last_alert_times = {}
 alert_lock = threading.Lock()
 
+def sanitize_filename_component(text):
+    # Vietnamese character mapping to ASCII
+    co_dau = "áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬÉÈẺẼẸÊẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÚÙỦŨỤƯỨỪỬỮỰÝỲỶỸỴĐ "
+    khong_dau = "aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyydAAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD_"
+    char_map = str.maketrans(co_dau, khong_dau)
+    translated = text.translate(char_map)
+    import re
+    sanitized = re.sub(r'[^a-zA-Z0-9_\-]', '_', translated)
+    return sanitized
+
 def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unknown", frame_buffer=None, face_name=None):
     """
     Gửi tin nhắn cảnh báo chứa hình ảnh chụp được qua Telegram và lưu lại cơ sở dữ liệu.
@@ -45,7 +55,8 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
     
     def send_worker():
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        img_filename = f"alert_{alert_type}_{camera_id}_{timestamp_str}.jpg"
+        sanitized_cam = sanitize_filename_component(camera_id)
+        img_filename = f"alert_{alert_type}_{sanitized_cam}_{timestamp_str}.jpg"
         img_local_path = os.path.join("static", "alerts", img_filename)
         img_web_path = f"/static/alerts/{img_filename}"
         
@@ -60,18 +71,26 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
         # 2. Ghi video sự cố bất đồng bộ nếu có frame_buffer
         video_web_path = None
         if buffer_copy and len(buffer_copy) > 0:
-            video_filename = f"alert_{alert_type}_{camera_id}_{timestamp_str}.mp4"
+            video_filename = f"alert_{alert_type}_{sanitized_cam}_{timestamp_str}.mp4"
             video_local_path = os.path.join("static", "alerts", video_filename)
             video_web_path = f"/static/alerts/{video_filename}"
             
             try:
                 # Thiết lập VideoWriter (640x360, 15 FPS)
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                # Thử mã hóa H.264 (avc1) trước để phát trực tiếp được trên các trình duyệt web
+                fourcc = cv2.VideoWriter_fourcc(*'avc1')
                 out = cv2.VideoWriter(video_local_path, fourcc, 15.0, (640, 360))
+                
+                # Nếu avc1 không được hỗ trợ (do thiếu codec trên HĐH), fallback về mp4v chuẩn
+                if not out.isOpened():
+                    print("[ALERTS] Trình ghi 'avc1' không thể khởi tạo. Đang chuyển sang codec 'mp4v' dự phòng...")
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    out = cv2.VideoWriter(video_local_path, fourcc, 15.0, (640, 360))
+                    
                 for f in buffer_copy:
                     out.write(f)
                 out.release()
-                print(f"[ALERTS] Đã lưu video sự cố cục bộ tại: {video_local_path}")
+                print(f"[ALERTS] Đã lưu video sự cố thành công tại: {video_local_path}")
             except Exception as e:
                 print(f"[ALERTS] Lỗi ghi video sự cố: {e}")
                 video_web_path = None

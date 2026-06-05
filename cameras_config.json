@@ -92,7 +92,7 @@
     },
     {
         "camera_id": "Cam_Hanh_Lang",
-        "source": "0",
+        "source": "0.1",
         "features": [
             "fall_detection"
         ],
@@ -130,7 +130,9 @@
         "schedule_end": "06:00",
         "map_x": 70.72,
         "map_y": 49.14,
-        "map_id": "khu_a_tang_1"
+        "map_id": "khu_a_tang_1",
+        "low_light_enhance": false,
+        "enhance_clip_limit": 2
     },
     {
         "camera_id": "quét khuôn mặt",
@@ -176,7 +178,7 @@
     },
     {
         "camera_id": "sân sau",
-        "source": "0",
+        "source": "v.2",
         "features": [
             "abnormal_behavior"
         ],
@@ -214,7 +216,9 @@
         "low_light_enhance": true,
         "enhance_clip_limit": 2,
         "in_direction": "down",
-        "map_id": "khu_a_tang_1"
+        "map_id": "khu_a_tang_1",
+        "map_x": 50,
+        "map_y": 50
     },
     {
         "camera_id": "bếp",

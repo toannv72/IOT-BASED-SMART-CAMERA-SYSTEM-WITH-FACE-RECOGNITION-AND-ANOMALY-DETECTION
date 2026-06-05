@@ -117,3 +117,7 @@ from app import routes
 from app.cleanup import start_cleanup_thread
 start_cleanup_thread()
 
+# Khởi chạy luồng xử lý camera chạy ngầm 24/7
+from app.processors import start_all_camera_threads
+start_all_camera_threads()
+

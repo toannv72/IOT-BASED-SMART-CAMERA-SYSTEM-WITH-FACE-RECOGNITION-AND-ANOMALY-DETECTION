@@ -41,12 +41,16 @@ def gen_face_stream():
         db_embeddings = db_embeddings / norms
     
     # 2. Mở Camera chính diện (Webcam 0)
-    cap = cv2.VideoCapture(0)
+    import sys
+    if sys.platform.startswith('win'):
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    else:
+        cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("[PROCESSORS] [ERROR] Không thể mở webcam cho luồng khuôn mặt!")
         return
 
-    THRESHOLD = 0.65  # Ngưỡng Euclid distance sau chuẩn hóa L2 (tương đương cosine distance) để nhận diện người quen
+    THRESHOLD = config.settings.get("face_threshold", 0.65)  # Ngưỡng Euclid distance sau chuẩn hóa L2 (tương đương cosine distance) để nhận diện người quen
     frame_cnt = 0
     print("[PROCESSORS] Khởi tạo thành công luồng nhận diện khuôn mặt.")
 
@@ -724,6 +728,7 @@ class CameraState:
         self.fall_active = False
         self.fire_active = False
         self.fire_counter = 0
+        self.last_jpeg_frame = None
 
 
 def is_time_in_schedule(start_str, end_str):
@@ -749,9 +754,86 @@ def is_near_border(bbox, margin_x=60, margin_y=40):
     x1, y1, x2, y2 = bbox
     return (x1 < margin_x or x2 > 640 - margin_x or y1 < margin_y or y2 > 360 - margin_y)
 
+import threading
+
+camera_threads = {}
+camera_stop_events = {}
+camera_threads_lock = threading.Lock()
+
+def ensure_camera_thread_running(camera_id: str):
+    with camera_threads_lock:
+        if camera_id in camera_threads and camera_threads[camera_id].is_alive():
+            return
+        
+        stop_event = threading.Event()
+        camera_stop_events[camera_id] = stop_event
+        
+        t = threading.Thread(
+            target=camera_thread_worker,
+            args=(camera_id, stop_event),
+            daemon=True,
+            name=f"CamBg_{camera_id}"
+        )
+        camera_threads[camera_id] = t
+        t.start()
+        print(f"[PROCESSORS] Spawned background thread for camera '{camera_id}'")
+
+def camera_thread_worker(camera_id: str, stop_event: threading.Event):
+    try:
+        # Run the processing loop (which updates state.last_jpeg_frame)
+        for _ in run_camera_processing_loop(camera_id, stop_event):
+            if stop_event.is_set():
+                break
+    except Exception as e:
+        print(f"[PROCESSORS] Error in background thread for camera '{camera_id}': {e}")
+    finally:
+        with camera_threads_lock:
+            camera_threads.pop(camera_id, None)
+            camera_stop_events.pop(camera_id, None)
+        print(f"[PROCESSORS] Background thread for camera '{camera_id}' terminated.")
+
+def stop_camera_thread(camera_id: str):
+    with camera_threads_lock:
+        if camera_id in camera_stop_events:
+            camera_stop_events[camera_id].set()
+            print(f"[PROCESSORS] Stopping background thread for camera '{camera_id}'")
+
+def start_all_camera_threads():
+    try:
+        cameras = config.get_cameras_config()
+        for cam in cameras:
+            camera_id = cam["camera_id"]
+            ensure_camera_thread_running(camera_id)
+    except Exception as e:
+        print(f"[PROCESSORS] Error starting all camera threads: {e}")
+
 def gen_dynamic_stream(camera_id: str):
     """
     Bộ sinh luồng xử lý ảnh camera động.
+    Đọc khung hình đã được xử lý và mã hóa JPEG từ luồng chạy ngầm (background thread).
+    """
+    ensure_camera_thread_running(camera_id)
+    
+    if camera_id not in camera_states:
+        camera_states[camera_id] = CameraState()
+    state = camera_states[camera_id]
+    
+    consecutive_empty = 0
+    while True:
+        if state.last_jpeg_frame is not None:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + state.last_jpeg_frame + b'\r\n')
+            consecutive_empty = 0
+        else:
+            consecutive_empty += 1
+            if consecutive_empty > 100:  # ~10 seconds of no frames
+                ensure_camera_thread_running(camera_id)
+                consecutive_empty = 0
+        time.sleep(0.04) # ~25 FPS max
+
+def run_camera_processing_loop(camera_id: str, stop_event=None):
+    """
+    Bộ sinh luồng xử lý ảnh camera động chạy thực tế (có thể chạy ngầm).
     Tự động giải quyết các tác vụ deep learning (YOLOv8 Counter, YOLOv5 ROI, MTCNN/FaceNet, YOLOv8-pose Fall)
     dựa trên tính năng (features) được cấu hình động trên Web Dashboard cho camera tương ứng.
     """
@@ -769,7 +851,11 @@ def gen_dynamic_stream(camera_id: str):
     if isinstance(source, str) and source.isdigit():
         source = int(source)
 
-    cap = cv2.VideoCapture(source)
+    import sys
+    if isinstance(source, int) and sys.platform.startswith('win'):
+        cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+    else:
+        cap = cv2.VideoCapture(source)
     if not cap.isOpened():
         print(f"[PROCESSORS] [ERROR] Không thể mở camera source {source} cho camera {camera_id}")
         return
@@ -825,6 +911,17 @@ def gen_dynamic_stream(camera_id: str):
             cameras = config.get_cameras_config()
             new_cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
             if new_cfg:
+                if new_cfg.get("source") != cfg.get("source"):
+                    print(f"[PROCESSORS] Camera '{camera_id}' source changed from '{cfg.get('source')}' to '{new_cfg.get('source')}'. Reopening...")
+                    cap.release()
+                    source = new_cfg["source"]
+                    if isinstance(source, str) and source.isdigit():
+                        source = int(source)
+                    import sys
+                    if isinstance(source, int) and sys.platform.startswith('win'):
+                        cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+                    else:
+                        cap = cv2.VideoCapture(source)
                 cfg = new_cfg
             
             if "face_id" in cfg.get("features", []) or "abnormal_behavior" in cfg.get("features", []):
@@ -844,6 +941,7 @@ def gen_dynamic_stream(camera_id: str):
         fire_frame_buf_thr = config.settings.get("fire_frame_buffer", 25)
         cooldown_thr = config.settings.get("counter_cooldown", 45)
         alerts_enabled = config.settings.get("alerts_enabled", True)
+        face_thr = config.settings.get("face_threshold", 0.65)
 
         is_paused = time.time() < paused_cameras.get(camera_id, 0)
 
@@ -1112,7 +1210,7 @@ def gen_dynamic_stream(camera_id: str):
                             distances = np.linalg.norm(db_embeddings - emb, axis=1)
                             min_idx = np.argmin(distances)
                             min_dist = distances[min_idx]
-                            if min_dist < 0.65:
+                            if min_dist < face_thr:
                                 best_match_name = names[min_idx]
                                 best_distance = min_dist
 
@@ -1528,14 +1626,27 @@ def gen_dynamic_stream(camera_id: str):
         if not alert_allowed_by_schedule:
             cv2.putText(annotated_frame, "Cảnh báo tắt (Theo Lịch Trình)", (10, 345), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
+        # Lưu khung hình kèm nét vẽ AI vào bộ đệm để ghi video sự cố
+        state.frame_buffer.append(annotated_frame.copy())
+
         ret_enc, buffer = cv2.imencode('.jpg', annotated_frame)
         if not ret_enc: continue
 
+        state.last_jpeg_frame = buffer.tobytes()
+
         yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+               b'Content-Type: image/jpeg\r\n\r\n' + state.last_jpeg_frame + b'\r\n')
 
         t_end = time.time()
         fps = 1.0 / (t_end - t_start + 1e-6)
         camera_fps[camera_id] = round(fps, 1)
+
+        if stop_event is not None:
+            if stop_event.is_set():
+                break
+            # Giới hạn tốc độ gửi về client khoảng 25 FPS để giảm tải CPU cho các file video tĩnh
+            elapsed = t_end - t_start
+            delay = max(0.005, 0.04 - elapsed)
+            time.sleep(delay)
 
     cap.release()

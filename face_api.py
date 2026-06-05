@@ -27,7 +27,7 @@ Base.metadata.create_all(bind=engine)
 # --- Khởi tạo AI Models (FaceNet) ---
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Loading FaceNet models on {device}...")
-mtcnn = MTCNN(keep_all=False, device=device) # Chỉ lấy 1 khuôn mặt bự nhất để đăng ký
+mtcnn = MTCNN(keep_all=False, thresholds=[0.5, 0.6, 0.6], device=device) # Chỉ lấy 1 khuôn mặt bự nhất để đăng ký
 resnet = InceptionResnetV1(pretrained='vggface2').eval().to(device)
 
 app = FastAPI(title="Face Registration API")

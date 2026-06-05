@@ -18,7 +18,7 @@ from app import app
 import app.config as config
 from app.config import SystemStatus
 from app.database import SessionLocal, User, FaceRecord, SystemEventLog
-from app.processors import camera_fps, gen_face_stream, gen_roi_stream, gen_counter_stream, gen_fall_stream
+from app.processors import camera_fps, gen_face_stream, gen_roi_stream, gen_counter_stream, gen_fall_stream, ensure_camera_thread_running, stop_camera_thread
 
 # Helper kiểm tra phân quyền quản trị (RBAC)
 def check_admin(request: Request):
@@ -211,7 +211,7 @@ async def update_settings_route(request: Request):
     for k, v in payload.items():
         if k in config.DEFAULT_SETTINGS:
             # Chuyển đổi kiểu dữ liệu phù hợp
-            if k in ["conf_threshold", "fire_conf_threshold"]:
+            if k in ["conf_threshold", "fire_conf_threshold", "face_threshold"]:
                 config.settings[k] = float(v)
             elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer"]:
                 config.settings[k] = int(v)
@@ -672,6 +672,7 @@ def get_system_logs(request: Request):
                 "message": log.message,
                 "camera_id": log.camera_id,
                 "image_path": log.image_path,
+                "video_path": log.video_path,
                 "timestamp": log.timestamp
             } for log in logs
         ]
@@ -814,6 +815,7 @@ async def add_camera(request: Request):
 
     cameras.append(new_cam)
     config.save_full_cameras_config(cameras)
+    ensure_camera_thread_running(camera_id)
     SystemStatus.add_log(f"Đã thêm camera mới: {camera_id}", "success")
     return {"message": "Đã thêm camera thành công!"}
 
@@ -833,6 +835,8 @@ async def update_camera(camera_id: str, request: Request):
     # Cập nhật thông số
     cameras[found_idx].update(updated_cam)
     config.save_full_cameras_config(cameras)
+    stop_camera_thread(camera_id)
+    ensure_camera_thread_running(camera_id)
     SystemStatus.add_log(f"Đã cập nhật camera: {camera_id}", "info")
     return {"message": "Đã cập nhật camera thành công!"}
 
@@ -844,5 +848,6 @@ def delete_camera(camera_id: str, request: Request):
     if len(filtered_cameras) == len(cameras):
         raise HTTPException(status_code=404, detail="Không tìm thấy camera!")
     config.save_full_cameras_config(filtered_cameras)
+    stop_camera_thread(camera_id)
     SystemStatus.add_log(f"Đã xóa camera: {camera_id}", "danger")
     return {"message": "Đã xóa camera thành công!"}
