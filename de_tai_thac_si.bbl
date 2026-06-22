@@ -1,0 +1,410 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{none/global//global/global/global}
+    \entry{shi_edge_2016}{article}{}{}
+      \name{author}{5}{}{%
+        {{hash=f41bbc46c4cca943fa2a0c3bf70c8a04}{%
+           family={Shi},
+           familyi={S\bibinitperiod},
+           given={Weisong},
+           giveni={W\bibinitperiod}}}%
+        {{hash=9c40aa498e849f7f722883a4ae1fb336}{%
+           family={Cao},
+           familyi={C\bibinitperiod},
+           given={Jie},
+           giveni={J\bibinitperiod}}}%
+        {{hash=fb6b65d4ecc7f7a867429776d35c7be7}{%
+           family={Zhang},
+           familyi={Z\bibinitperiod},
+           given={Quan},
+           giveni={Q\bibinitperiod}}}%
+        {{hash=3753f139bbd88a53924ae0bdf3bafb76}{%
+           family={Li},
+           familyi={L\bibinitperiod},
+           given={Youhuizi},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=e8e9d96c392da7b022a5897d8c64ca3c}{%
+           family={Xu},
+           familyi={X\bibinitperiod},
+           given={Lanyu},
+           giveni={L\bibinitperiod}}}%
+      }
+      \strng{namehash}{b13d56fe65b8052396f26390274b4978}
+      \strng{fullhash}{9eda1f9615db9420697f36712b056545}
+      \strng{fullhashraw}{9eda1f9615db9420697f36712b056545}
+      \strng{bibnamehash}{9eda1f9615db9420697f36712b056545}
+      \strng{authorbibnamehash}{9eda1f9615db9420697f36712b056545}
+      \strng{authornamehash}{b13d56fe65b8052396f26390274b4978}
+      \strng{authorfullhash}{9eda1f9615db9420697f36712b056545}
+      \strng{authorfullhashraw}{9eda1f9615db9420697f36712b056545}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{IEEE Internet of Things Journal}
+      \field{note}{Available: \url{https://ieeexplore.ieee.org/document/7488250}}
+      \field{number}{5}
+      \field{title}{Edge Computing: Vision and Challenges}
+      \field{volume}{3}
+      \field{year}{2016}
+      \field{pages}{637\bibrangedash 646}
+      \range{pages}{10}
+      \verb{doi}
+      \verb 10.1109/JIOT.2016.2579198
+      \endverb
+      \verb{urlraw}
+      \verb https://ieeexplore.ieee.org/document/7488250
+      \endverb
+      \verb{url}
+      \verb https://ieeexplore.ieee.org/document/7488250
+      \endverb
+    \endentry
+    \entry{gupta_ifogsim_2017}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=441b429344c12185f753e5313d042a17}{%
+           family={Gupta},
+           familyi={G\bibinitperiod},
+           given={Harshit},
+           giveni={H\bibinitperiod}}}%
+        {{hash=ea8ea6be5ce0d4420b9eb00225158c8a}{%
+           family={Vahid\bibnamedelima Dastjerdi},
+           familyi={V\bibinitperiod\bibinitdelim D\bibinitperiod},
+           given={Amir},
+           giveni={A\bibinitperiod}}}%
+        {{hash=52cfe882f26ff6435dd9657e65f33ef7}{%
+           family={Ghosh},
+           familyi={G\bibinitperiod},
+           given={Soumya\bibnamedelima K.},
+           giveni={S\bibinitperiod\bibinitdelim K\bibinitperiod}}}%
+        {{hash=029e03ba4e08a5605b31a31f86375741}{%
+           family={Buyya},
+           familyi={B\bibinitperiod},
+           given={Rajkumar},
+           giveni={R\bibinitperiod}}}%
+      }
+      \strng{namehash}{4ce3d47d58fb90aaa66d4aaf3d352b03}
+      \strng{fullhash}{e532ac14cc9fcfda523f51ff42cb7d7e}
+      \strng{fullhashraw}{e532ac14cc9fcfda523f51ff42cb7d7e}
+      \strng{bibnamehash}{e532ac14cc9fcfda523f51ff42cb7d7e}
+      \strng{authorbibnamehash}{e532ac14cc9fcfda523f51ff42cb7d7e}
+      \strng{authornamehash}{4ce3d47d58fb90aaa66d4aaf3d352b03}
+      \strng{authorfullhash}{e532ac14cc9fcfda523f51ff42cb7d7e}
+      \strng{authorfullhashraw}{e532ac14cc9fcfda523f51ff42cb7d7e}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Software: Practice and Experience}
+      \field{note}{Available: \url{https://doi.org/10.1002/spe.2409}}
+      \field{number}{9}
+      \field{title}{iFogSim: A toolkit for modeling and simulation of resource management in the Internet of Things and Edge Computing environments}
+      \field{volume}{47}
+      \field{year}{2017}
+      \field{pages}{1275\bibrangedash 1296}
+      \range{pages}{22}
+      \verb{doi}
+      \verb 10.1002/spe.2409
+      \endverb
+      \verb{urlraw}
+      \verb https://onlinelibrary.wiley.com/doi/abs/10.1002/spe.2409
+      \endverb
+      \verb{url}
+      \verb https://onlinelibrary.wiley.com/doi/abs/10.1002/spe.2409
+      \endverb
+    \endentry
+    \entry{chen_edge_2019}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=8e84c4886faa094a252c362220423cd1}{%
+           family={Chen},
+           familyi={C\bibinitperiod},
+           given={Chuan-Yu},
+           giveni={C\bibinithyphendelim Y\bibinitperiod}}}%
+        {{hash=f1ebc2eb976ab1c4342a959cde19eb8c}{%
+           family={Liu},
+           familyi={L\bibinitperiod},
+           given={Min-Shiang},
+           giveni={M\bibinithyphendelim S\bibinitperiod}}}%
+        {{hash=05f63e2c2829c1f80b05fbb4655e2115}{%
+           family={Wan},
+           familyi={W\bibinitperiod},
+           given={Sheng-Yih},
+           giveni={S\bibinithyphendelim Y\bibinitperiod}}}%
+        {{hash=0f6996b296b91256b5632f60f5f2f9b0}{%
+           family={Ljungqvist},
+           familyi={L\bibinitperiod},
+           given={Per},
+           giveni={P\bibinitperiod}}}%
+      }
+      \strng{namehash}{7ab31da0f25147ffe22d9abbbbdeb70d}
+      \strng{fullhash}{544899d085c0427e7669507522fdbb2f}
+      \strng{fullhashraw}{544899d085c0427e7669507522fdbb2f}
+      \strng{bibnamehash}{544899d085c0427e7669507522fdbb2f}
+      \strng{authorbibnamehash}{544899d085c0427e7669507522fdbb2f}
+      \strng{authornamehash}{7ab31da0f25147ffe22d9abbbbdeb70d}
+      \strng{authorfullhash}{544899d085c0427e7669507522fdbb2f}
+      \strng{authorfullhashraw}{544899d085c0427e7669507522fdbb2f}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Sensors}
+      \field{note}{Available: \url{https://www.mdpi.com/1424-8220/19/17/3714}}
+      \field{number}{17}
+      \field{title}{Edge-computing video analytics for real-time traffic monitoring in a smart city}
+      \field{volume}{19}
+      \field{year}{2019}
+      \field{pages}{3714}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.3390/s19173714
+      \endverb
+      \verb{urlraw}
+      \verb https://www.mdpi.com/1424-8220/19/17/3714
+      \endverb
+      \verb{url}
+      \verb https://www.mdpi.com/1424-8220/19/17/3714
+      \endverb
+    \endentry
+    \entry{yolov8_2023}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=c5c5e5cd7f4f477f617289b32613deb0}{%
+           family={Jocher},
+           familyi={J\bibinitperiod},
+           given={Glenn},
+           giveni={G\bibinitperiod}}}%
+        {{hash=ec281637802454e8df4de72f3b1ee401}{%
+           family={Chaurasia},
+           familyi={C\bibinitperiod},
+           given={Ayush},
+           giveni={A\bibinitperiod}}}%
+        {{hash=b8739ebbf3f871d471b6720a02ed541f}{%
+           family={Qiu},
+           familyi={Q\bibinitperiod},
+           given={Jing},
+           giveni={J\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {GitHub}%
+      }
+      \strng{namehash}{b71b7268164b9120e178882fafc98c9e}
+      \strng{fullhash}{dde928f96d7839eed6effd0fbfbe5acc}
+      \strng{fullhashraw}{dde928f96d7839eed6effd0fbfbe5acc}
+      \strng{bibnamehash}{dde928f96d7839eed6effd0fbfbe5acc}
+      \strng{authorbibnamehash}{dde928f96d7839eed6effd0fbfbe5acc}
+      \strng{authornamehash}{b71b7268164b9120e178882fafc98c9e}
+      \strng{authorfullhash}{dde928f96d7839eed6effd0fbfbe5acc}
+      \strng{authorfullhashraw}{dde928f96d7839eed6effd0fbfbe5acc}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{GitHub repository}
+      \field{note}{Available: \url{https://github.com/ultralytics/ultralytics}}
+      \field{title}{Ultralytics YOLOv8}
+      \field{year}{2023}
+      \verb{urlraw}
+      \verb https://github.com/ultralytics/ultralytics
+      \endverb
+      \verb{url}
+      \verb https://github.com/ultralytics/ultralytics
+      \endverb
+    \endentry
+    \entry{bytetrack_2022}{inproceedings}{}{}
+      \name{author}{9}{}{%
+        {{hash=fe8b7f3911294516753b2d51a6140997}{%
+           family={Zhang},
+           familyi={Z\bibinitperiod},
+           given={Yifu},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=d52526d5deefaf143df9015f52a0d3cb}{%
+           family={Sun},
+           familyi={S\bibinitperiod},
+           given={Peize},
+           giveni={P\bibinitperiod}}}%
+        {{hash=aefed70e3b6aeee186d622fd3721feb8}{%
+           family={Jiang},
+           familyi={J\bibinitperiod},
+           given={Yi},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=64c26663564ad20c85dd9b1f421ca849}{%
+           family={Yu},
+           familyi={Y\bibinitperiod},
+           given={Dongdong},
+           giveni={D\bibinitperiod}}}%
+        {{hash=34da69027b467871688c97975837692a}{%
+           family={Weng},
+           familyi={W\bibinitperiod},
+           given={Fucheng},
+           giveni={F\bibinitperiod}}}%
+        {{hash=88f645de868bcc47896cdd2386e82512}{%
+           family={Yuan},
+           familyi={Y\bibinitperiod},
+           given={Zehuan},
+           giveni={Z\bibinitperiod}}}%
+        {{hash=e85079235b2a8c88ee9360e55b37523a}{%
+           family={Luo},
+           familyi={L\bibinitperiod},
+           given={Ping},
+           giveni={P\bibinitperiod}}}%
+        {{hash=d2354226a305a694e082d0c47c299a00}{%
+           family={Liu},
+           familyi={L\bibinitperiod},
+           given={Wenyu},
+           giveni={W\bibinitperiod}}}%
+        {{hash=1bd616b774bd66d7d77e025ac08c962d}{%
+           family={Wang},
+           familyi={W\bibinitperiod},
+           given={Xinggang},
+           giveni={X\bibinitperiod}}}%
+      }
+      \strng{namehash}{8670678d0226ac56309c13a114bfaa24}
+      \strng{fullhash}{a54e26a59836c8695ca5ddf0e9f1f17d}
+      \strng{fullhashraw}{a54e26a59836c8695ca5ddf0e9f1f17d}
+      \strng{bibnamehash}{8670678d0226ac56309c13a114bfaa24}
+      \strng{authorbibnamehash}{8670678d0226ac56309c13a114bfaa24}
+      \strng{authornamehash}{8670678d0226ac56309c13a114bfaa24}
+      \strng{authorfullhash}{a54e26a59836c8695ca5ddf0e9f1f17d}
+      \strng{authorfullhashraw}{a54e26a59836c8695ca5ddf0e9f1f17d}
+      \field{extraname}{1}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the European Conference on Computer Vision (ECCV)}
+      \field{note}{Available: \url{https://arxiv.org/abs/2110.06864}}
+      \field{title}{ByteTrack: Multi-object tracking by associating every detection box}
+      \field{year}{2022}
+      \field{pages}{1\bibrangedash 21}
+      \range{pages}{21}
+      \verb{doi}
+      \verb 10.1007/978-3-031-20081-6_1
+      \endverb
+      \verb{urlraw}
+      \verb https://arxiv.org/abs/2110.06864
+      \endverb
+      \verb{url}
+      \verb https://arxiv.org/abs/2110.06864
+      \endverb
+    \endentry
+    \entry{mtcnn_2016}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=8d2b1627b2e3b6cff1b1ed025022d0df}{%
+           family={Zhang},
+           familyi={Z\bibinitperiod},
+           given={Kaipeng},
+           giveni={K\bibinitperiod}}}%
+        {{hash=038d1a58d8d49317592eda66c39ac456}{%
+           family={Zhang},
+           familyi={Z\bibinitperiod},
+           given={Zhanpeng},
+           giveni={Z\bibinitperiod}}}%
+        {{hash=828a5b63771fe4db7767e6bd65ec78ce}{%
+           family={Li},
+           familyi={L\bibinitperiod},
+           given={Zhifeng},
+           giveni={Z\bibinitperiod}}}%
+        {{hash=2addc56ce0ea3a8fc05ff9b0995f74f4}{%
+           family={Qiao},
+           familyi={Q\bibinitperiod},
+           given={Yu},
+           giveni={Y\bibinitperiod}}}%
+      }
+      \strng{namehash}{0ca2f38f79c3c5d127a13a17d7b27590}
+      \strng{fullhash}{7cf250efdbc56a875fede85b42f8b85e}
+      \strng{fullhashraw}{7cf250efdbc56a875fede85b42f8b85e}
+      \strng{bibnamehash}{7cf250efdbc56a875fede85b42f8b85e}
+      \strng{authorbibnamehash}{7cf250efdbc56a875fede85b42f8b85e}
+      \strng{authornamehash}{0ca2f38f79c3c5d127a13a17d7b27590}
+      \strng{authorfullhash}{7cf250efdbc56a875fede85b42f8b85e}
+      \strng{authorfullhashraw}{7cf250efdbc56a875fede85b42f8b85e}
+      \field{extraname}{2}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{IEEE Signal Processing Letters}
+      \field{note}{Available: \url{https://arxiv.org/abs/1604.02878}}
+      \field{number}{10}
+      \field{title}{Joint face detection and alignment using multitask cascaded convolutional networks}
+      \field{volume}{23}
+      \field{year}{2016}
+      \field{pages}{1499\bibrangedash 1503}
+      \range{pages}{5}
+      \verb{doi}
+      \verb 10.1109/LSP.2016.2603342
+      \endverb
+      \verb{urlraw}
+      \verb https://arxiv.org/abs/1604.02878
+      \endverb
+      \verb{url}
+      \verb https://arxiv.org/abs/1604.02878
+      \endverb
+    \endentry
+    \entry{facenet_2015}{inproceedings}{}{}
+      \name{author}{3}{}{%
+        {{hash=c62e96f68033a3d3cd4639e35a2de4da}{%
+           family={Schroff},
+           familyi={S\bibinitperiod},
+           given={Florian},
+           giveni={F\bibinitperiod}}}%
+        {{hash=6cbb997a11c6922af719c32863261918}{%
+           family={Kalenichenko},
+           familyi={K\bibinitperiod},
+           given={Dmitry},
+           giveni={D\bibinitperiod}}}%
+        {{hash=1e9a1d678032dfffb4e871a0f622e030}{%
+           family={Philbin},
+           familyi={P\bibinitperiod},
+           given={James},
+           giveni={J\bibinitperiod}}}%
+      }
+      \strng{namehash}{5eafdb6c00f832f72d64a3a8c5e2fa1c}
+      \strng{fullhash}{474363fec59aa6cdd11f5b6b8275a8f2}
+      \strng{fullhashraw}{474363fec59aa6cdd11f5b6b8275a8f2}
+      \strng{bibnamehash}{474363fec59aa6cdd11f5b6b8275a8f2}
+      \strng{authorbibnamehash}{474363fec59aa6cdd11f5b6b8275a8f2}
+      \strng{authornamehash}{5eafdb6c00f832f72d64a3a8c5e2fa1c}
+      \strng{authorfullhash}{474363fec59aa6cdd11f5b6b8275a8f2}
+      \strng{authorfullhashraw}{474363fec59aa6cdd11f5b6b8275a8f2}
+      \field{sortinit}{7}
+      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}
+      \field{note}{Available: \url{https://arxiv.org/abs/1503.03832}}
+      \field{title}{FaceNet: A unified embedding for face recognition and clustering}
+      \field{year}{2015}
+      \field{pages}{1729\bibrangedash 1737}
+      \range{pages}{9}
+      \verb{doi}
+      \verb 10.1109/CVPR.2015.7298184
+      \endverb
+      \verb{urlraw}
+      \verb https://arxiv.org/abs/1503.03832
+      \endverb
+      \verb{url}
+      \verb https://arxiv.org/abs/1503.03832
+      \endverb
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

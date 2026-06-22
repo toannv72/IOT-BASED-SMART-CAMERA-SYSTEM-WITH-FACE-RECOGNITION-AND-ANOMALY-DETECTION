@@ -78,3 +78,14 @@
 - [x] Cập nhật API trả về lịch sử `/api/logs` trong `app/routes.py` để bổ sung trường `video_path` cho frontend sử dụng.
 - [x] Kích hoạt và kiểm thử thành công nút "Phát Video" (Play Video) trên giao diện Nhật Ký Cảnh Báo (`templates/logs.html`) để xem lại clip 10 giây sự cố của tất cả các cảnh báo (xâm nhập, ngã, lửa khói, người lạ).
 - [x] Sửa lỗi kết nối camera thật (webcam USB) trên hệ điều hành Windows bằng cách ép buộc sử dụng driver DirectShow (`cv2.CAP_DSHOW`) thay thế bộ MSMF mặc định để tránh lỗi không thể lấy khung hình (`grabFrame failed`).
+
+## 14. Kiểm tra và đồng bộ hóa báo cáo & mã nguồn (Thesis & Code Verification & Alignment)
+- [x] Thêm thư viện `psutil` bị thiếu vào `requirements.txt`
+- [x] Sửa lỗi bám vết kế thừa bám vết `lost_tracks` trong `app/processors.py` (line 1022-1038)
+- [x] Thay đổi lookback window của lost tracks về 150 frames trong `run_camera_processing_loop`
+- [x] Đồng bộ độ rộng vạch đôi `d_offset` thành 30px trong `app/processors.py`
+- [x] Thay đổi cửa sổ tính vận tốc di chuyển từ 1s thành 1.5s
+- [x] Thay đổi face_threshold mặc định thành 0.70 trong `app/config.py`
+- [x] Khắc phục lỗi trùng lặp PDF anchor warning trong `de_tai_thac_si.tex`
+- [x] Đồng bộ hóa tài liệu báo cáo SQLite database schema trong `de_tai_thac_si.tex`
+- [x] Thử nghiệm biên dịch báo cáo LaTeX và xác nhận không còn lỗi/cảnh báo trùng lặp

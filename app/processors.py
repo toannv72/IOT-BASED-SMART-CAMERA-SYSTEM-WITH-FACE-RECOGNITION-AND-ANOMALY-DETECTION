@@ -363,7 +363,7 @@ def gen_counter_stream():
                     best_match_dist = float('inf')
                     bbox_dim = max(bbox[2]-bbox[0], bbox[3]-bbox[1])
                     for lost_tid, (lost_state_tuple, lost_pos, lost_frame) in list(lost_tracks1.items()):
-                        if lost_tid != tid and frame_index1 - lost_frame < cooldown_thr:
+                        if lost_tid != tid and frame_index1 - lost_frame < 150:
                             dist = math.dist(curr_bc, lost_pos)
                             max_dist = min(150.0, 0.5 * bbox_dim + 3.5 * (frame_index1 - lost_frame))
                             if dist < max_dist and dist < best_match_dist:
@@ -458,7 +458,7 @@ def gen_counter_stream():
                     best_match_dist = float('inf')
                     bbox_dim = max(bbox[2]-bbox[0], bbox[3]-bbox[1])
                     for lost_tid, (lost_state_tuple, lost_pos, lost_frame) in list(lost_tracks2.items()):
-                        if lost_tid != tid and frame_index2 - lost_frame < cooldown_thr:
+                        if lost_tid != tid and frame_index2 - lost_frame < 150:
                             dist = math.dist(curr_bc, lost_pos)
                             max_dist = min(150.0, 0.5 * bbox_dim + 3.5 * (frame_index2 - lost_frame))
                             if dist < max_dist and dist < best_match_dist:
@@ -983,7 +983,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 if length == 0: length = 1.0
                 nx = -dy / length
                 ny = dx / length
-                d_offset = 20.0
+                d_offset = 30.0
 
                 in_dir = cfg.get("in_direction", "down")
                 dot = ny if in_dir == "down" else (-ny if in_dir == "up" else (nx if in_dir == "right" else -nx))
@@ -1019,22 +1019,29 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                             best_match_dist = float('inf')
                             bbox_dim = max(bbox[2]-bbox[0], bbox[3]-bbox[1])
                             
-                            for lost_tid, (lost_state_tuple, lost_pos, lost_frame) in list(state.lost_tracks.items()):
-                                lost_track_key = f"{lost_tid}_{line_idx}"
-                                if lost_tid != tid and state.frame_index - lost_frame < cooldown_thr:
+                            for lost_tkey, (lost_state_tuple, lost_pos, lost_frame) in list(state.lost_tracks.items()):
+                                try:
+                                    parts = lost_tkey.split('_')
+                                    lost_tid_val = int(parts[0])
+                                    lost_line_idx = int(parts[1])
+                                except Exception:
+                                    continue
+                                
+                                if lost_line_idx == line_idx and lost_tid_val != tid and state.frame_index - lost_frame < 150:
                                     dist = math.dist(curr_bc, lost_pos)
                                     max_dist = min(150.0, 0.5 * bbox_dim + 3.5 * (state.frame_index - lost_frame))
                                     if dist < max_dist and dist < best_match_dist:
-                                        best_match_tid = lost_tid
+                                        best_match_tid = lost_tid_val
                                         best_match_dist = dist
                                         
                             if best_match_tid is not None:
-                                lost_track_key = f"{best_match_tid}_{line_idx}"
-                                lost_state_tuple, _, _ = state.lost_tracks.get(lost_track_key, (None, None, 0))
+                                matched_lost_key = f"{best_match_tid}_{line_idx}"
+                                lost_state_tuple, _, _ = state.lost_tracks.get(matched_lost_key, (None, None, 0))
                                 if lost_state_tuple is not None:
                                     state.track_states[track_key] = lost_state_tuple
-                                state.lost_tracks.pop(lost_track_key, None)
-                                state.track_states.pop(lost_track_key, None)
+                                    print(f"[PROCESSORS] [{camera_id}] [TRACK INHERIT] New ID #{tid} inherited state {lost_state_tuple} from lost ID #{best_match_tid} for line {line_idx} (dist: {best_match_dist:.1f}px)")
+                                state.lost_tracks.pop(matched_lost_key, None)
+                                state.track_states.pop(matched_lost_key, None)
 
                         state.active_tracks[track_key] = curr_bc
                         state.lost_tracks.pop(track_key, None)
@@ -1383,12 +1390,11 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         reasons.append("Dung Lau")
                         
                     # 4. Chạy nhanh (+10)
-                    is_running = False
-                    recent_1s = [item for item in trajectory if current_time - item[0] <= 1.0]
-                    if len(recent_1s) >= 2:
-                        t_diff = recent_1s[-1][0] - recent_1s[0][0]
+                    recent_1_5s = [item for item in trajectory if current_time - item[0] <= 1.5]
+                    if len(recent_1_5s) >= 2:
+                        t_diff = recent_1_5s[-1][0] - recent_1_5s[0][0]
                         if t_diff > 0.1:
-                            dist = math.dist(recent_1s[-1][2], recent_1s[0][2])
+                            dist = math.dist(recent_1_5s[-1][2], recent_1_5s[0][2])
                             speed = dist / t_diff
                             if speed > 120.0:
                                 is_running = True
@@ -1398,7 +1404,6 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         
                     # 5. Leo rào (+50)
                     is_climbing = False
-                    recent_1_5s = [item for item in trajectory if current_time - item[0] <= 1.5]
                     if len(recent_1_5s) >= 2:
                         t0_val, bbox0_val, p0_val = recent_1_5s[0]
                         t1_val, bbox1_val, p1_val = recent_1_5s[-1]

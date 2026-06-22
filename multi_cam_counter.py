@@ -166,7 +166,7 @@ class CameraProcessor(threading.Thread):
                     bbox_dim = max(bbox[2]-bbox[0], bbox[3]-bbox[1])
                     for lost_tid, (lost_state_tuple, lost_pos, lost_frame) in list(self.lost_tracks.items()):
                         # Only inherit from a different lost ID since same ID is naturally preserved in self.track_states
-                        if lost_tid != tid and self.frame_index - lost_frame < 45:
+                        if lost_tid != tid and self.frame_index - lost_frame < 150:
                             dist = math.dist(curr_bc, lost_pos)
                             max_dist = min(150.0, 0.5 * bbox_dim + 3.5 * (self.frame_index - lost_frame))
                             if dist < max_dist and dist < best_match_dist:

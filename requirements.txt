@@ -10,3 +10,4 @@ facenet-pytorch
 Pillow
 ultralytics
 supervision
+psutil
