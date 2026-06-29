@@ -227,83 +227,6 @@
       \verb https://github.com/ultralytics/ultralytics
       \endverb
     \endentry
-    \entry{bytetrack_2022}{inproceedings}{}{}
-      \name{author}{9}{}{%
-        {{hash=fe8b7f3911294516753b2d51a6140997}{%
-           family={Zhang},
-           familyi={Z\bibinitperiod},
-           given={Yifu},
-           giveni={Y\bibinitperiod}}}%
-        {{hash=d52526d5deefaf143df9015f52a0d3cb}{%
-           family={Sun},
-           familyi={S\bibinitperiod},
-           given={Peize},
-           giveni={P\bibinitperiod}}}%
-        {{hash=aefed70e3b6aeee186d622fd3721feb8}{%
-           family={Jiang},
-           familyi={J\bibinitperiod},
-           given={Yi},
-           giveni={Y\bibinitperiod}}}%
-        {{hash=64c26663564ad20c85dd9b1f421ca849}{%
-           family={Yu},
-           familyi={Y\bibinitperiod},
-           given={Dongdong},
-           giveni={D\bibinitperiod}}}%
-        {{hash=34da69027b467871688c97975837692a}{%
-           family={Weng},
-           familyi={W\bibinitperiod},
-           given={Fucheng},
-           giveni={F\bibinitperiod}}}%
-        {{hash=88f645de868bcc47896cdd2386e82512}{%
-           family={Yuan},
-           familyi={Y\bibinitperiod},
-           given={Zehuan},
-           giveni={Z\bibinitperiod}}}%
-        {{hash=e85079235b2a8c88ee9360e55b37523a}{%
-           family={Luo},
-           familyi={L\bibinitperiod},
-           given={Ping},
-           giveni={P\bibinitperiod}}}%
-        {{hash=d2354226a305a694e082d0c47c299a00}{%
-           family={Liu},
-           familyi={L\bibinitperiod},
-           given={Wenyu},
-           giveni={W\bibinitperiod}}}%
-        {{hash=1bd616b774bd66d7d77e025ac08c962d}{%
-           family={Wang},
-           familyi={W\bibinitperiod},
-           given={Xinggang},
-           giveni={X\bibinitperiod}}}%
-      }
-      \strng{namehash}{8670678d0226ac56309c13a114bfaa24}
-      \strng{fullhash}{a54e26a59836c8695ca5ddf0e9f1f17d}
-      \strng{fullhashraw}{a54e26a59836c8695ca5ddf0e9f1f17d}
-      \strng{bibnamehash}{8670678d0226ac56309c13a114bfaa24}
-      \strng{authorbibnamehash}{8670678d0226ac56309c13a114bfaa24}
-      \strng{authornamehash}{8670678d0226ac56309c13a114bfaa24}
-      \strng{authorfullhash}{a54e26a59836c8695ca5ddf0e9f1f17d}
-      \strng{authorfullhashraw}{a54e26a59836c8695ca5ddf0e9f1f17d}
-      \field{extraname}{1}
-      \field{sortinit}{5}
-      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
-      \field{labelnamesource}{author}
-      \field{labeltitlesource}{title}
-      \field{booktitle}{Proceedings of the European Conference on Computer Vision (ECCV)}
-      \field{note}{Available: \url{https://arxiv.org/abs/2110.06864}}
-      \field{title}{ByteTrack: Multi-object tracking by associating every detection box}
-      \field{year}{2022}
-      \field{pages}{1\bibrangedash 21}
-      \range{pages}{21}
-      \verb{doi}
-      \verb 10.1007/978-3-031-20081-6_1
-      \endverb
-      \verb{urlraw}
-      \verb https://arxiv.org/abs/2110.06864
-      \endverb
-      \verb{url}
-      \verb https://arxiv.org/abs/2110.06864
-      \endverb
-    \endentry
     \entry{mtcnn_2016}{article}{}{}
       \name{author}{4}{}{%
         {{hash=8d2b1627b2e3b6cff1b1ed025022d0df}{%
@@ -335,9 +258,8 @@
       \strng{authornamehash}{0ca2f38f79c3c5d127a13a17d7b27590}
       \strng{authorfullhash}{7cf250efdbc56a875fede85b42f8b85e}
       \strng{authorfullhashraw}{7cf250efdbc56a875fede85b42f8b85e}
-      \field{extraname}{2}
-      \field{sortinit}{6}
-      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{IEEE Signal Processing Letters}
@@ -384,8 +306,8 @@
       \strng{authornamehash}{5eafdb6c00f832f72d64a3a8c5e2fa1c}
       \strng{authorfullhash}{474363fec59aa6cdd11f5b6b8275a8f2}
       \strng{authorfullhashraw}{474363fec59aa6cdd11f5b6b8275a8f2}
-      \field{sortinit}{7}
-      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{booktitle}{Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}

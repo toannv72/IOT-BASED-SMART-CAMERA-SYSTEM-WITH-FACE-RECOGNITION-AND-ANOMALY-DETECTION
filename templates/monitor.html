@@ -32,9 +32,7 @@
         </div>
         
         <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
-            <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="setDrawMode('line')">
-                <i class="fa-solid fa-grip-lines" style="color: var(--warning);"></i> Vẽ vạch đếm
-            </button>
+
             <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="setDrawMode('roi')">
                 <i class="fa-solid fa-draw-polygon" style="color: var(--success);"></i> Vẽ vùng cấm ROI
             </button>
@@ -64,7 +62,7 @@
 {% block scripts %}
 <script>
     let drawingPoints = []; // Các điểm tọa độ vẽ vạch/ROI
-    let drawMode = 'line'; // 'line' hoặc 'roi'
+    let drawMode = 'roi'; // 'line' hoặc 'roi'
     let currentDrawCamId = '';
     let roiClosed = false;
 
@@ -85,9 +83,7 @@
         activeCameras.forEach(cam => {
             let featuresHtml = '';
             const features = cam.features || [];
-            if (features.includes('people_counter')) {
-                featuresHtml += `<span class="badge" style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); color: var(--success); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-people-arrows"></i> Đếm vạch kép</span>`;
-            }
+
             if (features.includes('intrusion_roi')) {
                 featuresHtml += `<span class="badge" style="background: rgba(245, 158, 11, 0.1); border: 1px solid var(--warning); color: var(--warning); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> Vùng ROI</span>`;
             }
@@ -190,9 +186,9 @@
             drawingPoints = JSON.parse(JSON.stringify(cam.roi));
             roiClosed = true;
         } else {
-            drawMode = 'line';
-            if (cam.line && cam.line.length > 0) {
-                drawingPoints = JSON.parse(JSON.stringify(cam.line));
+            drawMode = 'roi';
+            if (cam.roi && cam.roi.length > 0) {
+                drawingPoints = JSON.parse(JSON.stringify(cam.roi));
             }
         }
 

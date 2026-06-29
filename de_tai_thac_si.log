@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.15)  16 JUN 2026 15:04
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.15)  27 JUN 2026 16:41
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1174,15 +1174,13 @@ Package: xparse 2025-10-09 L3 Experimental document command parser
 )
 Package: blx-case-expl3 2025/07/10 v3.21 expl3 case changing code for biblatex
 ))
-Package hyperref Info: Option `colorlinks' set `true' on input line 33.
-
 
 Package biblatex Warning: 'babel/polyglossia' detected but 'csquotes' missing.
 (biblatex)                Loading 'csquotes' recommended.
 
 \@quotelevel=\count509
 \@quotereset=\count510
-LaTeX Font Info:    Trying to load font information for T1+lmr on input line 35
+LaTeX Font Info:    Trying to load font information for T1+lmr on input line 31
 .
 (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/lm\t1lmr.fd
 File: t1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
@@ -1190,24 +1188,24 @@ File: t1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 (de_tai_thac_si.aux)
 \openout1 = `de_tai_thac_si.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 35.
-LaTeX Font Info:    ... okay on input line 35.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 35.
-LaTeX Font Info:    ... okay on input line 35.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 35.
-LaTeX Font Info:    ... okay on input line 35.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 35.
-LaTeX Font Info:    ... okay on input line 35.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 35.
-LaTeX Font Info:    ... okay on input line 35.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 35.
-LaTeX Font Info:    ... okay on input line 35.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 35.
-LaTeX Font Info:    ... okay on input line 35.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 35.
-LaTeX Font Info:    ... okay on input line 35.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 35.
-LaTeX Font Info:    ... okay on input line 35.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 31.
+LaTeX Font Info:    ... okay on input line 31.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 31.
+LaTeX Font Info:    ... okay on input line 31.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 31.
+LaTeX Font Info:    ... okay on input line 31.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 31.
+LaTeX Font Info:    ... okay on input line 31.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 31.
+LaTeX Font Info:    ... okay on input line 31.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 31.
+LaTeX Font Info:    ... okay on input line 31.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 31.
+LaTeX Font Info:    ... okay on input line 31.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 31.
+LaTeX Font Info:    ... okay on input line 31.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 31.
+LaTeX Font Info:    ... okay on input line 31.
 
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
@@ -1269,18 +1267,18 @@ Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
 fg
 File: epstopdf-sys.cfg 2021/03/18 v2.0 Configuration of epstopdf for MiKTeX
 ))
-Package hyperref Info: Link coloring ON on input line 35.
+Package hyperref Info: Link coloring OFF on input line 31.
  (de_tai_thac_si.out) (de_tai_thac_si.out)
 \@outlinefile=\write5
 \openout5 = `de_tai_thac_si.out'.
 
-LaTeX Info: Redefining \microtypecontext on input line 35.
-Package microtype Info: Applying patch `item' on input line 35.
-Package microtype Info: Applying patch `toc' on input line 35.
-Package microtype Info: Applying patch `eqnum' on input line 35.
-Package microtype Info: Applying patch `footnote' on input line 35.
-Package microtype Info: Applying patch `verbatim' on input line 35.
-LaTeX Info: Redefining \microtypesetup on input line 35.
+LaTeX Info: Redefining \microtypecontext on input line 31.
+Package microtype Info: Applying patch `item' on input line 31.
+Package microtype Info: Applying patch `toc' on input line 31.
+Package microtype Info: Applying patch `eqnum' on input line 31.
+Package microtype Info: Applying patch `footnote' on input line 31.
+Package microtype Info: Applying patch `verbatim' on input line 31.
+LaTeX Info: Redefining \microtypesetup on input line 31.
 Package microtype Info: Generating PDF output.
 Package microtype Info: Character protrusion enabled (level 2).
 Package microtype Info: Using default protrusion set `alltext'.
@@ -1312,40 +1310,52 @@ Package biblatex Info: Automatic encoding selection.
 Package biblatex Info: Trying to load bibliographic data...
 Package biblatex Info: ... file 'de_tai_thac_si.bbl' found.
  (de_tai_thac_si.bbl)
-Package biblatex Info: Reference section=0 on input line 35.
-Package biblatex Info: Reference segment=0 on input line 35.
-Package hyperref Info: Option `pageanchor' set `false' on input line 36.
-LaTeX Font Info:    Trying to load font information for OT1+lmr on input line 8
+Package biblatex Info: Reference section=0 on input line 31.
+Package biblatex Info: Reference segment=0 on input line 31.
+Package hyperref Info: Option `pageanchor' set `false' on input line 32.
+<Logo_Trường_Đại_học_FPT.png, id=154, 882.29625pt x 444.91219pt>
+File: Logo_Trường_Đại_học_FPT.png Graphic file (type png)
+<use Logo_Trường_Đại_học_FPT.png>
+Package pdftex.def Info: Logo_Trường_Đại_học_FPT.png  used on input lin
+e 54.
+(pdftex.def)             Requested size: 182.09486pt x 91.82536pt.
+ [1
+
+{C:/Users/toans/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}{C:/Users/toan
+s/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-ec.enc} <./Logo_Trường
+_Đại_học_FPT.png>]
+Package hyperref Info: Option `pageanchor' set `true' on input line 86.
+LaTeX Font Info:    Trying to load font information for OT1+lmr on input line 9
 9.
 
 (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/lm\ot1lmr.fd
 File: ot1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for OML+lmm on input line 8
+LaTeX Font Info:    Trying to load font information for OML+lmm on input line 9
 9.
 
 (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/lm\omllmm.fd
 File: omllmm.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    Trying to load font information for OMS+lmsy on input line 
-89.
+99.
 
 (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/lm\omslmsy.fd
 File: omslmsy.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    Trying to load font information for OMX+lmex on input line 
-89.
+99.
 
 (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/lm\omxlmex.fd
 File: omxlmex.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <12> on input line 89.
+(Font)              <12> on input line 99.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <8> on input line 89.
+(Font)              <8> on input line 99.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <6> on input line 89.
-LaTeX Font Info:    Trying to load font information for U+msa on input line 89.
+(Font)              <6> on input line 99.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 99.
 
 
 (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsa.fd
@@ -1354,7 +1364,7 @@ File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/microtype\mt-msa.cfg
 File: mt-msa.cfg 2006/02/04 v1.1 microtype config. file: AMS symbols (a) (RS)
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 89.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 99.
 
 
 (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsb.fd
@@ -1363,153 +1373,95 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/microtype\mt-msb.cfg
 File: mt-msb.cfg 2005/06/01 v1.0 microtype config. file: AMS symbols (b) (RS)
 )
-[1
-
-{C:/Users/toans/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}{C:/Users/toan
-s/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-ec.enc}]
-Package hyperref Info: Option `pageanchor' set `true' on input line 100.
- [1{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-mathsy.e
-nc}]
-(de_tai_thac_si.toc [2])
+[1{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-mathsy.en
+c}] (de_tai_thac_si.toc)
 \tf@toc=\write6
 \openout6 = `de_tai_thac_si.toc'.
 
- [3] [4] [5]
+ [2] [3] [4]
 LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 1
-78.
+63.
 
 (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/lm\ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
-)
-Overfull \hbox (3.39249pt too wide) in paragraph at lines 178--179
-[]\T1/lmr/bx/n/12 (-20) Objective 1: \T1/lmr/m/n/12 (-20) Im-ple-ment an op-ti-
-mized multi-camera track-ing pipeline us-ing YOLOv8s
- []
-
-[6{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-ts1.enc}{
-C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-rm.enc}]
-[7] [8]
+) [5{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-ts1.enc
+}{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-rm.enc}] [
+6]
 LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 2
-33.
- (C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/lm\t1lmtt.fd
+14.
+
+(C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/lm\t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             `lmtt' (encoding: T1).
 (microtype)             For optimal results, create family-specific settings.
 (microtype)             See the microtype manual for details.
-
-[9{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-mathit.en
-c}{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-mathex.en
+ [7{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-mathit.e
+nc}]
+[8{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-mathex.en
 c}]
-Overfull \hbox (27.50893pt too wide) detected at line 339
-[][][]\OML/lmm/m/it/12 S\OT1/lmr/m/n/12 ([]) \OMS/lmsy/m/n/12   []
- []
-
-
-Overfull \hbox (27.50893pt too wide) detected at line 348
-[][][]\OML/lmm/m/it/12 S\OT1/lmr/m/n/12 ([]) \OMS/lmsy/m/n/12   []
- []
-
-LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <5> on input line 379.
-[10]
-(C:\Users\toans\AppData\Local\Programs\MiKTeX\tex/latex/listings\lstlang1.sty
-File: lstlang1.sty 2025/11/14 1.11b listings language file
-)
-Package hyperref Info: bookmark level for unknown lstlisting defaults to 0 on i
-nput line 405.
-LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <8> not available
-(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 408.
-
-[11]
-Overfull \hbox (72.71626pt too wide) in paragraph at lines 467--468
- [][] 
- []
-
-[12] [13]
-Overfull \hbox (80.12674pt too wide) in paragraph at lines 508--518
+Overfull \hbox (75.36581pt too wide) in paragraph at lines 339--347
  [][] 
  []
 
 LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <12> not available
-(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 526.
-[14]
-Overfull \hbox (18.16908pt too wide) in paragraph at lines 544--545
-[]\T1/lmtt/m/n/12 event_type \T1/lmr/m/n/12 (-20) (VAR-CHAR, e.g., \T1/lmtt/m/n
-/12 'intrusion'\T1/lmr/m/n/12 (-20) , \T1/lmtt/m/n/12 'fall'\T1/lmr/m/n/12 (-20
-) , \T1/lmtt/m/n/12 'fire'\T1/lmr/m/n/12 (-20) , \T1/lmtt/m/n/12 'face'\T1/lmr/
-m/n/12 (-20) , \T1/lmtt/m/n/12 'counter'\T1/lmr/m/n/12 (-20) ) 
- []
-
-[15] [16] [17] [18]
-Overfull \hbox (52.64563pt too wide) in paragraph at lines 710--718
- [][] 
- []
-
-
-Overfull \hbox (110.48378pt too wide) in paragraph at lines 729--737
- [][] 
- []
-
-
-Overfull \hbox (60.48134pt too wide) in paragraph at lines 748--757
+(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 355.
+[9]
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <5> on input line 391.
+ [10] [11] [12] [13]
+Overfull \hbox (60.48134pt too wide) in paragraph at lines 540--549
  [][] 
  []
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-[19]
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-[20] [21] [22] [23]
+[14] [15] [16] [17]
 Package microtype Info: Character `029' is missing
 (microtype)             in font `T1/lmr/m/sc/12'.
 (microtype)             Ignoring protrusion settings for this character.
- [24] (de_tai_thac_si.aux)
+ [18] (de_tai_thac_si.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2025-12-24>
  ***********
 Package rerunfilecheck Info: File `de_tai_thac_si.out' has not changed.
-(rerunfilecheck)             Checksum: E27EF01ED9285486476FCE5C150A46E7;10347.
+(rerunfilecheck)             Checksum: 361E5B8856505A4CB43E511180F9C5E6;8506.
 Package logreq Info: Writing requests to 'de_tai_thac_si.run.xml'.
 \openout1 = `de_tai_thac_si.run.xml'.
 
  ) 
 Here is how much of TeX's memory you used:
- 37092 strings out of 467871
- 707965 string characters out of 5418376
- 1585022 words of memory out of 5000000
- 65026 multiletter control sequences out of 15000+600000
- 718294 words of font info for 203 fonts, out of 8000000 for 9000
+ 36462 strings out of 467871
+ 700997 string characters out of 5418376
+ 1559672 words of memory out of 5000000
+ 64484 multiletter control sequences out of 15000+600000
+ 713833 words of font info for 191 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 84i,13n,104p,1193b,2268s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 84i,10n,104p,1193b,1856s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmbx10.pf
 b><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmbx12.pf
-b><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmbx6.pfb
-><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmbx8.pfb>
-<C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmcsc10.pfb
-><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmex10.pfb
-><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmmi12.pfb
-><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmmi8.pfb>
-<C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmr10.pfb><
-C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmr12.pfb><C
-:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmr6.pfb><C:/
-Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmr8.pfb><C:/Us
-ers/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmri12.pfb><C:/Us
-ers/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmsy10.pfb><C:/Us
-ers/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmsy6.pfb><C:/Use
-rs/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmsy8.pfb><C:/User
-s/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtk10.pfb><C:/User
-s/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtt12.pfb><C:/User
-s/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtt8.pfb><C:/Users
-/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtti10.pfb>
-Output written on de_tai_thac_si.pdf (25 pages, 561942 bytes).
+b><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmbx8.pfb
+><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmcsc10.pf
+b><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmex10.pf
+b><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmmi12.pf
+b><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmmi8.pfb
+><C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmr10.pfb>
+<C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmr12.pfb><
+C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmr6.pfb><C:
+/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmr8.pfb><C:/U
+sers/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmri12.pfb><C:/U
+sers/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmsy10.pfb><C:/U
+sers/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmsy6.pfb><C:/Us
+ers/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmsy8.pfb><C:/Use
+rs/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtk10.pfb><C:/Use
+rs/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtt12.pfb><C:/Use
+rs/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtt8.pfb>
+Output written on de_tai_thac_si.pdf (19 pages, 514794 bytes).
 PDF statistics:
- 621 PDF objects out of 1000 (max. 8388607)
- 158 named destinations out of 1000 (max. 500000)
- 54125 words of extra memory for PDF output out of 61914 (max. 10000000)
+ 486 PDF objects out of 1000 (max. 8388607)
+ 93 named destinations out of 1000 (max. 500000)
+ 51002 words of extra memory for PDF output out of 51595 (max. 10000000)
 

@@ -1,45 +1,38 @@
 \babel@toc {english}{}\relax 
 \contentsline {section}{Abstract}{1}{section*.1}%
-\contentsline {section}{List of Abbreviations}{4}{section*.3}%
-\contentsline {section}{\numberline {1}Introduction}{5}{section.1}%
-\contentsline {subsection}{\numberline {1.1}Background and Motivation}{5}{subsection.1.1}%
-\contentsline {subsection}{\numberline {1.2}Problem Statement}{5}{subsection.1.2}%
-\contentsline {subsection}{\numberline {1.3}Thesis Objectives}{6}{subsection.1.3}%
-\contentsline {subsection}{\numberline {1.4}Project Scope}{6}{subsection.1.4}%
-\contentsline {subsection}{\numberline {1.5}Organization of the Thesis}{6}{subsection.1.5}%
-\contentsline {section}{\numberline {2}Literature Review}{8}{section.2}%
-\contentsline {subsection}{\numberline {2.1}Edge-Cloud IoT Frameworks in Video Surveillance}{8}{subsection.2.1}%
-\contentsline {subsection}{\numberline {2.2}Object Detection and Multi-Object Tracking (MOT)}{8}{subsection.2.2}%
-\contentsline {subsection}{\numberline {2.3}Face Verification and Embedding Extraction}{8}{subsection.2.3}%
-\contentsline {subsection}{\numberline {2.4}Visual Anomaly Detection: Fall and Fire Hazards}{8}{subsection.2.4}%
-\contentsline {subsection}{\numberline {2.5}State Machines in Spatial Crossing Analysis}{8}{subsection.2.5}%
-\contentsline {section}{\numberline {3}Design and Implementation}{9}{section.3}%
-\contentsline {subsection}{\numberline {3.1}Overall System Architecture and Data Flow}{9}{subsection.3.1}%
-\contentsline {subsection}{\numberline {3.2}Projection-based Double-Line Crossing Model}{9}{subsection.3.2}%
-\contentsline {subsubsection}{\numberline {3.2.1}State Transitions and Cooldown Filtering}{10}{subsubsection.3.2.1}%
-\contentsline {subsection}{\numberline {3.3}Dynamic Lost-Track State Inheritance}{10}{subsection.3.3}%
-\contentsline {subsubsection}{\numberline {3.3.1}Novelty Validation Case Study}{12}{subsubsection.3.3.1}%
-\contentsline {subsection}{\numberline {3.4}Face Recognition Pipeline with Profile/Tilted Adaptation}{12}{subsection.3.4}%
-\contentsline {subsection}{\numberline {3.5}Multi-Hazard Anomaly Detection and H.264 Video Buffering}{13}{subsection.3.5}%
-\contentsline {subsection}{\numberline {3.6}Asynchronous Dispatcher and 2-way Telegram Remote Control}{13}{subsection.3.6}%
-\contentsline {subsection}{\numberline {3.7}Web Dashboard \& Session Security}{14}{subsection.3.7}%
-\contentsline {subsection}{\numberline {3.8}Computational Complexity Analysis}{14}{subsection.3.8}%
-\contentsline {subsection}{\numberline {3.9}Database Design and Relational Schema}{14}{subsection.3.9}%
-\contentsline {subsection}{\numberline {3.10}Security and Privacy Considerations}{15}{subsection.3.10}%
-\contentsline {subsection}{\numberline {3.11}Use Case and Physical Deployment Modeling}{16}{subsection.3.11}%
-\contentsline {subsection}{\numberline {3.12}Current System Limitations}{17}{subsection.3.12}%
-\contentsline {section}{\numberline {4}Evaluation and Discussion}{18}{section.4}%
-\contentsline {subsection}{\numberline {4.1}Hardware and Software Setup}{18}{subsection.4.1}%
-\contentsline {subsection}{\numberline {4.2}Dataset Profiles and Preprocessing}{18}{subsection.4.2}%
-\contentsline {subsection}{\numberline {4.3}Experimental Results and Performance Analysis}{19}{subsection.4.3}%
-\contentsline {subsubsection}{\numberline {4.3.1}Object Tracking and Counting Accuracy}{19}{subsubsection.4.3.1}%
-\contentsline {subsubsection}{\numberline {4.3.2}Tracking Continuity and ID Swapping}{19}{subsubsection.4.3.2}%
-\contentsline {subsubsection}{\numberline {4.3.3}System Latency and Frame Rates}{19}{subsubsection.4.3.3}%
-\contentsline {subsubsection}{\numberline {4.3.4}Preliminary Benchmarks for Validation}{20}{subsubsection.4.3.4}%
-\contentsline {subsubsection}{\numberline {4.3.5}Evaluation Metrics and Methodology}{20}{subsubsection.4.3.5}%
-\contentsline {subsubsection}{\numberline {4.3.6}Multi-View Facial Verification Threshold Trade-Offs}{21}{subsubsection.4.3.6}%
-\contentsline {subsubsection}{\numberline {4.3.7}Latency vs. Channel Scalability Analysis}{21}{subsubsection.4.3.7}%
-\contentsline {subsection}{\numberline {4.4}Discussion and Comparative Summary}{22}{subsection.4.4}%
-\contentsline {section}{\numberline {5}Conclusion and Future Work}{23}{section.5}%
-\contentsline {subsection}{\numberline {5.1}Summary of Contributions}{23}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Future Research Directions}{23}{subsection.5.2}%
+\contentsline {section}{List of Abbreviations}{3}{section*.3}%
+\contentsline {section}{\numberline {1}Introduction}{4}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Background and Motivation}{4}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Problem Statement}{4}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Thesis Objectives}{5}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}Project Scope}{5}{subsection.1.4}%
+\contentsline {subsection}{\numberline {1.5}Organization of the Thesis}{5}{subsection.1.5}%
+\contentsline {section}{\numberline {2}Literature Review}{6}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Edge-Cloud IoT Frameworks in Video Surveillance}{6}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Object Detection and Multi-Object Tracking (MOT)}{6}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Face Verification and Embedding Extraction}{6}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Visual Anomaly Detection: Fall and Fire Hazards}{6}{subsection.2.4}%
+\contentsline {section}{\numberline {3}Design and Implementation}{7}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Overall System Architecture and Data Flow}{7}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Face Recognition Pipeline with Profile/Tilted Adaptation}{7}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Multi-Hazard Anomaly Detection and H.264 Video Buffering}{8}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Asynchronous Dispatcher and 2-way Telegram Remote Control}{8}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Web Dashboard \& Session Security}{9}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}Computational Complexity Analysis}{9}{subsection.3.6}%
+\contentsline {subsection}{\numberline {3.7}Database Design and Relational Schema}{9}{subsection.3.7}%
+\contentsline {subsection}{\numberline {3.8}Security and Privacy Considerations}{10}{subsection.3.8}%
+\contentsline {subsection}{\numberline {3.9}Use Case and Physical Deployment Modeling}{11}{subsection.3.9}%
+\contentsline {subsection}{\numberline {3.10}Current System Limitations}{11}{subsection.3.10}%
+\contentsline {section}{\numberline {4}Evaluation and Discussion}{13}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Hardware and Software Setup}{13}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Dataset Profiles and Preprocessing}{13}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Experimental Results and Performance Analysis}{14}{subsection.4.3}%
+\contentsline {subsubsection}{\numberline {4.3.1}System Latency and Frame Rates}{14}{subsubsection.4.3.1}%
+\contentsline {subsubsection}{\numberline {4.3.2}Preliminary Benchmarks for Validation}{14}{subsubsection.4.3.2}%
+\contentsline {subsubsection}{\numberline {4.3.3}Evaluation Metrics and Methodology}{14}{subsubsection.4.3.3}%
+\contentsline {subsubsection}{\numberline {4.3.4}Multi-View Facial Verification Threshold Trade-Offs}{15}{subsubsection.4.3.4}%
+\contentsline {subsubsection}{\numberline {4.3.5}Latency vs. Channel Scalability Analysis}{15}{subsubsection.4.3.5}%
+\contentsline {subsection}{\numberline {4.4}Discussion and Comparative Summary}{16}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Conclusion and Future Work}{17}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Summary of Contributions}{17}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Future Research Directions}{17}{subsection.5.2}%

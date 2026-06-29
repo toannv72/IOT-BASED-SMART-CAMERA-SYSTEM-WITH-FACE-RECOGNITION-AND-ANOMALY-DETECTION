@@ -18,7 +18,7 @@ from app import app
 import app.config as config
 from app.config import SystemStatus
 from app.database import SessionLocal, User, FaceRecord, SystemEventLog
-from app.processors import camera_fps, gen_face_stream, gen_roi_stream, gen_counter_stream, gen_fall_stream, ensure_camera_thread_running, stop_camera_thread
+from app.processors import camera_fps, gen_face_stream, gen_roi_stream, gen_fall_stream, ensure_camera_thread_running, stop_camera_thread
 
 # Helper kiểm tra phân quyền quản trị (RBAC)
 def check_admin(request: Request):
@@ -804,7 +804,7 @@ async def add_camera(request: Request):
     
     # Thiết lập giá trị mặc định cho camera mới
     if "source" not in new_cam: new_cam["source"] = "video.mp4"
-    if "features" not in new_cam: new_cam["features"] = ["people_counter"]
+    if "features" not in new_cam: new_cam["features"] = ["intrusion_roi"]
     if "line" not in new_cam: new_cam["line"] = [[100, 180], [540, 180]]
     if "in_direction" not in new_cam: new_cam["in_direction"] = "down"
     if "roi" not in new_cam: new_cam["roi"] = [[100, 100], [540, 100], [540, 300], [100, 300]]

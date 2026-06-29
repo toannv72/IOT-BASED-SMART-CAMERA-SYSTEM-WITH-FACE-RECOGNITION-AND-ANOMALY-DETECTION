@@ -81,10 +81,7 @@
                 Khoảng cách khớp. Số càng lớn càng dễ nhận diện nghiêng/quay ngang (nhưng tăng rủi ro nhận nhầm), số nhỏ càng khắt khe chỉ nhận chính diện.
             </span>
         </div>
-        <div class="form-group">
-            <label class="form-label">Thời Gian Cooldown Vạch Đếm (Frames)</label>
-            <input type="number" id="setting-counter-cooldown" class="form-input">
-        </div>
+
         <div class="form-group">
             <label class="form-label">Thời Gian Cooldown Telegram (Giây)</label>
             <input type="number" id="setting-telegram-cooldown" class="form-input">
@@ -211,9 +208,7 @@
         <div class="form-group">
             <label class="form-label">Kích Hoạt Tính Năng AI</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-                    <input type="checkbox" id="cam-feat-counter"> Đếm người vạch kép
-                </label>
+
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
                     <input type="checkbox" id="cam-feat-roi"> Phát hiện xâm nhập ROI
                 </label>
@@ -343,7 +338,6 @@
             document.getElementById('setting-chats').value = settings.telegram_chats.join(", ") || "";
             document.getElementById('setting-conf').value = settings.conf_threshold || 0.25;
             document.getElementById('setting-face-threshold').value = settings.face_threshold !== undefined ? settings.face_threshold : 0.65;
-            document.getElementById('setting-counter-cooldown').value = settings.counter_cooldown || 45;
             document.getElementById('setting-telegram-cooldown').value = settings.telegram_cooldown || 15;
             document.getElementById('setting-alerts-enabled').value = settings.alerts_enabled ? "true" : "false";
             document.getElementById('setting-cleanup-enabled').value = settings.auto_cleanup_enabled ? "true" : "false";
@@ -367,7 +361,6 @@
             telegram_chats: document.getElementById('setting-chats').value.split(',').map(s => s.trim()).filter(s => s !== ""),
             conf_threshold: parseFloat(document.getElementById('setting-conf').value),
             face_threshold: parseFloat(document.getElementById('setting-face-threshold').value),
-            counter_cooldown: parseInt(document.getElementById('setting-counter-cooldown').value),
             telegram_cooldown: parseInt(document.getElementById('setting-telegram-cooldown').value),
             alerts_enabled: document.getElementById('setting-alerts-enabled').value === "true",
             auto_cleanup_enabled: document.getElementById('setting-cleanup-enabled').value === "true",
@@ -402,7 +395,6 @@
         tbody.innerHTML = '';
         activeCameras.forEach(cam => {
             let feats = [];
-            if (cam.features.includes('people_counter')) feats.push('Đếm vạch');
             if (cam.features.includes('intrusion_roi')) feats.push('ROI cấm');
             if (cam.features.includes('face_id')) feats.push('Face ID');
             if (cam.features.includes('fall_detection')) feats.push('Ngã');
@@ -458,8 +450,7 @@
         if (document.getElementById('cam-map-input').options.length > 0) {
             document.getElementById('cam-map-input').selectedIndex = 0;
         }
-        document.getElementById('cam-feat-counter').checked = true;
-        document.getElementById('cam-feat-roi').checked = false;
+        document.getElementById('cam-feat-roi').checked = true;
         document.getElementById('cam-feat-face').checked = false;
         document.getElementById('cam-feat-fall').checked = false;
         document.getElementById('cam-feat-behavior').checked = false;
@@ -485,7 +476,6 @@
         document.getElementById('cam-source-input').value = cam.source;
         document.getElementById('cam-map-input').value = cam.map_id || "khu_a_tang_1";
         
-        document.getElementById('cam-feat-counter').checked = cam.features.includes('people_counter');
         document.getElementById('cam-feat-roi').checked = cam.features.includes('intrusion_roi');
         document.getElementById('cam-feat-face').checked = cam.features.includes('face_id');
         document.getElementById('cam-feat-fall').checked = cam.features.includes('fall_detection');
@@ -514,7 +504,6 @@
         if (!cameraId || !source) return alert("Vui lòng nhập đầy đủ thông tin bắt buộc!");
 
         const features = [];
-        if (document.getElementById('cam-feat-counter').checked) features.push('people_counter');
         if (document.getElementById('cam-feat-roi').checked) features.push('intrusion_roi');
         if (document.getElementById('cam-feat-face').checked) features.push('face_id');
         if (document.getElementById('cam-feat-fall').checked) features.push('fall_detection');

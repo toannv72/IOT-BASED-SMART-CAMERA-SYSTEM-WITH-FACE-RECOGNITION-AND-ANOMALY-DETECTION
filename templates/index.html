@@ -694,10 +694,7 @@
                             <label class="form-label">Ngưỡng Tin Cậy YOLO (Confidence Threshold)</label>
                             <input type="number" id="setting-conf" class="form-input" step="0.05" min="0.1" max="0.9">
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Thời Gian Cooldown Vạch Đếm (Frames)</label>
-                            <input type="number" id="setting-counter-cooldown" class="form-input">
-                        </div>
+
                         <div class="form-group">
                             <label class="form-label">Thời Gian Cooldown Telegram (Giây)</label>
                             <input type="number" id="setting-telegram-cooldown" class="form-input">
@@ -808,7 +805,7 @@
                                 <option value="intrusion">Xâm nhập vùng cấm (ROI)</option>
                                 <option value="fall">Phát hiện người ngã</option>
                                 <option value="face">Nhận diện khuôn mặt lạ</option>
-                                <option value="counter">Đếm người qua vạch</option>
+
                             </select>
                         </div>
                         <button class="btn btn-primary" onclick="loadHistoryLogs()">
@@ -857,9 +854,7 @@
             <div class="form-group">
                 <label class="form-label">Kích Hoạt Tính Năng AI</label>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-                        <input type="checkbox" id="cam-feat-counter"> Đếm người vạch kép
-                    </label>
+
                     <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
                         <input type="checkbox" id="cam-feat-roi"> Phát hiện xâm nhập ROI
                     </label>
@@ -905,9 +900,7 @@
             </div>
             
             <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-                <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="setDrawMode('line')">
-                    <i class="fa-solid fa-grip-lines" style="color: var(--warning);"></i> Vẽ vạch đếm
-                </button>
+
                 <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="setDrawMode('roi')">
                     <i class="fa-solid fa-draw-polygon" style="color: var(--success);"></i> Vẽ vùng cấm ROI
                 </button>
@@ -950,7 +943,7 @@
         let historyLogs = [];
         let activeCameras = []; // Lưu trữ cấu hình camera từ API
         let drawingPoints = []; // Các điểm tọa độ vẽ vạch/ROI
-        let drawMode = 'line'; // 'line' hoặc 'roi'
+        let drawMode = 'roi'; // 'line' hoặc 'roi'
         let currentDrawCamId = '';
         let roiClosed = false;
 
@@ -1005,9 +998,7 @@
                     // Hiển thị huy hiệu (badges) cho các tính năng được kích hoạt
                     let featuresHtml = '';
                     const features = cam.features || [];
-                    if (features.includes('people_counter')) {
-                        featuresHtml += `<span class="badge" style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); color: var(--success); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-people-arrows"></i> Đếm vạch kép</span>`;
-                    }
+
                     if (features.includes('intrusion_roi')) {
                         featuresHtml += `<span class="badge" style="background: rgba(245, 158, 11, 0.1); border: 1px solid var(--warning); color: var(--warning); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> Vùng ROI</span>`;
                     }
@@ -1203,7 +1194,7 @@
                 tbody.innerHTML = '';
                 cameras.forEach(cam => {
                     let feats = [];
-                    if (cam.features.includes('people_counter')) feats.push('Đếm vạch');
+
                     if (cam.features.includes('intrusion_roi')) feats.push('ROI cấm');
                     if (cam.features.includes('face_id')) feats.push('Face ID');
                     if (cam.features.includes('fall_detection')) feats.push('Ngã');
@@ -1246,8 +1237,7 @@
             document.getElementById('cam-id-input').value = "";
             document.getElementById('cam-id-input').disabled = false;
             document.getElementById('cam-source-input').value = "video.mp4";
-            document.getElementById('cam-feat-counter').checked = true;
-            document.getElementById('cam-feat-roi').checked = false;
+            document.getElementById('cam-feat-roi').checked = true;
             document.getElementById('cam-feat-face').checked = false;
             document.getElementById('cam-feat-fall').checked = false;
             document.getElementById('cam-sched-enabled').checked = false;
@@ -1267,7 +1257,6 @@
             document.getElementById('cam-id-input').disabled = true;
             document.getElementById('cam-source-input').value = cam.source;
             
-            document.getElementById('cam-feat-counter').checked = cam.features.includes('people_counter');
             document.getElementById('cam-feat-roi').checked = cam.features.includes('intrusion_roi');
             document.getElementById('cam-feat-face').checked = cam.features.includes('face_id');
             document.getElementById('cam-feat-fall').checked = cam.features.includes('fall_detection');
@@ -1292,7 +1281,6 @@
             if (!cameraId || !source) return alert("Vui lòng nhập đầy đủ thông tin bắt buộc!");
 
             const features = [];
-            if (document.getElementById('cam-feat-counter').checked) features.push('people_counter');
             if (document.getElementById('cam-feat-roi').checked) features.push('intrusion_roi');
             if (document.getElementById('cam-feat-face').checked) features.push('face_id');
             if (document.getElementById('cam-feat-fall').checked) features.push('fall_detection');
@@ -1374,9 +1362,9 @@
                 drawingPoints = JSON.parse(JSON.stringify(cam.roi));
                 roiClosed = true;
             } else {
-                drawMode = 'line';
-                if (cam.line && cam.line.length > 0) {
-                    drawingPoints = JSON.parse(JSON.stringify(cam.line));
+                drawMode = 'roi';
+                if (cam.roi && cam.roi.length > 0) {
+                    drawingPoints = JSON.parse(JSON.stringify(cam.roi));
                 }
             }
 
@@ -1822,7 +1810,6 @@
                 document.getElementById('setting-token').value = settings.telegram_token || "";
                 document.getElementById('setting-chats').value = settings.telegram_chats.join(", ") || "";
                 document.getElementById('setting-conf').value = settings.conf_threshold || 0.25;
-                document.getElementById('setting-counter-cooldown').value = settings.counter_cooldown || 45;
                 document.getElementById('setting-telegram-cooldown').value = settings.telegram_cooldown || 15;
                 document.getElementById('setting-alerts-enabled').value = settings.alerts_enabled ? "true" : "false";
             } catch(e) {}
@@ -1833,7 +1820,6 @@
                 telegram_token: document.getElementById('setting-token').value.trim(),
                 telegram_chats: document.getElementById('setting-chats').value.split(',').map(s => s.trim()).filter(s => s !== ""),
                 conf_threshold: parseFloat(document.getElementById('setting-conf').value),
-                counter_cooldown: parseInt(document.getElementById('setting-counter-cooldown').value),
                 telegram_cooldown: parseInt(document.getElementById('setting-telegram-cooldown').value),
                 alerts_enabled: document.getElementById('setting-alerts-enabled').value === "true"
             };

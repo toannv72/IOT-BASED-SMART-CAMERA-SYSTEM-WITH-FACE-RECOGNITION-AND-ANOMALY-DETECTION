@@ -101,7 +101,7 @@ def get_cameras_config():
         {
             "camera_id": "Cam_Cua_Chinh",
             "source": "video.mp4",
-            "features": ["people_counter", "face_id"],
+            "features": ["face_id"],
             "line": [[154, 218], [412, 214]],
             "in_direction": "down",
             "roi": [[100, 100], [540, 100], [540, 300], [100, 300]],

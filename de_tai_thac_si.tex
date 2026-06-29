@@ -23,11 +23,7 @@
 \addbibresource{references.bib}
 
 \hypersetup{
-    colorlinks=true,
-    linkcolor=blue,
-    filecolor=magenta,      
-    urlcolor=cyan,
-    citecolor=blue,
+    hidelinks,
     pdftitle={Edge-Cloud Collaborative Smart Surveillance System},
     pdfpagemode=FullScreen,
 }
@@ -40,61 +36,51 @@
 % =========================================================================
 \begin{titlepage}
     \begin{tikzpicture}[remember picture, overlay]
-        \draw[line width = 3pt]
+        \draw[line width = 2pt]
             ([shift={(1.5cm,-1.5cm)}]current page.north west)
             rectangle
             ([shift={(-1.5cm,1.5cm)}]current page.south east);
-        \draw[line width = 1pt, double, double distance = 3pt]
-            ([shift={(1.65cm,-1.65cm)}]current page.north west)
-            rectangle
-            ([shift={(-1.65cm,1.65cm)}]current page.south east);
     \end{tikzpicture}
     
     \begin{center}
         \textbf{\large MINISTRY OF EDUCATION AND TRAINING} \\
         \vspace{0.2cm}
         \textbf{\large FPT UNIVERSITY} \\
-        \textbf{-------------------} \\
+        \textbf{---------------} \\
         \vspace{1.5cm}
 
         \begin{figure}[h]
             \centering
-            % Dưới đây là ví dụ chèn hình ảnh logo trường FPT, có thể thay đổi bằng file logo thực tế
-            % \includegraphics[width=0.4\textwidth]{Logo_Trường_Đại_học_FPT.png}
-            \begin{tikzpicture}
-                \draw[fill=orange!10, orange, thick] (0,0) rectangle (4,1.5);
-                \node at (2,0.75) {\textbf{\Large FPT UNIVERSITY}};
-            \end{tikzpicture}
+            \includegraphics[width=0.4\textwidth]{Logo_Trường_Đại_học_FPT.png}
         \end{figure}
         \vspace{1.5cm}
         
         \textbf{\Large MASTER OF SOFTWARE ENGINEERING (MSE)} \\
         \vspace{0.5cm}
-        \textbf{\Large GRADUATE THESIS PROPOSAL} \\
-        \vspace{1.5cm}
+        \textbf{\Large CAPSTONE PROJECT PROPOSAL} \\
+        \vspace{2.0cm}
 
         \begin{flushleft}
-            \textbf{\Large Thesis Title:} \\
-            \vspace{0.4cm}
-            \textbf{\huge AN EDGE-CLOUD COLLABORATIVE IoT FRAMEWORK} \\
-            \vspace{0.2cm}
-            \textbf{\huge FOR REAL-TIME SMART SURVEILLANCE} \\
-            \vspace{0.2cm}
-            \textbf{\Large Integrating Dynamic Projection People Counting, Cosine Face Identification, and Multi-Hazard Anomaly Detection} \\
+            \textbf{\Large Project Title:} \\
+            \vspace{0.5cm}
+            \textbf{\LARGE IOT-BASED SMART CAMERA SYSTEM} \\
+            \vspace{0.3cm}
+            \textbf{\LARGE WITH FACE RECOGNITION AND} \\
+            \vspace{0.3cm}
+            \textbf{\LARGE ANOMALY DETECTION} \\
+            \vspace{1.0cm}
         \end{flushleft}
         
-        \vspace{2cm}
-        \begin{table}[h]
-            \flushright
-            \begin{tabular}{ll}
-                \textbf{Academic Supervisor:} & \textbf{Dr. Doan Xuan Huy Minh} \\
-                \textbf{Graduate Student:} & \textbf{Nguyen Van Toan} \\
-                \textbf{Student ID / Class:} & \textbf{MSE26HCM} \\
-            \end{tabular}
-        \end{table}
+        \begin{flushright}
+            \textbf{Supervisor :} \textbf{Dr. Doan Xuan Huy Minh} \\
+            \vspace{0.5cm}
+            \textbf{Student :} \textbf{Nguyen Van Toan} \\
+            \vspace{0.5cm}
+            \textbf{Class :} \textbf{MSE26HCM}
+        \end{flushright}
         
         \vfill
-        \textbf{Ho Chi Minh City, May 2026}
+        HCM City, March 2026
     \end{center}
 \end{titlepage}
 \hypersetup{pageanchor=true}
@@ -108,9 +94,9 @@
 \addcontentsline{toc}{section}{Abstract}
 In contemporary security management, the demand for smart, real-time, and privacy-preserving surveillance systems has grown exponentially. Commercial off-the-shelf cameras often rely heavily on cloud-based computation, introducing significant network latency, bandwidth overheads, and severe data privacy concerns. This capstone project proposal presents a comprehensive, lightweight, and low-cost IoT-Edge-Cloud collaborative framework designed for local real-time intelligent monitoring. 
 
-The framework integrates four key functional capabilities deployed across an Edge layer and a Central Web Application: (1) an optimized multi-camera people counting model utilizing YOLOv8s and ByteTrack under a custom geometric double-line projection state machine with crossing cooldowns and dynamic state-inheritance; (2) a real-time face verification module leveraging Multitask Cascaded Convolutional Networks (MTCNN) for alignment, FaceNet for feature embedding generation, and cosine distance metric classification; (3) a Region-of-Interest (ROI) intrusion detection module utilizing YOLOv5; and (4) an automated fall detection system utilizing custom trained YOLOv8-fall weights. 
+The framework integrates three key functional capabilities deployed across an Edge layer and a Central Web Application: (1) a real-time face verification module leveraging Multitask Cascaded Convolutional Networks (MTCNN) for alignment, FaceNet for feature embedding generation, and cosine distance metric classification; (2) a Region-of-Interest (ROI) intrusion detection module utilizing YOLOv5; and (3) an automated fall detection system utilizing custom trained YOLOv8-fall weights. 
 
-To prevent network blocking and streaming lag under real-time alerts, we implement an asynchronous multi-threaded notification dispatcher connecting directly to Telegram services. Preliminary experiments show that the system achieves high accuracy in crowd tracking, eliminates counting jitter near boundaries, and operates at $\ge$ 20 FPS on a CUDA-accelerated edge GPU with latency below 1.5 seconds. This proposed system establishes a robust, highly extensible architecture suitable for household and office automation.
+To prevent network blocking and streaming lag under real-time alerts, we implement an asynchronous multi-threaded notification dispatcher connecting directly to Telegram services. Preliminary experiments show that the system achieves high accuracy in facial verification, robustly detects intrusion hazards, and operates at $\ge$ 20 FPS on a CUDA-accelerated edge GPU with latency below 1.5 seconds. This proposed system establishes a robust, highly extensible architecture suitable for household and office automation.
 
 \newpage
 
@@ -166,7 +152,6 @@ To resolve these limitations, this thesis proposes a lightweight, localized \tex
 \subsection{Problem Statement}
 Despite the promise of Edge-based AI video analytics, existing systems face several critical technical limitations:
 \begin{enumerate}
-    \item \textbf{Spatial Counting Inaccuracies near Boundaries (Jitter \& ID Swaps):} Standard people counting systems rely on a single virtual line. When individuals stand near the line, hesitate, or move back and forth, the system triggers duplicate counts. Furthermore, in crowded conditions, occlusion often causes the Multi-Object Tracking (MOT) engine to swap or drop tracking IDs, leading to state loss.
     \item \textbf{Visual Anomaly Recognition Failures under Pose/View Variation:} Face verification systems deployed in real-world scenarios must recognize individuals at non-frontal angles. Standard face identification models fail when subjects look sideways or tilt their heads. In addition, residential care requires the integration of diverse anomaly detectors (e.g., fall detection, intrusion, fire hazards) operating simultaneously without overloading the edge device.
     \item \textbf{Synchronous Thread Blocking during Alert Dispatches:} When an AI engine triggers an alert, it must transmit media capture data (images and videos) to supervisors. Performing synchronous HTTP post requests within the main camera frame capture loop introduces latency, leading to dropped frames, lag, and camera stream disconnections.
     \item \textbf{Tight Coupling and Poor Edge Resource Utilization:} Deploying multiple AI pipelines (YOLOv8, MTCNN, FaceNet, YOLOv5) concurrently on a consumer-grade CPU/GPU can lead to resource starvation, performance degradation, and system instability if the software architecture is not modularized and optimized.
@@ -175,16 +160,15 @@ Despite the promise of Edge-based AI video analytics, existing systems face seve
 \subsection{Thesis Objectives}
 To address these challenges, this capstone project realizes a fully integrated, edge-accelerated, and secure surveillance system. The specific technical objectives include:
 \begin{itemize}
-    \item \textbf{Objective 1:} Implement an optimized multi-camera tracking pipeline using YOLOv8s and ByteTrack, governed by a custom geometric double-line projection state machine with crossing cooldowns and track inheritance to eliminate boundary counting jitter.
-    \item \textbf{Objective 2:} Design an aligned, multi-angle face verification module using MTCNN cascade tuning and FaceNet embeddings, achieving high accuracy for rotated/tilted faces.
-    \item \textbf{Objective 3:} Deploy custom-trained YOLOv8-fall and fire anomaly detection models, managed within a circular buffer system to record and playback browser-compatible H.264 event videos.
-    \item \textbf{Objective 4:} Develop an asynchronous, multi-threaded alert dispatcher and interactive two-way remote control using Telegram Long Polling, maintaining stable camera frame rates ($\ge 20$ FPS).
-    \item \textbf{Objective 5:} Build a responsive, glassmorphic monitoring dashboard utilizing FastAPI, implementing custom HMAC-SHA256 session management and hardware resource health monitoring.
+    \item \textbf{Objective 1:} Design an aligned, multi-angle face verification module using MTCNN cascade tuning and FaceNet embeddings, achieving high accuracy for rotated/tilted faces.
+    \item \textbf{Objective 2:} Deploy custom-trained YOLOv8-fall and fire anomaly detection models, managed within a circular buffer system to record and playback browser-compatible H.264 event videos.
+    \item \textbf{Objective 3:} Develop an asynchronous, multi-threaded alert dispatcher and interactive two-way remote control using Telegram Long Polling, maintaining stable camera frame rates ($\ge 20$ FPS).
+    \item \textbf{Objective 4:} Build a responsive, glassmorphic monitoring dashboard utilizing FastAPI, implementing custom HMAC-SHA256 session management and hardware resource health monitoring.
 \end{itemize}
 
 \subsection{Project Scope}
 \begin{itemize}
-    \item \textbf{Inclusions:} Real-time multi-camera frame capture and analysis; edge-accelerated object tracking and counting; local face registration and multi-view verification; Region-of-Interest (ROI) intrusion detection; pose/bounding-box-based fall detection; fire anomaly monitoring; localized H.264 video buffering; and secure, web-based settings management.
+    \item \textbf{Inclusions:} Real-time multi-camera frame capture and analysis; local face registration and multi-view verification; Region-of-Interest (ROI) intrusion detection; pose/bounding-box-based fall detection; fire anomaly monitoring; localized H.264 video buffering; and secure, web-based settings management.
     \item \textbf{Exclusions:} Outdoor environmental modeling; integration with proprietary smart home systems (e.g., Apple HomeKit, Google Home); emotion recognition; and large-scale cloud database clustering.
 \end{itemize}
 
@@ -216,9 +200,6 @@ Face identification in unconstrained environments requires accurate detection, a
 \subsection{Visual Anomaly Detection: Fall and Fire Hazards}
 Vision-based fall detection generally employs deep learning classifiers or pose estimation algorithms. While pose estimation models (e.g., YOLOv8-pose) provide keypoint joint coordinates, they are computationally expensive for resource-constrained edge devices. Custom-trained bounding box detectors (e.g., YOLOv8-fall) offer a lightweight alternative, identifying "fall" states based on bounding box aspect ratios and motion trajectories. Fire and smoke anomaly detection similarly utilizes YOLO-based networks, allowing edge nodes to process hazards concurrently alongside security tasks.
 
-\subsection{State Machines in Spatial Crossing Analysis}
-Single-line crossing models are highly sensitive to boundary jitter. When a tracked target hovers near the line, minor bounding box fluctuations cause duplicate counts. Implementing a parallel double-line crossing buffer zone, governed by a finite state machine, mitigates this issue. This transition zone acts as a hysteresis buffer, ensuring a count is registered only when the target completes a full transition from one side to the other.
-
 \newpage
 
 % =========================================================================
@@ -238,55 +219,55 @@ The proposed framework is designed as an Edge-Cloud Collaborative IoT architectu
     \resizebox{\textwidth}{!}{%
     \begin{tikzpicture}[
         node distance=1.2cm and 1.5cm,
-        box/.style={rectangle, draw=blue!70, fill=blue!5, thick, minimum width=2.5cm, minimum height=0.9cm, align=center, rounded corners=2pt, font=\scriptsize},
-        database/.style={cylinder, draw=purple!70, fill=purple!5, thick, minimum width=1.6cm, minimum height=1.1cm, shape border rotate=90, align=center, font=\scriptsize},
-        cloud_node/.style={ellipse, draw=orange!70, fill=orange!5, thick, minimum width=2.4cm, minimum height=0.9cm, align=center, font=\scriptsize},
+        box/.style={rectangle, draw=blue!70, fill=blue!5, thick, minimum width=2.8cm, minimum height=0.9cm, align=center, rounded corners=2pt, font=\scriptsize},
+        database/.style={cylinder, draw=purple!70, fill=purple!5, thick, minimum width=2.2cm, minimum height=1.0cm, shape border rotate=90, align=center, font=\scriptsize},
+        cloud_node/.style={ellipse, draw=orange!70, fill=orange!5, thick, minimum width=2.6cm, minimum height=0.9cm, align=center, font=\scriptsize},
         arrow/.style={-Stealth, thick, draw=black!80},
         container/.style={draw=gray, dashed, inner sep=0.35cm, rounded corners=5pt}
     ]
         % --- EDGE LAYER ---
         \node[box] (camera) {Camera Stream\\(RTSP/Webcam)};
-        \node[box, right=1.2cm of camera] (yolo) {YOLOv8s Tracker\\\& ByteTrack};
-        \node[box, below=0.5cm of yolo] (facenet) {MTCNN + FaceNet\\(Face Verification)};
-        \node[box, below=0.5cm of facenet] (anomaly) {Multi-Hazard Anomaly\\(YOLOv8-fall/fire)};
+        \node[box, right=1.2cm of camera] (roi) {YOLOv5 ROI\\(Intrusion\\Detection)};
+        \node[box, below=0.5cm of roi] (facenet) {MTCNN + FaceNet\\(Face\\Verification)};
+        \node[box, below=0.5cm of facenet] (anomaly) {Multi-Hazard\\Anomaly\\(YOLOv8-fall/fire)};
         
-        \node[box, right=1.2cm of yolo] (doubleline) {Double-Line Crossing\\State Machine};
-        \node[box, below=0.5cm of doubleline] (buffer) {Circular Buffer\\(150 Frames in RAM)};
+        \node[box, right=1.5cm of anomaly] (buffer) {Circular Buffer\\(150 Frames\\in RAM)};
         
         % --- CONNECTIONS IN EDGE ---
-        \draw[arrow] (camera) -- (yolo);
+        \draw[arrow] (camera) -- (roi);
         \draw[arrow] (camera) |- (facenet);
         \draw[arrow] (camera) |- (anomaly);
         
-        \draw[arrow] (yolo) -- (doubleline);
+        \draw[arrow] (roi) -| (buffer);
         \draw[arrow] (anomaly) -- (buffer);
         
         % Edge Border
-        \node[container, fit=(camera) (yolo) (anomaly) (doubleline) (buffer), label={[font=\footnotesize, text=blue]\textbf{Edge Processing Layer}}] (edge_group) {};
+        \node[container, fit=(camera) (roi) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Edge Processing Layer}}] (edge_group) {};
         
         % --- DISPATCHER & CLOUD/BACKEND ---
-        \node[box, right=1.5cm of doubleline] (dispatcher) {Asynchronous\\Alert Dispatcher\\(Daemon Threads)};
+        \node[box, right=2.0cm of buffer] (dispatcher) {Asynchronous\\Alert Dispatcher\\(Daemon Threads)};
         \node[cloud_node, below=0.8cm of dispatcher] (telegram) {Telegram API\\(Alerts \& Polling)};
         
         % --- BACKEND / WEB DASHBOARD LAYER ---
         \node[box, right=1.5cm of dispatcher] (fastapi) {FastAPI Server\\(Backend Core)};
         \node[database, below=0.8cm of fastapi] (db) {SQLite DB\\(\texttt{faces.db} \& Logs)};
-        \node[box, right=1.2cm of fastapi] (dashboard) {Web Dashboard\\(Glassmorphism UI)};
+        \coordinate[below=0.6cm of db] (db_bottom);
+        \node[box, right=1.2cm of fastapi] (dashboard) {Web Dashboard\\(Glassmorphism\\UI)};
         
         % --- CONTAINER FOR BACKEND ---
-        \node[container, fit=(fastapi) (db) (dashboard), label={[font=\footnotesize, text=purple!80!black]\textbf{Backend \& Web Layer}}] (backend_group) {};
+        \node[container, fit=(fastapi) (db) (dashboard) (db_bottom), label={[font=\footnotesize, text=purple!80!black]\textbf{Backend \& Web Layer}}] (backend_group) {};
         
         % --- CROSS-LAYER CONNECTIONS ---
-        \draw[arrow] (doubleline) -- (dispatcher);
-        \draw[arrow] (buffer) -| (dispatcher);
-        \draw[arrow] (facenet) -| (dispatcher);
+        \draw[arrow] (roi) -- (dispatcher);
+        \draw[arrow] (buffer) -- (dispatcher);
+        \draw[arrow] (facenet) -- (dispatcher);
         
         \draw[arrow] (dispatcher) -- (telegram);
         \draw[arrow] (dispatcher) -- (fastapi);
         
         \draw[arrow] (fastapi) -- (db);
         \draw[arrow] (fastapi) -- (dashboard);
-        \draw[arrow, <->, bend left=15] (telegram) to node[midway, below, font=\tiny] {2-Way Control} (fastapi);
+        \draw[arrow, <->] (telegram.east) -- node[midway, above, sloped, font=\tiny] {2-Way Control} (fastapi.south west);
         
     \end{tikzpicture}%
     }
@@ -294,164 +275,13 @@ The proposed framework is designed as an Edge-Cloud Collaborative IoT architectu
     \label{fig:detailed_architecture}
 \end{figure}
 
-\subsection{Projection-based Double-Line Crossing Model}
-To resolve boundary jitter and false directional counts, we present a mathematical model of our custom projection double-line crossing algorithm.
-
-Let a user-drawn counting line segment be defined by endpoints $A(x_1, y_1)$ and $B(x_2, y_2)$. The directional line segment vector is:
-\begin{equation}
-    \mathbf{v}_{line} = B - A = (x_2 - x_1, y_2 - y_1)
-\end{equation}
-The length of the baseline is $L = \|\mathbf{v}_{line}\|_2 = \sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2}$.
-We define the perpendicular unit normal vector $\mathbf{n} = (n_x, n_y)$ as:
-\begin{equation}
-    n_x = -\frac{y_2 - y_1}{L}, \quad n_y = \frac{x_2 - x_1}{L}
-\end{equation}
-The normal vector points towards the direction of entry (defined via \texttt{in\_direction}). We establish a parallel double-line crossing buffer zone of width $2d$ (where $d = 30$ pixels) along the normal axis. The two virtual boundaries, the \textbf{Outer Line} and the \textbf{Inner Line}, are positioned at offsets of $-d$ and $+d$, respectively.
-
-For any tracked pedestrian ID $tid$ at frame $t$, let their bottom-center bounding box coordinate be $P = (x_{bc}, y_{bc})$. The scalar projection distance $v(P)$ of the person relative to the baseline along the normal vector is computed as:
-\begin{equation}
-    v(P) = (x_{bc} - x_1) n_x + (y_{bc} - y_1) n_y
-\end{equation}
-Using the value of $v(P)$, the position is classified into one of three discrete regions $R(P) \in \{1, 2, 3\}$:
-\begin{equation}
-    R(P) = \begin{cases} 
-      1 \quad \text{(Region 1 - Outside)}, & v(P) < -d \\
-      2 \quad \text{(Region 2 - Transition Zone)}, & -d \le v(P) \le d \\
-      3 \quad \text{(Region 3 - Inside)}, & v(P) > d 
-   \end{cases}
-\end{equation}
-
-Depending on the configuration, Region 1 is mapped to \texttt{outside\_reg} and Region 3 is mapped to \texttt{inside\_reg}. The system maintains a state vector for each active tracker ID:
-\begin{equation}
-    S(\text{tid}) = (s_{\text{state}},\, t_{\text{last\_cross}})
-\end{equation}
-where $s_{\text{state}} \in \{\text{from\_outside},\, \text{from\_inside}\}$ represents the starting boundary, and $t_{\text{last\_cross}}$ is the frame index of the most recent crossing event.
-
-\subsubsection{State Transitions and Cooldown Filtering}
-State updates and count increments occur according to the following state machine:
-\begin{itemize}
-    \item \textbf{Case A:} The pedestrian is detected in the outside region ($R(P) = \text{outside\_reg}$):
-    \begin{equation}
-        S(\text{tid}) \leftarrow \begin{cases} 
-          (\text{from\_outside},\, t_{\text{curr}}), & \text{if } s_{\text{state}} = \text{from\_inside} \text{ and } t_{\text{curr}} - t_{\text{last\_cross}} > \theta_{\text{cooldown}} \\
-          (s_{\text{state}},\, t_{\text{last\_cross}}), & \text{otherwise}
-       \end{cases}
-    \end{equation}
-    If the update is triggered, the local counter increments the \textbf{OUT} count by 1. Here, the refractory cooldown period is set to $\theta_{\text{cooldown}} = 45$ frames.
-    
-    \item \textbf{Case B:} The pedestrian is detected in the inside region ($R(P) = \text{inside\_reg}$):
-    \begin{equation}
-        S(\text{tid}) \leftarrow \begin{cases} 
-          (\text{from\_inside},\, t_{\text{curr}}), & \text{if } s_{\text{state}} = \text{from\_outside} \text{ and } t_{\text{curr}} - t_{\text{last\_cross}} > \theta_{\text{cooldown}} \\
-          (s_{\text{state}},\, t_{\text{last\_cross}}), & \text{otherwise}
-       \end{cases}
-    \end{equation}
-    If the update is triggered, the local counter increments the \textbf{IN} count by 1.
-\end{itemize}
-
-\begin{figure}[htbp]
-    \centering
-    \begin{tikzpicture}[
-        node distance=2.2cm and 2.5cm,
-        state/.style={circle, draw=teal!80, fill=teal!5, thick, minimum size=2.0cm, align=center, font=\scriptsize},
-        transition/.style={rectangle, draw=gray, fill=gray!5, dashed, minimum size=1.5cm, align=center, font=\scriptsize},
-        arrow/.style={-Stealth, thick, draw=black!80}
-    ]
-        % --- NODES ---
-        \node[state] (outside) {Region 1\\(Outside)};
-        \node[state, right=of outside] (transition) {Region 2\\(Transition)};
-        \node[state, right=of transition] (inside) {Region 3\\(Inside)};
-        
-        % --- TRANSITION SUBSTATES ---
-        \node[state, above=1.2cm of transition] (from_outside) {State:\\\texttt{'from\_outside'}};
-        \node[state, below=1.2cm of transition] (from_inside) {State:\\\texttt{'from\_inside'}};
-        
-        % --- ARROWS ---
-        % Outside to transition
-        \draw[arrow] (outside) -- (transition) node[midway, above, font=\tiny] {Enter Region 2};
-        \draw[arrow] (inside) -- (transition) node[midway, above, font=\tiny] {Enter Region 2};
-        
-        % Transition to states
-        \draw[arrow] (transition) -- (from_outside) node[midway, left, font=\tiny] {From Outside};
-        \draw[arrow] (transition) -- (from_inside) node[midway, left, font=\tiny] {From Inside};
-        
-        % Completing crossing
-        \draw[arrow, bend left=25] (from_outside) to node[midway, right, font=\tiny, align=center] {Enter Region 3 \& Cooldown OK\\$\rightarrow$ Count \textbf{IN}} (inside);
-        \draw[arrow, bend left=25] (from_inside) to node[midway, left, font=\tiny, align=center] {Enter Region 1 \& Cooldown OK\\$\rightarrow$ Count \textbf{OUT}} (outside);
-        
-        % Aborted crossings
-        \draw[arrow, bend right=20] (from_outside) to node[midway, left, font=\tiny] {Return to Region 1} (outside);
-        \draw[arrow, bend right=20] (from_inside) to node[midway, right, font=\tiny] {Return to Region 3} (inside);
-        
-    \end{tikzpicture}
-    \caption{Finite State Machine (FSM) for Parallel Double-Line Crossing}
-    \label{fig:crossing_fsm}
-\end{figure}
-
-\subsection{Dynamic Lost-Track State Inheritance}
-When pedestrians overlap, or are temporarily occluded by visual obstacles, the MOT engine can drop their detection box, clearing their state from memory. Upon recovery, they are assigned a new tracker ID. To avoid counting losses, we propose a \textbf{Dynamic Lost-Track Inheritance} heuristic.
-
-When an active ID $tid_{\text{lost}}$ is lost, its state tuple $S(tid_{\text{lost}})$ and its final position $P_{\text{last}}$ are stored in a buffer $H_{\text{lost}}$ for up to 150 frames. When a new tracker ID $tid_{\text{new}}$ appears at frame $t_{\text{curr}}$ with coordinate $P_{\text{new}}$:
-We calculate the Euclidean distance $D = \|P_{\text{new}} - P_{\text{last}}\|_2$ for all candidates in $H_{\text{lost}}$. An inheritance match is established if:
-\begin{equation}
-    t_{\text{curr}} - t_{\text{lost}} < 150 \text{ frames} \quad \text{and} \quad D < \theta_{\text{threshold}}
-\end{equation}
-The distance threshold $\theta_{\text{threshold}}$ is dynamically bounded based on the object's scale and elapsed frames to model real-world movement limits:
-\begin{equation}
-    \theta_{\text{threshold}} = \min\left(150.0,\, 0.5 \times \max(W_{\text{bbox}}, H_{\text{bbox}}) + 3.5 \times (t_{\text{curr}} - t_{\text{lost}})\right)
-\end{equation}
-Upon finding the minimum distance candidate satisfying these bounds, $tid_{\text{new}}$ inherits the historical state tuple $S(tid_{\text{lost}})$, preserving the crossing state machine.
-
-\begin{lstlisting}[language=Python, caption={Dynamic Lost-Track State Inheritance Algorithm}, label={alg:track_inheritance}, frame=single, basicstyle=\ttfamily\scriptsize]
-Algorithm 1: Dynamic Lost-Track State Inheritance
-Input: 
-  new_tracks: List of newly detected active tracker objects in frame t
-  lost_buffer: Queue of historically lost tracker states H_lost up to 150 frames
-  lost_track_window: 150 frames
-  dist_threshold_max: 150.0 pixels
-
-for new_tr in new_tracks:
-    curr_pos = new_tr.bottom_center_coordinate
-    bbox_dim = max(new_tr.width, new_tr.height)
-    
-    best_match_tid = None
-    best_match_dist = infinity
-    
-    for lost_tid, (lost_state_tuple, lost_pos, lost_frame) in lost_buffer.items():
-        elapsed_frames = t - lost_frame
-        
-        if elapsed_frames < lost_track_window:
-            dist = EuclideanDistance(curr_pos, lost_pos)
-            
-            # Dynamically compute search threshold bounding speed
-            max_allowed_dist = min(dist_threshold_max, 
-                                   0.5 * bbox_dim + 3.5 * elapsed_frames)
-            
-            if dist < max_allowed_dist and dist < best_match_dist:
-                best_match_tid = lost_tid
-                best_match_dist = dist
-                
-    if best_match_tid is not None:
-        # Match found: inherit historical state
-        new_tr.state_tuple = lost_buffer[best_match_tid].state_tuple
-        remove best_match_tid from lost_buffer
-    else:
-        # No match found: initialize new state
-        new_tr.state_tuple = None
-\end{lstlisting}
-
-\subsubsection{Novelty Validation Case Study}
-To demonstrate the mathematical validity and practical novelty of the proposed lost-track state inheritance model, we evaluate the system behavior under two distinct scenarios during a person-to-person occlusion event:
-\begin{itemize}
-    \item \textbf{Scenario A (Baseline Multi-Object Tracking):} An individual tracked as ID 15 approaches the virtual counting baseline. During a brief overlap with another pedestrian, the bounding box is obscured, causing the ByteTrack engine to drop the track ID. Upon emerging 10 frames later, the tracker assigns a new ID 26 to the same pedestrian. Because ID 26 has no prior history, its transition through the FSM triggers a duplicate crossing count, yielding a false positive error.
-    \item \textbf{Scenario B (Proposed Framework):} When ID 15 is dropped, its final position $P_{\text{last}}$ and state tuple $S(\text{ID } 15)$ are buffered in $H_{\text{lost}}$. When the person emerges and is assigned ID 26, the inheritance engine checks $H_{\text{lost}}$. Since the spatial distance $D$ satisfies $D < \theta_{\text{threshold}}$ and the temporal gap is only 10 frames, ID 26 inherits $S(\text{ID } 15)$ (originally in state \texttt{'from\_outside'}). When ID 26 crosses the inner boundary, it completes the transition smoothly. The system registers a single correct count, successfully preserving track integrity.
-\end{itemize}
 
 \subsection{Face Recognition Pipeline with Profile/Tilted Adaptation}
 Real-time facial verification is designed as a three-stage pipeline (Figure \ref{fig:face_pipeline}): detection, alignment and embedding extraction, and matching.
 
 \begin{figure}[h]
     \centering
+    \resizebox{\textwidth}{!}{%
     \begin{tikzpicture}[
         box/.style={rectangle, draw=blue!80, fill=blue!5, thick, minimum width=2.5cm, minimum height=1cm, align=center, rounded corners=3pt, font=\small},
         arrow/.style={-Stealth, thick, draw=black!80}
@@ -464,7 +294,8 @@ Real-time facial verification is designed as a three-stage pipeline (Figure \ref
         \draw[arrow] (input) -- (mtcnn);
         \draw[arrow] (mtcnn) -- (facenet);
         \draw[arrow] (facenet) -- (matching);
-    \end{tikzpicture}
+    \end{tikzpicture}%
+    }
     \caption{Three-Stage Facial Verification Pipeline}
     \label{fig:face_pipeline}
 \end{figure}
@@ -499,7 +330,7 @@ The central dashboard is designed with a responsive Glassmorphism UI using HTML5
 To secure the console without external dependencies, we implemented a custom \texttt{HMACSessionMiddleware}. It signs and verifies session cookies using HMAC-SHA256 with a local secret key. The dashboard includes a system health monitoring widget displaying real-time CPU and RAM usage, GPU load, VRAM allocation, and actual camera processing frame rates (FPS).
 
 \subsection{Computational Complexity Analysis}
-Deploying multiple deep learning and object tracking modules concurrently on an edge processor requires a clear understanding of the computational bounds. We present the asymptotic complexity of each core pipeline module in Table \ref{tab:complexity}.
+Deploying multiple deep learning modules concurrently on an edge processor requires a clear understanding of the computational bounds. We present the asymptotic complexity of each core pipeline module in Table \ref{tab:complexity}.
 
 \begin{table}[h]
     \centering
@@ -509,15 +340,13 @@ Deploying multiple deep learning and object tracking modules concurrently on an 
         \toprule
         \textbf{Module} & \textbf{Time Complexity} & \textbf{Key Factor} \\
         \midrule
-        YOLOv8s Object Detection & Proportional to $W \times H$ & Frame resolution width $W$ and height $H$ \\
-        ByteTrack Association & $O(N \cdot M)$ & Detections $N$ and active tracks $M$ per frame \\
+        YOLO-based Hazard Detection & Proportional to $W \times H$ & Frame resolution width $W$ and height $H$ \\
         Face Embeddings Matching & $O(K)$ & Total registered facial views $K$ in SQLite \\
-        Lost-Track State Inheritance & $O(|H_{\text{lost}}|)$ & Size of lost tracks buffer $|H_{\text{lost}}| \le 10$ \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-As shown in Table \ref{tab:complexity}, the processing time for the YOLOv8s object detector is directly proportional to the spatial resolution $W \times H$ of the input frames, representing the approximate computational complexity of CNN grid inference rather than a strict theoretical bounding box.
+As shown in Table \ref{tab:complexity}, the processing time for the YOLO-based object detection modules is directly proportional to the spatial resolution $W \times H$ of the input frames, representing the approximate computational complexity of CNN grid inference rather than a strict theoretical bounding box.
 
 \subsection{Database Design and Relational Schema}
 The localized storage subsystem uses SQLite to ensure zero-administration overhead on the edge node. The database file \texttt{faces.db} implements three main tables: \texttt{User}, \texttt{FaceRecord}, and \texttt{SystemEventLog}. The schema details are described below:
@@ -541,7 +370,7 @@ The localized storage subsystem uses SQLite to ensure zero-administration overhe
     \item \textbf{Table \texttt{SystemEventLog}:} Records security logs including ROI intrusion alerts, fall detections, fire anomalies, and stranger face events.
     \begin{itemize}
         \item \texttt{id} (INTEGER, Primary Key, Auto-increment)
-        \item \texttt{event\_type} (VARCHAR, e.g., \texttt{'intrusion'}, \texttt{'fall'}, \texttt{'fire'}, \texttt{'face'}, \texttt{'counter'})
+        \item \texttt{event\_type} (VARCHAR, e.g., \texttt{'intrusion'}, \texttt{'fall'}, \texttt{'fire'}, \texttt{'face'})
         \item \texttt{message} (TEXT, Not Null, descriptive alert details)
         \item \texttt{camera\_id} (VARCHAR, Not Null)
         \item \texttt{image\_path} (VARCHAR, relative path to JPEG snapshot capture)
@@ -591,17 +420,18 @@ To define system boundaries, we present the Use Case Model in Figure \ref{fig:us
         arrow/.style={-, thick, draw=black!70}
     ]
         % --- ACTORS ---
-        \node[actor={System Administrator}] (admin) at (0, 2) {};
-        \node[actor={Security Staff}] (staff) at (0, -2) {};
+        \node[actor={System Administrator}] (admin) at (0, 1.5) {};
+        \node[actor={Security Staff}] (staff) at (0, -1.5) {};
         
-        % --- USE CASES ---
-        \node[usecase] (uc1) at (5, 3.2) {View Live\\Camera Stream};
-        \node[usecase] (uc2) at (5, 1.9) {Register Face\\Embeddings};
-        \node[usecase] (uc3) at (5, 0.6) {Configure ROI\\Polygons};
+        % --- USE CASES (COLUMN 1: SHARED / READ ONLY) ---
+        \node[usecase] (uc1) at (4.5, 2.5) {View Live\\Camera Stream};
+        \node[usecase] (uc4) at (4.5, 0.2) {View System\\Event Logs};
+        \node[usecase] (uc5) at (4.5, -2.1) {Receive Remote\\Telegram Alerts};
         
-        \node[usecase] (uc4) at (5, -0.6) {View System\\Event Logs};
-        \node[usecase] (uc5) at (5, -1.9) {Receive Remote\\Telegram Alerts};
-        \node[usecase] (uc6) at (5, -3.2) {Modify System\\Configurations};
+        % --- USE CASES (COLUMN 2: ADMIN ONLY / CONFIG) ---
+        \node[usecase] (uc2) at (8.0, 2.5) {Register Face\\Embeddings};
+        \node[usecase] (uc3) at (8.0, 0.2) {Configure ROI\\Polygons};
+        \node[usecase] (uc6) at (8.0, -2.1) {Modify System\\Configurations};
         
         % --- CONNECTIONS ---
         \draw[arrow] (admin) -- (uc1);
@@ -700,44 +530,6 @@ The proposed multi-hazard detection and verification system was evaluated using 
 \subsection{Experimental Results and Performance Analysis}
 To evaluate the quantitative improvements, the proposed system was tested against multiple baseline setups under high-stress conditions. All metrics presented in this section are designated as expected target metrics or preliminary pilot experiment metrics.
 
-\subsubsection{Object Tracking and Counting Accuracy}
-Under crowded conditions with frequent overlaps and intentional boundary jitter (walking back and forth over the line), the counting errors were logged, as shown in Table \ref{tab:count_results}.
-
-\begin{table}[h]
-    \centering
-    \caption{Preliminary Counting Accuracy: Single-Line vs. Proposed Double-Line (Pilot Experiment)}
-    \label{tab:count_results}
-    \begin{tabular}{lcccc}
-        \toprule
-        \textbf{Method} & \textbf{Ground Truth} & \textbf{System Count} & \textbf{False Positives} & \textbf{Accuracy (\%)} \\
-        \midrule
-        Single Line (Baseline) & 50 & 68 & 18 (Jitter) & 64.0\% \\
-        Proposed Double-Line & 50 & 51 & 1 (ID swap) & \textbf{98.0\%} \\
-        \bottomrule
-    \end{tabular}
-\end{table}
-
-The baseline single-line system recorded 18 false positive counts because targets standing near the line fluctuated back and forth, triggering multiple counts. The proposed double-line method acts as a hysteresis buffer zone, eliminating boundary jitter.
-
-\subsubsection{Tracking Continuity and ID Swapping}
-To measure the impact of the proposed Dynamic Lost-Track State Inheritance algorithm, we conducted tracking continuity benchmarks under high occlusion. The results are summarized in Table \ref{tab:tracking_results}.
-
-\begin{table}[h]
-    \centering
-    \caption{Preliminary Tracking Continuity and ID Swapping Comparison (Pilot Experiment)}
-    \label{tab:tracking_results}
-    \begin{tabular}{lccc}
-        \toprule
-        \textbf{Method} & \textbf{Total Targets} & \textbf{Registered ID Swaps} & \textbf{Track Continuity (\%)} \\
-        \midrule
-        Standard ByteTrack (Baseline) & 50 & 12 & 88.0\% \\
-        ByteTrack + Inheritance (Proposed) & 50 & 2 & \textbf{98.0\%} \\
-        \bottomrule
-    \end{tabular}
-\end{table}
-
-By storing lost tracks in a historical buffer for up to 150 frames and matching re-emerging targets using bounding box scale and speed limits, our system reduced identity swaps from 12 to 2, increasing track continuity to 98.0\%.
-
 \subsubsection{System Latency and Frame Rates}
 We compared the frame processing rates and transmission latencies of the synchronous alert system and the proposed asynchronous thread-based dispatcher, as detailed in Table \ref{tab:latency_results}.
 
@@ -807,7 +599,7 @@ The preliminary validation targets for Face Recognition, Anomaly Detection, and 
 \end{table}
 
 \subsubsection{Evaluation Metrics and Methodology}
-We define the quantitative metrics used to evaluate the object tracking and hazard detection subsystems:
+We define the quantitative metrics used to evaluate the hazard detection subsystems:
 \begin{enumerate}
     \item \textbf{Precision ($P$):} Measures the accuracy of positive hazard predictions:
     \begin{equation}
@@ -825,12 +617,6 @@ We define the quantitative metrics used to evaluate the object tracking and haza
     \begin{equation}
         F_1 = 2 \times \frac{P \times R}{P + R}
     \end{equation}
-    
-    \item \textbf{Multi-Object Tracking Accuracy (MOTA):} The standard evaluation metric for pedestrian tracking performance, accounting for false positives, missed targets, and identity swaps:
-    \begin{equation}
-        MOTA = 1 - \frac{\sum_t (FN_t + FP_t + IDSW_t)}{\sum_t GT_t}
-    \end{equation}
-    where $FN_t$, $FP_t$, and $IDSW_t$ are the false negatives, false positives, and identity swaps at frame $t$, respectively, and $GT_t$ is the ground-truth number of pedestrian boxes.
 \end{enumerate}
 
 \subsubsection{Multi-View Facial Verification Threshold Trade-Offs}
@@ -858,13 +644,12 @@ We compare the proposed Edge-Cloud collaborative framework against a traditional
 
 \section{Conclusion and Future Work}
 
-This thesis presented a lightweight, secure, and low-cost Edge-Cloud collaborative IoT framework for real-time smart surveillance, realizing all five initial project objectives.
+This thesis presented a lightweight, secure, and low-cost Edge-Cloud collaborative IoT framework for real-time smart surveillance, realizing all technical project objectives.
 
 \subsection{Summary of Contributions}
 The major technical contributions of this project include:
 \begin{enumerate}
-    \item \textbf{Double-Line Crossing State Machine:} By replacing the sensitive single-line model with a parallel double-line projection FSM, we established a robust hysteresis buffer zone, eliminating boundary counting jitter.
-    \item \textbf{Dynamic Lost-Track State Inheritance:} We resolved counting failures under occlusion by buffering lost tracker IDs and calculating distance thresholds dynamically based on bounding box dimensions and time intervals.
+    \item \textbf{Multi-Hazard Anomaly Detection:} We integrated custom-trained YOLOv8-fall and fire detectors alongside YOLOv5 Region-of-Interest intrusion zones to robustly protect residential and office areas.
     \item \textbf{Multi-View Face Recognition:} We adapted facial verification to profile and tilted angles by tuning the MTCNN cascade thresholds and matching embeddings against a multi-view SQLite profile database.
     \item \textbf{Asynchronous Event Dispatching:} We decoupled time-critical frame capture from network-bound alert dispatches using asynchronous daemon threads, preserving high frame rates ($\ge 20$ FPS).
     \item \textbf{Glassmorphic Security Dashboard:} We developed a secure, responsive control console implementing custom HMAC-SHA256 session signed cookies and real-time edge resource logs.
