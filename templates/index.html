@@ -574,6 +574,10 @@
                         <div class="status-dot" style="background-color: var(--danger); box-shadow: 0 0 8px var(--danger-glow); animation: pulse 1s infinite;"></div>
                         <span style="color: var(--danger); font-weight: bold;">🚨 CẢNH BÁO CHÁY NỔ!</span>
                     </div>
+                    <div id="live-gas-indicator" class="status-badge" style="display: none; background: rgba(239, 68, 68, 0.15); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--danger); box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);">
+                        <div class="status-dot" style="background-color: var(--danger); box-shadow: 0 0 8px var(--danger-glow); animation: pulse 1s infinite;"></div>
+                        <span style="color: var(--danger); font-weight: bold;">💨 RÒ RỈ KHÍ GA!</span>
+                    </div>
                 </div>
             </header>
 
@@ -587,7 +591,10 @@
                 <div class="glass-card" style="margin-top: 24px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                         <h3 style="font-size: 16px; font-weight: 600;"><i class="fa-solid fa-list-ul"></i> Nhật Ký Sự Kiện Hệ Thống Trực Tuyến</h3>
-                        <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="clearLogs()">Xóa Nhật Ký</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn" style="padding: 4px 8px; font-size: 11px; background: #10b981; color: white;" onclick="unlockDoorRemote()">🔓 Mở Khóa Cửa</button>
+                            <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="clearLogs()">Xóa Nhật Ký</button>
+                        </div>
                     </div>
                     <div class="log-container" id="log-list">
                         <div class="log-item success">
@@ -1872,6 +1879,7 @@
                 document.getElementById('live-alert-indicator').style.display = data.intrusion_alert ? "inline-flex" : "none";
                 document.getElementById('live-fall-indicator').style.display = data.fall_alert ? "inline-flex" : "none";
                 document.getElementById('live-fire-indicator').style.display = data.fire_alert ? "inline-flex" : "none";
+                document.getElementById('live-gas-indicator').style.display = data.gas_alert ? "inline-flex" : "none";
                 if (data.new_logs) data.new_logs.forEach(log => addLog(log.msg, log.type));
             } catch(e) {}
         }, 1500);
@@ -1888,6 +1896,16 @@
         function clearLogs() {
             document.getElementById('log-list').innerHTML = '';
             addLog("Đã xóa nhật ký.", 'muted');
+        }
+
+        async function unlockDoorRemote() {
+            try {
+                const response = await fetch('/api/unlock_door', { method: 'POST' });
+                const data = await response.json();
+                addLog(`🔑 Lệnh điều khiển: ${data.message}`, 'info');
+            } catch(e) {
+                addLog("🚨 Lỗi khi gửi lệnh mở khóa cửa!", 'danger');
+            }
         }
 
         window.addEventListener('load', () => {

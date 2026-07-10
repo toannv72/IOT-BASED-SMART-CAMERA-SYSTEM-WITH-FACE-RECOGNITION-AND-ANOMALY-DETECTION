@@ -135,6 +135,9 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
                     [
                         {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"},
                         {"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"}
+                    ],
+                    [
+                        {"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"}
                     ]
                 ]
             }
@@ -193,6 +196,20 @@ def telegram_polling_loop():
                     for update in data["result"]:
                         offset = update["update_id"] + 1
                         
+                        # Xử lý tin nhắn văn bản (Text Commands)
+                        if "message" in update and "text" in update["message"]:
+                            msg = update["message"]
+                            chat_id = msg["chat"]["id"]
+                            txt = msg["text"].strip().lower()
+                            if txt in ("/unlock", "/mo_cua", "mo cua", "unlock", "mở cửa"):
+                                from app.processors import unlock_door
+                                unlock_door()
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "🔓 [ĐIỀU KHIỂN TỪ XA]\nĐã gửi lệnh mở cửa thành công! Khóa Solenoid sẽ được mở trong vòng 3 giây."
+                                }, timeout=5)
+                                
                         # Xử lý sự kiện bấm nút inline
                         if "callback_query" in update:
                             cb = update["callback_query"]
@@ -286,6 +303,21 @@ def telegram_polling_loop():
                                         ]
                                     ]
                                 }
+                                
+                            elif cb_data == "unlock_door":
+                                from app.processors import unlock_door
+                                unlock_door()
+                                response_text = "🔓 Đã gửi lệnh mở cửa thành công."
+                                
+                                keyboard = [
+                                    [
+                                        {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"}
+                                    ]
+                                ]
+                                if camera_id:
+                                    keyboard[0].append({"text": "⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
+                                keyboard.append([{"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"}])
+                                new_markup = {"inline_keyboard": keyboard}
                                 
                             # Phản hồi lại Telegram xác nhận bấm nút thành công
                             answer_url = f"https://api.telegram.org/bot{token}/answerCallbackQuery"

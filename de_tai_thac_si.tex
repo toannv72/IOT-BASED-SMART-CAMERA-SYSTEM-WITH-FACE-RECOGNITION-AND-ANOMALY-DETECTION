@@ -218,7 +218,7 @@ Thus, this research differentiates itself by proposing a resource-coordinated mu
 \subsection{Overall System Architecture and Data Flow}
 The proposed framework is designed as an Edge-Cloud Collaborative IoT architecture. The system is split into two primary layers:
 \begin{enumerate}
-    \item \textbf{Edge Processing Layer:} Deployed on the local hardware node, this layer handles real-time video capture, frames preprocessing, deep learning inference (YOLOv8s object tracking, MTCNN facial detection, FaceNet embedding extraction, and anomaly detection), and state tracking. It manages a circular frame buffer for video event recording.
+    \item \textbf{Edge Processing Layer:} Deployed on the local hardware node, this layer handles real-time video capture, frames preprocessing, deep learning inference (YOLOv8s object tracking, MTCNN facial detection, FaceNet embedding extraction, and anomaly detection), and state tracking, while directly integrating an MQ-2 physical gas sensor via GPIO for hazard detection. It manages a circular frame buffer for video event recording.
     \item \textbf{Backend \& Core Web Dashboard Layer:} Implemented using FastAPI (Python), this layer exposes web interfaces, manages the database (SQLite \texttt{faces.db}), and coordinates settings. An asynchronous dispatcher handles notifications.
 \end{enumerate}
 
@@ -235,6 +235,8 @@ The proposed framework is designed as an Edge-Cloud Collaborative IoT architectu
     ]
         % --- EDGE LAYER ---
         \node[box] (camera) {Camera Stream\\(RTSP/Webcam)};
+        \node[box, below=1.0cm of camera] (gassensor) {MQ-2 Gas Sensor\\(GPIO18 Interface)};
+        \node[box, below=1.0cm of gassensor] (doorlock) {Solenoid Door Lock\\(GPIO23 Control)};
         \node[box, right=1.2cm of camera] (roi) {YOLOv5 ROI\\(Intrusion\\Detection)};
         \node[box, below=0.5cm of roi] (facenet) {MTCNN + FaceNet\\(Face\\Verification)};
         \node[box, below=0.5cm of facenet] (anomaly) {Multi-Hazard\\Anomaly\\(YOLOv8-fall/fire)};
@@ -250,7 +252,7 @@ The proposed framework is designed as an Edge-Cloud Collaborative IoT architectu
         \draw[arrow] (anomaly) -- (buffer);
         
         % Edge Border
-        \node[container, fit=(camera) (roi) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Edge Processing Layer}}] (edge_group) {};
+        \node[container, fit=(camera) (gassensor) (doorlock) (roi) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Edge Processing Layer}}] (edge_group) {};
         
         % --- DISPATCHER & CLOUD/BACKEND ---
         \node[box, right=2.0cm of buffer] (dispatcher) {Asynchronous\\Alert Dispatcher\\(Daemon Threads)};
@@ -269,6 +271,8 @@ The proposed framework is designed as an Edge-Cloud Collaborative IoT architectu
         \draw[arrow] (roi) -- (dispatcher);
         \draw[arrow] (buffer) -- (dispatcher);
         \draw[arrow] (facenet) -- (dispatcher);
+        \draw[arrow] (gassensor) -- (dispatcher);
+        \draw[arrow, dashed, draw=red!70] (dispatcher) |- (doorlock);
         
         \draw[arrow] (dispatcher) -- (telegram);
         \draw[arrow] (dispatcher) -- (fastapi);
@@ -541,7 +545,7 @@ To define system boundaries, we present the Use Case Model in Figure \ref{fig:us
     ]
         % --- NODES ---
         \node[node_3d] (camera) {<<device>>\\IP Camera / Webcam\\(RTSP H.264 Stream)};
-        \node[node_3d, right=of camera] (edge) {<<device>>\\Edge Server\\(RTX 3050 GPU / PyTorch\\FastAPI Backend)};
+        \node[node_3d, right=of camera] (edge) {<<device>>\\Edge Node\\\\(Raspberry Pi 4 / PyTorch\\\\FastAPI Backend)};
         \node[node_3d, above=of edge] (web) {<<device>>\\Client Web Browser\\(Local Dashboard)};
         \node[node_3d, right=of edge] (telegram) {<<cloud>>\\Telegram API\\Cloud Servers};
         \node[node_3d, below=of telegram] (mobile) {<<device>>\\Mobile Phone\\(Administrator Client)};
@@ -564,7 +568,7 @@ While the proposed collaborative framework demonstrates high efficacy under labo
     \item \textbf{Edge Compute Scaling Bounds:} The edge processor is limited to running up to 3 concurrent camera feeds at acceptable framerates on consumer-grade laptop hardware (e.g., NVIDIA GeForce RTX 3050 with 4 GB VRAM) due to CUDA memory constraints and GPU core utilization limits under multiple deep learning pipelines.
     \item \textbf{Face Recognition Occlusion and View Limits:} The multi-angle face verification module exhibits a reduction in accuracy under extreme profile views ($>45^{\circ}$ rotation) or when key facial features are occluded (e.g., subjects wearing protective face masks or sunglasses).
     \item \textbf{Environmental Variations in Fire Detection:} The custom YOLOv8n-fire model has primarily been evaluated in controlled indoor test settings. Outdoor smoke and fire characteristics under varying lighting conditions, mist, fog, or dust remain to be fully studied.
-    \item \textbf{Physical Edge Platform Deployment:} Due to hardware availability, the current implementation is tested on simulated workstation edge nodes. Practical deployment and optimization on low-power IoT devices (such as NVIDIA Jetson Nano or Raspberry Pi 5) are reserved for future work.
+    \item \textbf{Physical Edge Platform Deployment:} The proposed system has been successfully deployed and evaluated on a physical Raspberry Pi 4 Model B (8GB RAM) connected to a USB Webcam as the target IoT edge node. Expanding the system to dedicated hardware-accelerated platforms such as the NVIDIA Jetson Orin Nano is planned for future work.
 \end{itemize}
 
 \newpage
@@ -577,28 +581,28 @@ While the proposed collaborative framework demonstrates high efficacy under labo
 This chapter presents the experimental evaluation of the proposed Edge-Cloud collaborative smart surveillance framework. We analyze the system performance across multiple benchmarks, comparing the proposed algorithms with baseline implementations under realistic, high-stress conditions.
 
 \subsection{Hardware and Software Setup}
-The framework was prototyped on a localized workstation environment simulating an edge processing node connected to camera feeds. The hardware and software environment details are summarized in Table \ref{tab:env_config}.
+The proposed framework was developed on a workstation environment and successfully deployed and evaluated on a physical Raspberry Pi 4 Model B (8GB RAM) edge node connected to a USB Webcam. The hardware and software specifications for both environments are summarized in Table \ref{tab:env_config}.
 
 \begin{table}[h]
     \centering
     \caption{Hardware and Software Environment Configuration}
     \label{tab:env_config}
-    \begin{tabular}{ll}
+    \begin{tabular}{lll}
         \toprule
-        \textbf{Component} & \textbf{Specification} \\
+        \textbf{Component} & \textbf{Workstation (Development)} & \textbf{Raspberry Pi 4 (Edge Deployment)} \\
         \midrule
-        CPU & Intel Core i7-11800H @ 2.30GHz (8 Cores, 16 Threads) \\
-        System RAM & 16 GB DDR4 \\
-        GPU & NVIDIA GeForce RTX 3050 Laptop GPU (4 GB VRAM) \\
-        CUDA Acceleration & CUDA 12.1 / PyTorch 2.5.1 CUDA-enabled \\
-        Operating System & Windows 11 Home (x64) \\
-        Python Environment & Python 3.10.11 \\
-        Key Libraries & OpenCV 4.8.1, FastAPI 0.109.0, Supervision 0.18.0 \\
+        Processor (CPU) & Intel Core i7-11800H @ 2.30GHz & Broadcom BCM2711, Quad-core Cortex-A72 @ 1.8GHz \\
+        Memory (RAM) & 16 GB DDR4 & 8 GB LPDDR4 \\
+        Graphics (GPU) & NVIDIA GeForce RTX 3050 (4 GB VRAM) & None (Optimized CPU-only execution) \\
+        Hardware Accel. & CUDA 12.1 / PyTorch CUDA & Thread synchronization \texttt{gpu\_lock} / PyTorch CPU \\
+        Operating System & Windows 11 Home (x64) & Raspberry Pi OS (64-bit) / Linux \\
+        Python Env. & Python 3.10.11 & Python 3.10+ \\
+        Key Libraries & OpenCV 4.8.1, FastAPI 0.109.0 & OpenCV 4.8.1, FastAPI 0.109.0 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-This hardware setup represents a typical cost-effective on-premise workstation that can be deployed in small-to-medium offices or residential complexes. The GPU contains CUDA tensor cores, enabling parallel execution of the multiple neural network layers.
+The workstation configuration represents a cost-effective localized server, whereas the Raspberry Pi 4 represents a low-power, lightweight embedded edge computer. The workstation utilizes CUDA Tensor cores to run parallel deep learning pipelines. In contrast, the Raspberry Pi 4 leverages the proposed \texttt{gpu\_lock} thread synchronization mechanism to schedule inference sequentially, preventing computational hotspots, memory overflows, or edge device overheating.
 
 \subsection{Dataset Profiles and Preprocessing}
 The proposed multi-hazard detection and verification system was evaluated using four distinct datasets to cover all security scenarios:

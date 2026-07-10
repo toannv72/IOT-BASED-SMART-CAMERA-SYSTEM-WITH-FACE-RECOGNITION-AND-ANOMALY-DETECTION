@@ -53,7 +53,7 @@ def gen_face_stream():
         print("[PROCESSORS] [ERROR] Không thể mở webcam cho luồng khuôn mặt!")
         return
 
-    THRESHOLD = config.settings.get("face_threshold", 0.65)  # Ngưỡng Euclid distance sau chuẩn hóa L2 (tương đương cosine distance) để nhận diện người quen
+    THRESHOLD = config.settings.get("face_threshold", 0.80)  # Ngưỡng Euclid distance sau chuẩn hóa L2 (tương đương cosine distance) để nhận diện người quen
     frame_cnt = 0
     print("[PROCESSORS] Khởi tạo thành công luồng nhận diện khuôn mặt.")
 
@@ -87,6 +87,8 @@ def gen_face_stream():
                 with torch.no_grad():
                     faces = mtcnn_multi(img_pil)
             if faces is not None:
+                # Che khuất phần mặt dưới (45% từ dưới lên) để hỗ trợ nhận diện khẩu trang
+                faces[:, :, 88:, :] = 0.0
                 # Trích xuất đặc trưng embedding
                 with gpu_lock:
                     with torch.no_grad():
@@ -486,6 +488,9 @@ def stop_camera_thread(camera_id: str):
 
 def start_all_camera_threads():
     try:
+        # Khởi chạy luồng giám sát cảm biến khí Ga MQ-2
+        start_gas_sensor_monitoring()
+        
         cameras = config.get_cameras_config()
         for cam in cameras:
             camera_id = cam["camera_id"]
@@ -632,7 +637,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         fire_frame_buf_thr = config.settings.get("fire_frame_buffer", 25)
         cooldown_thr = config.settings.get("counter_cooldown", 45)
         alerts_enabled = config.settings.get("alerts_enabled", True)
-        face_thr = config.settings.get("face_threshold", 0.65)
+        face_thr = config.settings.get("face_threshold", 0.80)
 
         is_paused = time.time() < paused_cameras.get(camera_id, 0)
 
@@ -757,6 +762,8 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     with torch.no_grad():
                         faces = mtcnn_multi(img_pil)
                 if faces is not None:
+                    # Che khuất phần mặt dưới (45% từ dưới lên) để hỗ trợ nhận diện khẩu trang
+                    faces[:, :, 88:, :] = 0.0
                     with gpu_lock:
                         with torch.no_grad():
                             embeddings = resnet(faces.to(device)).detach().cpu().numpy()
@@ -1270,3 +1277,124 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         except Exception:
             pass
     cap.release()
+
+# =========================================================================
+# PHÂN HỆ CẢM BIẾN KHÍ GA MQ-2 (ĐỒNG BỘ CHO THIẾT BỊ BIÊN RASPBERRY PI 4)
+# =========================================================================
+gas_monitoring_active = False
+
+def start_gas_sensor_monitoring():
+    global gas_monitoring_active
+    if gas_monitoring_active:
+        return
+    gas_monitoring_active = True
+    
+    t = threading.Thread(target=_gas_sensor_loop, daemon=True)
+    t.start()
+    print("[GAS SENSOR] Bắt đầu khởi chạy luồng nền giám sát cảm biến khí Ga.")
+
+def _gas_sensor_loop():
+    has_gpio = False
+    try:
+        import RPi.GPIO as GPIO
+        has_gpio = True
+    except ImportError:
+        print("[GAS SENSOR] [WARNING] RPi.GPIO không khả dụng (Chạy chế độ giả lập).")
+        
+    GAS_PIN = 18 # GPIO 18 (Pin 12)
+    
+    if has_gpio:
+        try:
+            GPIO.setmode(GPIO.BCM)
+            # MQ-2 DO pin outputs LOW (0) when gas is detected, or HIGH (1) when clean.
+            # We configure pull-up to keep it stable.
+            GPIO.setup(GAS_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        except Exception as e:
+            print(f"[GAS SENSOR] [ERROR] Không thể khởi tạo GPIO: {e}")
+            has_gpio = False
+
+    cooldown = 0
+    while True:
+        try:
+            if has_gpio:
+                is_gas_detected = (GPIO.input(GAS_PIN) == GPIO.LOW)
+            else:
+                # Đọc trạng thái giả lập từ SystemStatus
+                is_gas_detected = getattr(SystemStatus, "mock_gas_leak", False)
+                
+            if is_gas_detected:
+                if not SystemStatus.gas_active:
+                    SystemStatus.gas_active = True
+                    SystemStatus.add_log("🚨 CẢNH BÁO: Phát hiện rò rỉ khí GA tại cảm biến MQ-2!", "danger")
+                
+                # Gửi cảnh báo Telegram với cooldown 30 giây tránh spam
+                if time.time() - cooldown > 30:
+                    cooldown = time.time()
+                    try:
+                        send_telegram_alert(
+                            message="🚨 [CẢNH BÁO NGUY HIỂM]\nPhát hiện sự cố RÒ RỈ KHÍ GA tại cảm biến biên MQ-2!",
+                            alert_type="gas"
+                        )
+                    except Exception as e:
+                        print(f"[GAS SENSOR] [ERROR] Lỗi gửi tin Telegram: {e}")
+            else:
+                if SystemStatus.gas_active:
+                    SystemStatus.gas_active = False
+                    SystemStatus.add_log("💨 Trạng thái khí ga đã trở về mức an toàn.", "success")
+                    
+            time.sleep(1.0)
+        except Exception as e:
+            print(f"[GAS SENSOR] Lỗi vòng lặp giám sát: {e}")
+            time.sleep(5.0)
+
+# =========================================================================
+# PHÂN HỆ ĐIỀU KHIỂN KHÓA CỬA TỰ ĐỘNG (SOLENOID DOOR LOCK VIA GPIO)
+# =========================================================================
+def unlock_door():
+    """Kích hoạt mở khóa cửa bằng luồng nền bất đồng bộ"""
+    t = threading.Thread(target=_unlock_door_worker, daemon=True)
+    t.start()
+
+def _unlock_door_worker():
+    # Tránh kích hoạt trùng lặp khi cửa đang mở
+    if SystemStatus.door_unlock_active:
+        return
+        
+    SystemStatus.door_unlock_active = True
+    SystemStatus.add_log("🔑 HỆ THỐNG: Đang kích hoạt mở khóa cửa (3 giây)...", "info")
+    
+    has_gpio = False
+    try:
+        import RPi.GPIO as GPIO
+        has_gpio = True
+    except ImportError:
+        pass
+        
+    UNLOCK_PIN = 23 # GPIO 23 (Pin 16)
+    
+    if has_gpio:
+        try:
+            orig_mode = GPIO.getmode()
+            if orig_mode is None:
+                GPIO.setmode(GPIO.BCM)
+                
+            GPIO.setup(UNLOCK_PIN, GPIO.OUT)
+            # Kích hoạt Relay mở khóa (HIGH)
+            GPIO.output(UNLOCK_PIN, GPIO.HIGH)
+            print(f"[DOOR LOCK] GPIO {UNLOCK_PIN} set to HIGH (Door Unlocked).")
+        except Exception as e:
+            print(f"[DOOR LOCK] [ERROR] Lỗi điều khiển GPIO mở cửa: {e}")
+            has_gpio = False
+
+    # Giữ cửa mở trong 3 giây
+    time.sleep(3.0)
+    
+    if has_gpio:
+        try:
+            GPIO.output(UNLOCK_PIN, GPIO.LOW)
+            print(f"[DOOR LOCK] GPIO {UNLOCK_PIN} set to LOW (Door Locked).")
+        except Exception as e:
+            print(f"[DOOR LOCK] [ERROR] Lỗi khóa cửa GPIO: {e}")
+            
+    SystemStatus.door_unlock_active = False
+    SystemStatus.add_log("🔒 HỆ THỐNG: Cửa đã tự động khóa lại.", "muted")

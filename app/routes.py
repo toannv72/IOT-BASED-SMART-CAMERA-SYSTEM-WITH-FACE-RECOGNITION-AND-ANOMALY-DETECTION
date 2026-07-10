@@ -191,6 +191,7 @@ def get_system_status(request: Request):
         "intrusion_alert": SystemStatus.intrusion_active,
         "fall_alert": SystemStatus.fall_active,
         "fire_alert": SystemStatus.fire_active,
+        "gas_alert": SystemStatus.gas_active,
         "new_logs": logs_to_return
     }
 
@@ -520,6 +521,8 @@ async def register_face(request: Request, name: str = Form(...), file: UploadFil
     if face is None:
         raise HTTPException(status_code=400, detail="Không tìm thấy khuôn mặt nào trong ảnh!")
         
+    # Che khuất phần mặt dưới (45% từ dưới lên) để hỗ trợ nhận diện khẩu trang
+    face[:, 88:, :] = 0.0
     face = face.unsqueeze(0).to(device)
     embedding = resnet(face).detach().cpu().numpy()[0]
     # Chuẩn hóa L2-norm trước khi lưu vào CSDL để tăng độ chính xác so khớp
@@ -916,3 +919,20 @@ def delete_recording_api(filename: str, request: Request):
             raise HTTPException(status_code=500, detail=f"Không thể xóa tệp: {e}")
     else:
         raise HTTPException(status_code=404, detail="Tệp không tồn tại!")
+
+@app.get("/api/test_gas_leak")
+def test_gas_leak_api(active: bool, request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+    
+    SystemStatus.mock_gas_leak = active
+    return {"message": f"Đã thiết lập trạng thái giả lập khí ga: {active}", "mock_gas_leak": active}
+
+@app.post("/api/unlock_door")
+def unlock_door_api(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    from app.processors import unlock_door
+    unlock_door()
+    return {"message": "Đã kích hoạt mở khóa cửa thành công!"}

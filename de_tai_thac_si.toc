@@ -22,20 +22,20 @@
 \contentsline {subsection}{\numberline {3.6}Web Dashboard \& Session Security}{11}{subsection.3.6}%
 \contentsline {subsection}{\numberline {3.7}Computational Complexity Analysis}{11}{subsection.3.7}%
 \contentsline {subsection}{\numberline {3.8}Database Design and Relational Schema}{12}{subsection.3.8}%
-\contentsline {subsection}{\numberline {3.9}Security and Privacy Considerations}{12}{subsection.3.9}%
+\contentsline {subsection}{\numberline {3.9}Security and Privacy Considerations}{13}{subsection.3.9}%
 \contentsline {subsection}{\numberline {3.10}Use Case and Physical Deployment Modeling}{13}{subsection.3.10}%
-\contentsline {subsection}{\numberline {3.11}Current System Limitations}{14}{subsection.3.11}%
-\contentsline {section}{\numberline {4}Evaluation and Discussion}{15}{section.4}%
-\contentsline {subsection}{\numberline {4.1}Hardware and Software Setup}{15}{subsection.4.1}%
-\contentsline {subsection}{\numberline {4.2}Dataset Profiles and Preprocessing}{15}{subsection.4.2}%
-\contentsline {subsection}{\numberline {4.3}Experimental Results and Performance Analysis}{16}{subsection.4.3}%
-\contentsline {subsubsection}{\numberline {4.3.1}System Latency and Frame Rates}{16}{subsubsection.4.3.1}%
-\contentsline {subsubsection}{\numberline {4.3.2}Preliminary Benchmarks for Validation}{16}{subsubsection.4.3.2}%
-\contentsline {subsubsection}{\numberline {4.3.3}Comparative Baseline Analysis and Model Selection}{16}{subsubsection.4.3.3}%
-\contentsline {subsubsection}{\numberline {4.3.4}Evaluation Metrics and Methodology}{17}{subsubsection.4.3.4}%
-\contentsline {subsubsection}{\numberline {4.3.5}Multi-View Facial Verification Threshold Trade-Offs}{18}{subsubsection.4.3.5}%
-\contentsline {subsubsection}{\numberline {4.3.6}Latency vs. Channel Scalability Analysis}{18}{subsubsection.4.3.6}%
-\contentsline {subsection}{\numberline {4.4}Discussion and Comparative Summary}{19}{subsection.4.4}%
-\contentsline {section}{\numberline {5}Conclusion and Future Work}{20}{section.5}%
-\contentsline {subsection}{\numberline {5.1}Summary of Contributions}{20}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Future Research Directions}{20}{subsection.5.2}%
+\contentsline {subsection}{\numberline {3.11}Current System Limitations}{13}{subsection.3.11}%
+\contentsline {section}{\numberline {4}Evaluation and Discussion}{16}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Hardware and Software Setup}{16}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Dataset Profiles and Preprocessing}{16}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Experimental Results and Performance Analysis}{17}{subsection.4.3}%
+\contentsline {subsubsection}{\numberline {4.3.1}System Latency and Frame Rates}{17}{subsubsection.4.3.1}%
+\contentsline {subsubsection}{\numberline {4.3.2}Preliminary Benchmarks for Validation}{17}{subsubsection.4.3.2}%
+\contentsline {subsubsection}{\numberline {4.3.3}Comparative Baseline Analysis and Model Selection}{17}{subsubsection.4.3.3}%
+\contentsline {subsubsection}{\numberline {4.3.4}Evaluation Metrics and Methodology}{18}{subsubsection.4.3.4}%
+\contentsline {subsubsection}{\numberline {4.3.5}Multi-View Facial Verification Threshold Trade-Offs}{19}{subsubsection.4.3.5}%
+\contentsline {subsubsection}{\numberline {4.3.6}Latency vs. Channel Scalability Analysis}{19}{subsubsection.4.3.6}%
+\contentsline {subsection}{\numberline {4.4}Discussion and Comparative Summary}{20}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Conclusion and Future Work}{21}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Summary of Contributions}{21}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Future Research Directions}{21}{subsection.5.2}%

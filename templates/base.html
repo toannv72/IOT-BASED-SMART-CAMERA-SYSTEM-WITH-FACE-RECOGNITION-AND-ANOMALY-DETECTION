@@ -760,6 +760,13 @@
                         </div>
                         <span style="color: var(--danger); font-weight: bold;">🚨 CẢNH BÁO CHÁY NỔ!</span>
                     </div>
+                    <div id="live-gas-indicator" class="status-badge"
+                        style="display: none; background: rgba(239, 68, 68, 0.15); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--danger); box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);">
+                        <div class="status-dot"
+                            style="background-color: var(--danger); box-shadow: 0 0 8px var(--danger-glow); animation: pulse 1s infinite;">
+                        </div>
+                        <span style="color: var(--danger); font-weight: bold;">💨 RÒ RỈ KHÍ GA!</span>
+                    </div>
                 </div>
             </header>
 
@@ -780,6 +787,7 @@
                 document.getElementById('live-alert-indicator').style.display = data.intrusion_alert ? "inline-flex" : "none";
                 document.getElementById('live-fall-indicator').style.display = data.fall_alert ? "inline-flex" : "none";
                 document.getElementById('live-fire-indicator').style.display = data.fire_alert ? "inline-flex" : "none";
+                document.getElementById('live-gas-indicator').style.display = data.gas_alert ? "inline-flex" : "none";
                 if (typeof handleSystemStatusUpdate === 'function') {
                     handleSystemStatusUpdate(data);
                 }

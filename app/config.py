@@ -48,7 +48,7 @@ DEFAULT_SETTINGS = {
     "cleanup_older_than_days": 7,
     "loitering_threshold": 10,
     "face_log_cooldown": 30,
-    "face_threshold": 0.70,
+    "face_threshold": 0.80,
     "fire_conf_threshold": 0.55,
     "fire_frame_buffer": 25,
     "record_full_video": False
@@ -175,6 +175,10 @@ class SystemStatus:
     intrusion_active = False
     fall_active = False
     fire_active = False
+    gas_active = False
+    mock_gas_leak = False
+    door_unlock_active = False
+    mock_door_unlock = False
     new_logs = []
     log_lock = threading.Lock()
     

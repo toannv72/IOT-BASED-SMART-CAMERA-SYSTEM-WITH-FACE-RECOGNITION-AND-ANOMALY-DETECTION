@@ -201,7 +201,7 @@ Phát hiện ngã dựa trên thị giác máy tính thường sử dụng các 
 \subsection{Tóm tắt tài liệu và Tổng hợp khoảng trống nghiên cứu}
 Tổng hợp và đánh giá tài liệu nghiên cứu hiện trạng chỉ ra một số khoảng trống lớn mà luận văn này hướng tới giải quyết:
 \begin{itemize}
-    \item \textbf{Thiếu hụt các khung giám sát đa nguy cơ ở biên (Edge):} Hầu hết các nghiên cứu hiện nay về tính toán biên trong giám sát video chỉ tập trung vào các tác vụ đơn lẻ, cô lập (như chỉ xác thực khuôn mặt hoặc chỉ phát hiện ngã). Hiện tại đang thiếu các giải pháp tích hợp đa nhiệm, cho phép chạy đồng thời cả xác thực khuôn mặt, phát hiện xâm nhập ROI và phát hiện bất thường đa nguy cơ (ngã, hỏa hoạn) trên cùng một thiết bị biên tài nguyên yếu.
+    \item \textbf{Thiếu hụt các khung giám sát đa nguy cơ ở biên (Edge):} Hầu hết các nghiên cứu hiện nay về tính toán biên trong giám sát video chỉ tập trung vào các tác vụ đơn lẻ, cô lập (như chỉ xác thực khuôn mặt hoặc chỉ phát hiện ngã). Hiện tại đang thiếu các giải pháp tích hợp đa nhiệm, cho phép chạy đồng thời cả xác thực khuôn mặt, phát hiện xâm nhập ROI và phát hiện bất thường đa nguy cơ (ngã, hỏa hoạn, rò rỉ khí ga) trên cùng một thiết bị biên tài nguyên yếu.
     \item \textbf{Sự phụ thuộc vào dịch vụ đám mây (Cloud):} Các hệ thống giám sát đa tác vụ hiện có thường chuyển luồng video về Cloud để suy luận học sâu. Điều này làm tăng độ trễ mạng, chi phí băng thông và đặc biệt là đe dọa nghiêm trọng quyền riêng tư dữ liệu cá nhân khi truyền tải dữ liệu khuôn mặt nhạy cảm. Việc giải quyết bài toán suy luận đa tác vụ cục bộ trong thời gian thực là một thách thức lớn về kiến trúc phần mềm.
     \item \textbf{Tính phù hợp của mô hình xác thực trên thiết bị biên:} Các mô hình nhận diện khuôn mặt tiên tiến như ArcFace \cite{arcface_2019} tuy đạt độ chính xác tối ưu trên máy chủ có GPU lớn nhưng lại quá nặng (sử dụng các mạng backbone sâu như ResNet-50 hay ResNet-100) để chạy thực tế trên CPU của Raspberry Pi 4. MobileFaceNet tuy nhẹ nhưng tối ưu cho mở khóa màn hình điện thoại (khoảng cách cực gần) và đòi hỏi chất lượng căn chỉnh mặt rất cao. Cặp mô hình \textbf{MTCNN + FaceNet} (sử dụng backbone Inception-ResNet-v1 hoặc MobileNet gọn nhẹ) mang lại sự đánh đổi hoàn hảo giữa độ trễ xử lý cục bộ (dưới 100ms) và độ chính xác (~98.2\%), cho phép nút biên hoạt động mượt mà không cần GPU ngoài.
 \end{itemize}
@@ -217,7 +217,7 @@ Do đó, nghiên cứu này tạo nên sự khác biệt bằng cách đề xu�
 \subsection{Kiến trúc hệ thống tổng thể và Luồng dữ liệu}
 Khung kết nối đề xuất được thiết kế theo kiến trúc cộng tác Edge-Cloud IoT. Hệ thống được chia thành hai lớp chính:
 \begin{enumerate}
-    \item \textbf{Lớp xử lý biên (Edge Processing Layer):} Được triển khai trên thiết bị phần cứng cục bộ, lớp này đảm nhận việc thu nhận luồng video thời gian thực, tiền xử lý khung hình, suy luận các mô hình học sâu (nhận dạng khuôn mặt MTCNN+FaceNet, phát hiện xâm nhập ROI bằng YOLOv5 và phát hiện ngã/hỏa hoạn bằng YOLOv8), và theo dõi trạng thái. Lớp này quản lý một hàng đợi đệm vòng trong RAM để ghi video sự kiện.
+    \item \textbf{Lớp xử lý biên (Edge Processing Layer):} Được triển khai trên thiết bị phần cứng cục bộ, lớp này đảm nhận việc thu nhận luồng video thời gian thực, tiền xử lý khung hình, suy luận các mô hình học sâu (nhận dạng khuôn mặt MTCNN+FaceNet, phát hiện xâm nhập ROI bằng YOLOv5 và phát hiện ngã/hỏa hoạn bằng YOLOv8), đồng thời trực tiếp tích hợp cảm biến khí ga MQ-2 thông qua cổng GPIO để giám sát rò rỉ khí ga. Lớp này quản lý một hàng đợi đệm vòng trong RAM để ghi video sự kiện.
     \item \textbf{Lớp Dashboard Web \& Backend Server:} Được phát triển bằng FastAPI (Python), lớp này cung cấp các giao diện web, quản lý cơ sở dữ liệu SQLite (\texttt{faces.db}) và phối hợp cấu hình cài đặt. Bộ điều phối bất đồng bộ sẽ chịu trách nhiệm gửi các cảnh báo.
 \end{enumerate}
 
@@ -234,6 +234,8 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
     ]
         % --- EDGE LAYER ---
         \node[box] (camera) {Luồng Camera\\(RTSP/Webcam)};
+        \node[box, below=1.0cm of camera] (gassensor) {Cảm biến khí ga MQ-2\\(Giao tiếp GPIO18)};
+        \node[box, below=1.0cm of gassensor] (doorlock) {Rơ-le Khóa cửa điện từ\\(Điều khiển GPIO23)};
         \node[box, right=1.2cm of camera] (roi) {YOLOv5 ROI\\(Phát hiện\\xâm nhập)};
         \node[box, below=0.5cm of roi] (facenet) {MTCNN + FaceNet\\(Xác thực\\khuôn mặt)};
         \node[box, below=0.5cm of facenet] (anomaly) {Bất thường\\đa nguy cơ\\(YOLOv8-fall/fire)};
@@ -249,7 +251,7 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
         \draw[arrow] (anomaly) -- (buffer);
         
         % Edge Border
-        \node[container, fit=(camera) (roi) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Lớp xử lý biên (Edge)}}] (edge_group) {};
+        \node[container, fit=(camera) (gassensor) (doorlock) (roi) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Lớp xử lý biên (Edge)}}] (edge_group) {};
         
         % --- DISPATCHER & CLOUD/BACKEND ---
         \node[box, right=2.0cm of buffer] (dispatcher) {Bộ điều phối\\cảnh báo\\bất đồng bộ\\(Luồng Daemon)};
@@ -268,6 +270,8 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
         \draw[arrow] (roi) -- (dispatcher);
         \draw[arrow] (buffer) -- (dispatcher);
         \draw[arrow] (facenet) -- (dispatcher);
+        \draw[arrow] (gassensor) -- (dispatcher);
+        \draw[arrow, dashed, draw=red!70] (dispatcher) |- (doorlock);
         
         \draw[arrow] (dispatcher) -- (telegram);
         \draw[arrow] (dispatcher) -- (fastapi);
@@ -540,7 +544,7 @@ An ninh và quyền riêng tư của người dùng được ưu tiên thiết k
     ]
         % --- NODES ---
         \node[node_3d] (camera) {<<thiết bị>>\\IP Camera / Webcam\\(Luồng RTSP H.264)};
-        \node[node_3d, right=of camera] (edge) {<<thiết bị>>\\Edge Server\\(RTX 3050 GPU / PyTorch\\FastAPI Backend)};
+        \node[node_3d, right=of camera] (edge) {<<thiết bị>>\\Edge Node\\\\(Raspberry Pi 4 / PyTorch\\\\FastAPI Backend)};
         \node[node_3d, above=of edge] (web) {<<thiết bị>>\\Trình duyệt Client\\(Bảng điều khiển cục bộ)};
         \node[node_3d, right=of edge] (telegram) {<<đám mây>>\\Máy chủ đám mây\\Telegram API};
         \node[node_3d, below=of telegram] (mobile) {<<thiết bị>>\\Điện thoại di động\\(Client quản trị viên)};
@@ -563,7 +567,7 @@ Mặc dù khung kết nối cộng tác đề xuất chứng minh được tính
     \item \textbf{Giới hạn quy mô tính toán biên:} Bộ xử lý biên bị giới hạn chạy tối đa 3 luồng camera đồng thời ở tốc độ khung hình chấp nhận được trên phần cứng máy tính xách tay thông thường (ví dụ: NVIDIA GeForce RTX 3050 với 4 GB VRAM) do các ràng buộc về bộ nhớ CUDA và giới hạn sử dụng nhân GPU dưới tác động của nhiều đường ống học sâu chạy đồng hành.
     \item \textbf{Hạn chế về góc nghiêng và che khuất khi nhận diện khuôn mặt:} Mô-đun xác thực khuôn mặt đa góc nhìn bị giảm độ chính xác dưới các góc nghiêng cực đoan ($>45^{\circ}$ quay đầu) hoặc khi các đặc trưng khuôn mặt chính bị che khuất (ví dụ: đối tượng đeo khẩu trang y tế hoặc đeo kính râm).
     \item \textbf{Biến động môi trường trong phát hiện hỏa hoạn:} Mô hình YOLOv8n-fire tùy chỉnh chủ yếu được đánh giá trong môi trường thử nghiệm kiểm soát trong nhà. Các đặc điểm của khói và lửa ngoài trời dưới các điều kiện ánh sáng thay đổi, sương mù hoặc bụi bẩn vẫn cần được nghiên cứu thêm.
-    \item \textbf{Triển khai thực tế trên phần cứng biên IoT:} Do tính sẵn có của thiết bị phần cứng, phiên bản hiện tại đang được thử nghiệm trên các nút biên mô phỏng bằng máy trạm. Việc triển khai thực tế và tối ưu hóa hệ thống trên các thiết bị nhúng công suất thấp (như NVIDIA Jetson Nano hoặc Raspberry Pi 5) được dành riêng cho các công việc trong tương lai.
+    \item \textbf{Triển khai thực tế trên phần cứng biên IoT:} Hệ thống đã được triển khai và kiểm thử thực tế thành công trên phần cứng Raspberry Pi 4 Model B (8GB RAM) kết nối với Webcam USB đóng vai trò làm nút biên IoT. Việc mở rộng hệ thống lên các dòng vi xử lý biên có tăng tốc phần cứng GPU chuyên dụng như NVIDIA Jetson Orin Nano được định hướng cho các công việc tương lai.
 \end{itemize}
 
 \newpage
@@ -576,28 +580,28 @@ Mặc dù khung kết nối cộng tác đề xuất chứng minh được tính
 Chương này trình bày các đánh giá thực nghiệm của khung kết nối giám sát thông minh cộng tác Edge-Cloud đề xuất. Chúng tôi phân tích hiệu năng hệ thống qua nhiều thử nghiệm, so sánh các thuật toán được thiết kế với các cấu hình cơ sở trong các điều kiện thực tế tải cao.
 
 \subsection{Thiết lập Phần cứng và Phần mềm}
-Khung kết nối được thử nghiệm trên môi trường máy trạm cục bộ mô phỏng nút xử lý biên kết nối với luồng camera. Chi tiết về môi trường phần cứng và phần mềm được tóm tắt trong Bảng 4.1.
+Khung kết nối được phát triển trên môi trường máy trạm và triển khai thực tế trên thiết bị biên nhúng Raspberry Pi 4 Model B (8GB RAM) kết nối với Webcam. Chi tiết về cấu hình phần cứng và phần mềm của cả hai hệ thống được tóm tắt trong Bảng 4.1.
 
 \begin{table}[h]
     \centering
     \caption{Cấu hình môi trường phần cứng và phần mềm}
     \label{tab:env_config}
-    \begin{tabular}{ll}
+    \begin{tabular}{lll}
         \toprule
-        \textbf{Thành phần} & \textbf{Thông số kỹ thuật} \\
+        \textbf{Thành phần} & \textbf{Workstation (Phát triển)} & \textbf{Raspberry Pi 4 (Thiết bị biên)} \\
         \midrule
-        Bộ vi xử lý (CPU) & Intel Core i7-11800H @ 2.30GHz (8 nhân, 16 luồng) \\
-        Bộ nhớ hệ thống (RAM) & 16 GB DDR4 \\
-        Bộ xử lý đồ họa (GPU) & NVIDIA GeForce RTX 3050 Laptop GPU (4 GB VRAM) \\
-        Tăng tốc CUDA & CUDA 12.1 / PyTorch 2.5.1 kích hoạt CUDA \\
-        Hệ điều hành & Windows 11 Home (x64) \\
-        Môi trường Python & Python 3.10.11 \\
-        Thư viện chính & OpenCV 4.8.1, FastAPI 0.109.0, Supervision 0.18.0 \\
+        Bộ vi xử lý (CPU) & Intel Core i7-11800H @ 2.30GHz & Broadcom BCM2711, 4 nhân Cortex-A72 @ 1.8GHz \\
+        Bộ nhớ (RAM) & 16 GB DDR4 & 8 GB LPDDR4 \\
+        Xử lý đồ họa (GPU) & NVIDIA GeForce RTX 3050 (4 GB VRAM) & Không (Sử dụng tối ưu hóa CPU) \\
+        Tăng tốc phần cứng & CUDA 12.1 / PyTorch CUDA & Khóa đồng bộ luồng \texttt{gpu\_lock} / PyTorch CPU \\
+        Hệ điều hành & Windows 11 Home (x64) & Raspberry Pi OS (64-bit) \\
+        Python & Python 3.10.11 & Python 3.10+ \\
+        Thư viện chính & OpenCV 4.8.1, FastAPI 0.109.0 & OpenCV 4.8.1, FastAPI 0.109.0 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-Cấu hình phần cứng này đại diện cho một máy trạm tại chỗ có chi phí hiệu quả, phù hợp để triển khai tại các hộ gia đình hoặc văn phòng vừa và nhỏ. GPU chứa các nhân Tensor CUDA, cho phép thực thi song song nhiều luồng xử lý mạng nơ-ron tích chập.
+Cấu hình phần cứng máy trạm đại diện cho một máy chủ có chi phí hiệu quả, trong khi nút biên Raspberry Pi 4 đại diện cho thiết bị nhúng thực tế công suất thấp, phù hợp để triển khai tại các hộ gia đình hoặc văn phòng vừa và nhỏ. GPU của máy trạm chứa các nhân Tensor CUDA, trong khi CPU của Raspberry Pi 4 tận dụng khóa đồng bộ hóa luồng \texttt{gpu\_lock} để thực thi an toàn các tác vụ deep learning mà không gây quá nhiệt hay xung đột bộ nhớ.
 
 \subsection{Đặc tính bộ dữ liệu và Tiền xử lý}
 Hệ thống phát hiện nguy cơ và xác thực đề xuất được đánh giá trên 4 bộ dữ liệu khác nhau để kiểm thử đầy đủ các kịch bản an ninh:
