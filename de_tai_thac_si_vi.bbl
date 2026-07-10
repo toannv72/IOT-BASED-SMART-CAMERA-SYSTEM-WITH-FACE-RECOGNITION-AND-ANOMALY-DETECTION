@@ -326,6 +326,57 @@
       \verb https://arxiv.org/abs/1503.03832
       \endverb
     \endentry
+    \entry{arcface_2019}{inproceedings}{}{}
+      \name{author}{4}{}{%
+        {{hash=6ead2c77e3080af378f5abe533067479}{%
+           family={Deng},
+           familyi={D\bibinitperiod},
+           given={Jiankang},
+           giveni={J\bibinitperiod}}}%
+        {{hash=5dfa2e1cec77c8779469085a05d6a696}{%
+           family={Guo},
+           familyi={G\bibinitperiod},
+           given={Jia},
+           giveni={J\bibinitperiod}}}%
+        {{hash=1f63757fcdc710438bd7338775075c08}{%
+           family={Xue},
+           familyi={X\bibinitperiod},
+           given={Niannan},
+           giveni={N\bibinitperiod}}}%
+        {{hash=2ac8d8aacb76b57beadc21f996305b69}{%
+           family={Zafeiriou},
+           familyi={Z\bibinitperiod},
+           given={Stefanos},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{496a2d2cd89373a6e59c36c3c978ab6a}
+      \strng{fullhash}{059066ab6364c2797ed408af6197e3c2}
+      \strng{fullhashraw}{059066ab6364c2797ed408af6197e3c2}
+      \strng{bibnamehash}{059066ab6364c2797ed408af6197e3c2}
+      \strng{authorbibnamehash}{059066ab6364c2797ed408af6197e3c2}
+      \strng{authornamehash}{496a2d2cd89373a6e59c36c3c978ab6a}
+      \strng{authorfullhash}{059066ab6364c2797ed408af6197e3c2}
+      \strng{authorfullhashraw}{059066ab6364c2797ed408af6197e3c2}
+      \field{sortinit}{7}
+      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)}
+      \field{note}{Available: \url{https://arxiv.org/abs/1801.07698}}
+      \field{title}{ArcFace: Additive Angular Margin Loss for Deep Face Recognition}
+      \field{year}{2019}
+      \field{pages}{4690\bibrangedash 4699}
+      \range{pages}{10}
+      \verb{doi}
+      \verb 10.1109/CVPR.2019.00482
+      \endverb
+      \verb{urlraw}
+      \verb https://arxiv.org/abs/1801.07698
+      \endverb
+      \verb{url}
+      \verb https://arxiv.org/abs/1801.07698
+      \endverb
+    \endentry
   \enddatalist
 \endrefsection
 \endinput

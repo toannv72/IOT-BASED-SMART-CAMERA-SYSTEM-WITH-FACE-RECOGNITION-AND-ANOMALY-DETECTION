@@ -10,11 +10,15 @@ import torch
 import supervision as sv
 
 # Import các biến cấu hình và mô hình AI từ các package
+import threading
 import app.config as config
 from app.config import SystemStatus
 from app.ai import device, mtcnn_multi, resnet, yolov5_model, yolov8_model, yolov8_pose_model, yolov8_fall_model, yolov8_fire_model
 from app.alerts import send_telegram_alert
 from app.database import SessionLocal, FaceRecord
+
+# Khóa Lock dùng chung toàn cục để đồng bộ suy luận trên thiết bị biên CPU/GPU (Tránh xung đột/Nghẽn cổ chai)
+gpu_lock = threading.Lock()
 
 # Biến lưu trữ FPS đo được thời gian thực cho từng luồng camera
 camera_fps = {
@@ -74,13 +78,19 @@ def gen_face_stream():
 
         # 3. Phát hiện khuôn mặt bằng MTCNN
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        boxes, _ = mtcnn_multi.detect(img_pil)
+        with gpu_lock:
+            with torch.no_grad():
+                boxes, _ = mtcnn_multi.detect(img_pil)
         
         if boxes is not None:
-            faces = mtcnn_multi(img_pil)
+            with gpu_lock:
+                with torch.no_grad():
+                    faces = mtcnn_multi(img_pil)
             if faces is not None:
                 # Trích xuất đặc trưng embedding
-                embeddings = resnet(faces.to(device)).detach().cpu().numpy()
+                with gpu_lock:
+                    with torch.no_grad():
+                        embeddings = resnet(faces.to(device)).detach().cpu().numpy()
                 
                 for box, emb in zip(boxes, embeddings):
                     x1, y1, x2, y2 = [int(b) for b in box]
@@ -166,7 +176,9 @@ def gen_roi_stream():
             continue
             
         # 1. Phát hiện người bằng YOLOv5s
-        results = yolov5_model(frame)
+        with gpu_lock:
+            with torch.no_grad():
+                results = yolov5_model(frame)
         detections = results.xyxy[0].cpu().numpy()
         
         person_in_roi = False
@@ -263,7 +275,9 @@ def gen_fall_stream():
         
         # Nhận diện ngã ưu tiên mô hình custom tự train, nếu không sử dụng pose estimation dự phòng
         if yolov8_fall_model is not None:
-            results = yolov8_fall_model(frame, verbose=False, device=device)
+            with gpu_lock:
+                with torch.no_grad():
+                    results = yolov8_fall_model(frame, verbose=False, device=device)
             if len(results) > 0 and results[0].boxes is not None:
                 boxes = results[0].boxes
                 for box in boxes:
@@ -285,7 +299,9 @@ def gen_fall_stream():
                         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         else:
             # Thuật toán dự phòng dựa trên YOLOv8-pose và góc cơ thể
-            results = yolov8_pose_model(frame, verbose=False, device=device)
+            with gpu_lock:
+                with torch.no_grad():
+                    results = yolov8_pose_model(frame, verbose=False, device=device)
             if len(results) > 0 and results[0].keypoints is not None:
                 keypoints_data = results[0].keypoints.data.cpu().numpy()
                 boxes = results[0].boxes.xyxy.cpu().numpy()
@@ -545,6 +561,11 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
     print(f"[PROCESSORS] Bắt đầu khởi chạy luồng dynamic camera: {camera_id}")
 
+    # Biến phục vụ ghi hình toàn bộ (Full Video Recording)
+    full_writer = None
+    frames_written = 0
+    full_video_filename = None
+
     while True:
         t_start = time.time()
         ret, frame = cap.read()
@@ -631,7 +652,9 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
         detections = None
         if run_yolo:
-            results = yolov8_model.track(frame, persist=True, tracker="custom_bytetrack.yaml", conf=conf_thr, classes=[0], verbose=False, device=device)
+            with gpu_lock:
+                with torch.no_grad():
+                    results = yolov8_model.track(frame, persist=True, tracker="custom_bytetrack.yaml", conf=conf_thr, classes=[0], verbose=False, device=device)
             detections = sv.Detections.from_ultralytics(results[0])
             detections = detections[detections.class_id == 0]
 
@@ -726,11 +749,17 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
         if run_face:
             img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            boxes, _ = mtcnn_multi.detect(img_pil)
+            with gpu_lock:
+                with torch.no_grad():
+                    boxes, _ = mtcnn_multi.detect(img_pil)
             if boxes is not None:
-                faces = mtcnn_multi(img_pil)
+                with gpu_lock:
+                    with torch.no_grad():
+                        faces = mtcnn_multi(img_pil)
                 if faces is not None:
-                    embeddings = resnet(faces.to(device)).detach().cpu().numpy()
+                    with gpu_lock:
+                        with torch.no_grad():
+                            embeddings = resnet(faces.to(device)).detach().cpu().numpy()
                     face_log_cooldown = config.settings.get("face_log_cooldown", 30)
                     current_time = time.time()
                     
@@ -1028,7 +1057,9 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         if run_fall:
             fall_in_frame = False
             if yolov8_fall_model is not None:
-                results = yolov8_fall_model(frame, verbose=False, device=device)
+                with gpu_lock:
+                    with torch.no_grad():
+                        results = yolov8_fall_model(frame, verbose=False, device=device)
                 if len(results) > 0 and results[0].boxes is not None:
                     boxes = results[0].boxes
                     for box in boxes:
@@ -1046,7 +1077,9 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                             cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
                             cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
             else:
-                results = yolov8_pose_model(frame, verbose=False, device=device)
+                with gpu_lock:
+                    with torch.no_grad():
+                        results = yolov8_pose_model(frame, verbose=False, device=device)
                 if len(results) > 0 and results[0].keypoints is not None:
                     keypoints_data = results[0].keypoints.data.cpu().numpy()
                     boxes = results[0].boxes.xyxy.cpu().numpy()
@@ -1109,7 +1142,9 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         if run_fire:
             fire_in_frame = False
             if yolov8_fire_model is not None:
-                results = yolov8_fire_model(frame, verbose=False, device=device)
+                with gpu_lock:
+                    with torch.no_grad():
+                        results = yolov8_fire_model(frame, verbose=False, device=device)
                 if len(results) > 0 and results[0].boxes is not None:
                     boxes = results[0].boxes
                     for box in boxes:
@@ -1164,6 +1199,50 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         # Lưu khung hình kèm nét vẽ AI vào bộ đệm để ghi video sự cố
         state.frame_buffer.append(annotated_frame.copy())
 
+        # Ghi hình toàn bộ (Continuous Video Recording)
+        record_full = config.settings.get("record_full_video", False)
+        if record_full:
+            if full_writer is None:
+                try:
+                    os.makedirs("static/recordings", exist_ok=True)
+                    from datetime import datetime
+                    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    full_video_filename = f"recording_{camera_id}_{timestamp_str}.mp4"
+                    filepath = os.path.join("static", "recordings", full_video_filename)
+                    
+                    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+                    full_writer = cv2.VideoWriter(filepath, fourcc, 15.0, (640, 360))
+                    if not full_writer.isOpened():
+                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                        full_writer = cv2.VideoWriter(filepath, fourcc, 15.0, (640, 360))
+                    
+                    frames_written = 0
+                    print(f"[RECORDING] Bắt đầu ghi hình toàn bộ cho camera '{camera_id}': {full_video_filename}")
+                except Exception as e:
+                    print(f"[RECORDING] Lỗi khởi tạo trình ghi video: {e}")
+                    full_writer = None
+            
+            if full_writer is not None:
+                try:
+                    full_writer.write(annotated_frame)
+                    frames_written += 1
+                    
+                    # Tách file sau mỗi 10 phút (ở 15 FPS = 9000 frames)
+                    if frames_written >= 9000:
+                        print(f"[RECORDING] Đạt giới hạn 10 phút. Tách tệp ghi hình cho camera '{camera_id}'.")
+                        full_writer.release()
+                        full_writer = None
+                except Exception as e:
+                    print(f"[RECORDING] Lỗi ghi khung hình: {e}")
+        else:
+            if full_writer is not None:
+                try:
+                    full_writer.release()
+                    print(f"[RECORDING] Dừng ghi hình toàn bộ cho camera '{camera_id}' (Tắt option).")
+                except Exception:
+                    pass
+                full_writer = None
+
         ret_enc, buffer = cv2.imencode('.jpg', annotated_frame)
         if not ret_enc: continue
 
@@ -1184,4 +1263,10 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             delay = max(0.005, 0.04 - elapsed)
             time.sleep(delay)
 
+    if full_writer is not None:
+        try:
+            full_writer.release()
+            print(f"[RECORDING] Giải phóng trình ghi video cho camera '{camera_id}' khi dừng luồng.")
+        except Exception:
+            pass
     cap.release()

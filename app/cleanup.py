@@ -76,6 +76,27 @@ def perform_cleanup():
     finally:
         db.close()
         
+    # 1.5 Dọn dẹp tệp tin video ghi hình liên tục trong static/recordings/
+    recordings_dir = os.path.join("static", "recordings")
+    if os.path.exists(recordings_dir):
+        try:
+            deleted_rec_count = 0
+            for f in os.listdir(recordings_dir):
+                fp = os.path.join(recordings_dir, f)
+                if os.path.isfile(fp):
+                    mtime = os.path.getmtime(fp)
+                    mtime_datetime = datetime.fromtimestamp(mtime)
+                    if mtime_datetime < cutoff_date:
+                        try:
+                            os.remove(fp)
+                            deleted_rec_count += 1
+                        except Exception as e:
+                            print(f"[CLEANUP] Không thể xóa tệp ghi hình {fp}: {e}")
+            if deleted_rec_count > 0:
+                print(f"[CLEANUP] Đã xóa {deleted_rec_count} tệp ghi hình liên tục cũ hơn {cleanup_older_than_days} ngày.")
+        except Exception as e:
+            print(f"[CLEANUP] Lỗi khi dọn dẹp thư mục recordings: {e}")
+        
     # 2. Dọn dẹp theo dung lượng tối đa (cleanup_max_size_gb)
     alerts_dir = os.path.join("static", "alerts")
     max_bytes = cleanup_max_size_gb * 1024 * 1024 * 1024

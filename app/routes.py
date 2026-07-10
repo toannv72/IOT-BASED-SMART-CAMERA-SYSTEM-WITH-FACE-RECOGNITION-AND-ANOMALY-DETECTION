@@ -215,7 +215,7 @@ async def update_settings_route(request: Request):
                 config.settings[k] = float(v)
             elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer"]:
                 config.settings[k] = int(v)
-            elif k in ["alerts_enabled", "tts_enabled", "auto_cleanup_enabled"]:
+            elif k in ["alerts_enabled", "tts_enabled", "auto_cleanup_enabled", "record_full_video"]:
                 config.settings[k] = bool(v)
             elif k == "cleanup_max_size_gb":
                 config.settings[k] = float(v)
@@ -851,3 +851,68 @@ def delete_camera(camera_id: str, request: Request):
     stop_camera_thread(camera_id)
     SystemStatus.add_log(f"Đã xóa camera: {camera_id}", "danger")
     return {"message": "Đã xóa camera thành công!"}
+
+# =========================================================================
+# ROUTING XEM LẠI VIDEO (CONTINUOUS RECORDINGS ENDPOINTS)
+# =========================================================================
+@app.get("/recordings", response_class=HTMLResponse)
+def get_recordings_page(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "recordings.html", {"active_page": "recordings"})
+
+@app.get("/api/recordings")
+def get_recordings_api(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    
+    recordings_dir = os.path.join("static", "recordings")
+    os.makedirs(recordings_dir, exist_ok=True)
+    
+    from datetime import datetime
+    recordings = []
+    for f in os.listdir(recordings_dir):
+        fp = os.path.join(recordings_dir, f)
+        if os.path.isfile(fp) and f.endswith(".mp4"):
+            mtime = os.path.getmtime(fp)
+            size_bytes = os.path.getsize(fp)
+            size_mb = round(size_bytes / (1024 * 1024), 2)
+            
+            timestamp = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+            camera_id = "unknown"
+            
+            if f.startswith("recording_"):
+                parts = f.split("_")
+                if len(parts) >= 4:
+                    camera_id = "_".join(parts[1:-2])
+            
+            recordings.append({
+                "filename": f,
+                "camera_id": camera_id,
+                "timestamp": timestamp,
+                "size_mb": size_mb,
+                "video_path": f"/static/recordings/{f}"
+            })
+            
+    recordings.sort(key=lambda x: x["timestamp"], reverse=True)
+    return recordings
+
+@app.delete("/api/recordings/{filename}")
+def delete_recording_api(filename: str, request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+    
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Tên tệp không hợp lệ!")
+        
+    fp = os.path.join("static", "recordings", filename)
+    if os.path.exists(fp):
+        try:
+            os.remove(fp)
+            SystemStatus.add_log(f"Đã xóa video lưu trữ: {filename}", "info")
+            return {"message": "Xóa tệp thành công!"}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Không thể xóa tệp: {e}")
+    else:
+        raise HTTPException(status_code=404, detail="Tệp không tồn tại!")

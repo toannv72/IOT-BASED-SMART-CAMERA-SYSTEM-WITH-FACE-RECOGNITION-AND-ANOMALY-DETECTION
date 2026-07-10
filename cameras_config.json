@@ -262,5 +262,49 @@
         "map_x": 46.66,
         "map_y": 78.8,
         "map_id": "khu_a_tang_1"
+    },
+    {
+        "camera_id": "tesst",
+        "source": "2.mp4",
+        "features": [
+            "intrusion_roi"
+        ],
+        "line": [
+            [
+                100,
+                180
+            ],
+            [
+                540,
+                180
+            ]
+        ],
+        "roi": [
+            [
+                100,
+                100
+            ],
+            [
+                540,
+                100
+            ],
+            [
+                540,
+                300
+            ],
+            [
+                100,
+                300
+            ]
+        ],
+        "schedule_enabled": false,
+        "schedule_start": "23:00",
+        "schedule_end": "06:00",
+        "low_light_enhance": false,
+        "enhance_clip_limit": 2,
+        "map_id": "khu_a_tang_1",
+        "map_x": 50,
+        "map_y": 50,
+        "in_direction": "down"
     }
 ]

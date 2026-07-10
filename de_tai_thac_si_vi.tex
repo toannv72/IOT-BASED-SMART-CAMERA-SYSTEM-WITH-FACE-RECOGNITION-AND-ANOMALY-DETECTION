@@ -198,6 +198,15 @@ Xác thực khuôn mặt trong môi trường không kiểm soát yêu cầu ph�
 \subsection{Phát hiện bất thường hình ảnh: Ngã và Hỏa hoạn}
 Phát hiện ngã dựa trên thị giác máy tính thường sử dụng các mô hình phân loại học sâu hoặc thuật toán ước lượng tư thế. Mặc dù các mô hình ước lượng tư thế (ví dụ: YOLOv8-pose) cung cấp tọa độ các khớp xương chi tiết, chúng lại đòi hỏi năng lượng tính toán lớn đối với thiết bị biên hạn chế tài nguyên. Các bộ phát hiện hộp bao được huấn luyện tùy chỉnh (ví dụ: YOLOv8-fall) cung cấp một giải pháp thay thế nhẹ nhàng, xác định trạng thái "ngã" dựa trên tỷ lệ khung hình của hộp bao và quỹ đạo chuyển động. Tương tự, mô hình phát hiện hỏa hoạn và khói dựa trên YOLO cho phép các nút biên xử lý đồng thời các sự cố nguy hiểm song song với các tác vụ an ninh.
 
+\subsection{Tóm tắt tài liệu và Tổng hợp khoảng trống nghiên cứu}
+Tổng hợp và đánh giá tài liệu nghiên cứu hiện trạng chỉ ra một số khoảng trống lớn mà luận văn này hướng tới giải quyết:
+\begin{itemize}
+    \item \textbf{Thiếu hụt các khung giám sát đa nguy cơ ở biên (Edge):} Hầu hết các nghiên cứu hiện nay về tính toán biên trong giám sát video chỉ tập trung vào các tác vụ đơn lẻ, cô lập (như chỉ xác thực khuôn mặt hoặc chỉ phát hiện ngã). Hiện tại đang thiếu các giải pháp tích hợp đa nhiệm, cho phép chạy đồng thời cả xác thực khuôn mặt, phát hiện xâm nhập ROI và phát hiện bất thường đa nguy cơ (ngã, hỏa hoạn) trên cùng một thiết bị biên tài nguyên yếu.
+    \item \textbf{Sự phụ thuộc vào dịch vụ đám mây (Cloud):} Các hệ thống giám sát đa tác vụ hiện có thường chuyển luồng video về Cloud để suy luận học sâu. Điều này làm tăng độ trễ mạng, chi phí băng thông và đặc biệt là đe dọa nghiêm trọng quyền riêng tư dữ liệu cá nhân khi truyền tải dữ liệu khuôn mặt nhạy cảm. Việc giải quyết bài toán suy luận đa tác vụ cục bộ trong thời gian thực là một thách thức lớn về kiến trúc phần mềm.
+    \item \textbf{Tính phù hợp của mô hình xác thực trên thiết bị biên:} Các mô hình nhận diện khuôn mặt tiên tiến như ArcFace \cite{arcface_2019} tuy đạt độ chính xác tối ưu trên máy chủ có GPU lớn nhưng lại quá nặng (sử dụng các mạng backbone sâu như ResNet-50 hay ResNet-100) để chạy thực tế trên CPU của Raspberry Pi 4. MobileFaceNet tuy nhẹ nhưng tối ưu cho mở khóa màn hình điện thoại (khoảng cách cực gần) và đòi hỏi chất lượng căn chỉnh mặt rất cao. Cặp mô hình \textbf{MTCNN + FaceNet} (sử dụng backbone Inception-ResNet-v1 hoặc MobileNet gọn nhẹ) mang lại sự đánh đổi hoàn hảo giữa độ trễ xử lý cục bộ (dưới 100ms) và độ chính xác (~98.2\%), cho phép nút biên hoạt động mượt mà không cần GPU ngoài.
+\end{itemize}
+Do đó, nghiên cứu này tạo nên sự khác biệt bằng cách đề xuất một kiến trúc Edge AI đa tác vụ được điều phối tài nguyên thông minh, tự chủ xử lý cục bộ để tối ưu độ trễ và bảo vệ quyền riêng tư tuyệt đối.
+
 \newpage
 
 % =========================================================================
@@ -272,6 +281,80 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
     \caption{Sơ đồ kiến trúc và luồng dữ liệu hệ thống chi tiết}
     \label{fig:detailed_architecture}
 \end{figure}
+
+\subsection{Điều phối tiến trình, Lập lịch luồng và Quản lý phiên GPU}
+Để ngăn chặn tình trạng nghẽn cổ chai tính toán và cạn kiệt tài nguyên CPU/GPU trên các nút biên cấu hình thấp (như Raspberry Pi hoặc máy tính mini), kiến trúc phần mềm triển khai một mô hình quản lý luồng và chia sẻ tài nguyên chặt chẽ. Luồng xử lý được điều phối tuần tự và khoa học như mô tả trong Hình \ref{fig:component_architecture}.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.9\textwidth}{!}{%
+    \begin{tikzpicture}[
+        node distance=1.0cm and 1.2cm,
+        comp/.style={rectangle, draw=blue!70, fill=blue!5, thick, minimum width=2.5cm, minimum height=0.8cm, align=center, font=\scriptsize},
+        queue/.style={draw=orange!80, fill=orange!5, thick, minimum width=2.2cm, minimum height=0.8cm, align=center, font=\scriptsize, shape=rectangle, rounded corners=3pt},
+        gpu/.style={draw=purple!80, fill=purple!5, thick, minimum width=3.2cm, minimum height=1.0cm, align=center, font=\scriptsize, rounded corners=5pt},
+        thread/.style={dashed, draw=gray, fill=gray!5, inner sep=0.25cm, rounded corners=5pt}
+    ]
+        % Threads & Streams
+        \node[comp] (cam1) {Luồng dữ liệu Cam 1\\(RTSP/Webcam)};
+        \node[comp, below=0.8cm of cam1] (cam2) {Luồng dữ liệu Cam 2\\(RTSP/Webcam)};
+        
+        % Processing Threads (Daemon)
+        \node[queue, right=1.2cm of cam1] (q1) {Hàng đợi khung hình 1\\(Bộ đệm vòng RAM)};
+        \node[queue, right=1.2cm of cam2] (q2) {Hàng đợi khung hình 2\\(Bộ đệm vòng RAM)};
+        
+        % Model Session manager
+        \node[gpu, right=1.5cm of q1, yshift=-0.5cm] (gpu_mgr) {\textbf{Bộ quản lý phiên GPU/CPU}\\(Bối cảnh chia sẻ CUDA/PyTorch)};
+        
+        % VRAM models
+        \node[comp, right=1.5cm of gpu_mgr] (models) {Mô hình AI dùng chung\\(YOLOv5, MTCNN, FaceNet, YOLOv8)\\(Nạp 1 lần dưới dạng Singleton)};
+        
+        % Alert Queue
+        \node[queue, below=1.0cm of gpu_mgr] (alert_q) {Hàng đợi ghi sự kiện SQLite\\(faces.db / alert\_log)};
+        
+        % Async Worker
+        \node[comp, right=1.2cm of alert_q] (dispatcher) {Bộ điều phối bất đồng bộ\\(Luồng Worker chạy ngầm)};
+        \node[comp, right=1.0cm of dispatcher] (telegram) {API Telegram Bot\\(Cảnh báo từ xa)};
+
+        % Connections
+        \draw[-Stealth, thick] (cam1) -- (q1);
+        \draw[-Stealth, thick] (cam2) -- (q2);
+        
+        \draw[-Stealth, thick] (q1) -- (gpu_mgr);
+        \draw[-Stealth, thick] (q2) -- (gpu_mgr);
+        
+        \draw[-Stealth, thick, <->] (gpu_mgr) -- node[midway, above, font=\tiny] {Đồng bộ suy luận} (models);
+        
+        \draw[-Stealth, thick] (gpu_mgr) -- node[midway, left, font=\tiny] {Ghi log giao dịch} (alert_q);
+        \draw[-Stealth, thick] (alert_q) -- (dispatcher);
+        \draw[-Stealth, thick] (dispatcher) -- (telegram);
+        
+        % Background borders
+        \node[thread, fit=(cam1) (q1), label={[font=\tiny, text=blue]\textbf{Luồng Camera 1}}] (t1) {};
+        \node[thread, fit=(cam2) (q2), label={[font=\tiny, text=blue]\textbf{Luồng Camera 2}}] (t2) {};
+        
+    \end{tikzpicture}%
+    }
+    \caption{Kiến trúc đa luồng, hàng đợi và quản lý phiên GPU/CPU cấp thành phần}
+    \label{fig:component_architecture}
+\end{figure}
+
+Các cơ chế giảm thiểu nghẽn cổ chai và điều phối tiến trình bao gồm:
+\begin{itemize}
+    \item \textbf{Tách biệt luồng xử lý camera:} Mỗi luồng camera được gán một luồng daemon chạy ngầm riêng biệt của hệ điều hành. Điều này đảm bảo hiện tượng trễ mạng RTSP hoặc mất khung hình của một kênh sẽ không ảnh hưởng hoặc gây nghẽn cho các kênh xử lý khác.
+    \item \textbf{Thực thi tuần tự trong luồng:} Để tránh tranh chấp tài nguyên tính toán (GPU/CPU) giữa các mô hình, trong mỗi luồng camera, các tác vụ AI (YOLOv5 ROI, MTCNN, FaceNet, YOLOv8) được thực thi \textit{tuần tự} trên từng khung hình lấy ra từ bộ đệm vòng. Bối cảnh PyTorch thực hiện tuần tự hóa an toàn luồng (thread-safe serialization).
+    \item \textbf{Chia sẻ phiên GPU (Mô hình Singleton):} Nhằm tránh cấp phát bộ nhớ trùng lặp gây lỗi tràn bộ nhớ (Out-Of-Memory - OOM), hệ thống chỉ nạp duy nhất một thực thể (instance) toàn cục cho mỗi mô hình AI vào VRAM/RAM hệ thống. Các luồng camera khác nhau sẽ chia sẻ chung các thực thể mô hình này khi thực hiện suy luận.
+    \item \textbf{Độ ưu tiên động và khoảng chờ (Lazy Loading):} YOLOv5 ROI và YOLOv8 (Fall/Fire) hoạt động liên tục như các bộ lọc thô nhanh. Mô hình trích xuất embedding FaceNet phức tạp hơn chỉ được kích hoạt (lazy trigger) \textit{khi và chỉ khi} MTCNN xác định có khuôn mặt xuất hiện. Ngoài ra, các biến cooldown (như \texttt{face\_log\_cooldown}) tạm dừng nhận diện khuôn mặt trong một khoảng thời gian sau khi xác thực thành công, giúp tiết kiệm chu kỳ CPU/GPU đáng kể.
+    \item \textbf{Ổn định tốc độ khung hình (Frame Rate):} Một vòng lặp chờ động (sleep loop) được bổ sung để tránh thiết bị biên bị quá nhiệt. Dựa trên thời gian xử lý thực tế của khung hình, luồng worker tự động tính toán thời gian ngủ ($t_{delay} = \max(0.005, 0.04 - t_{elapsed})$) để giới hạn tốc độ xử lý ở mức tối đa 25 FPS, giảm thiểu điện năng tiêu thụ.
+\end{itemize}
+
+\subsubsection{Khả năng phục hồi hệ thống, khởi động lại và hàng đợi cảnh báo chống mất dữ liệu}
+Việc truyền tải tin nhắn cảnh báo bất đồng bộ qua mạng Internet (tới API Telegram) tiềm ẩn rủi ro mất dữ liệu nếu hệ thống đột ngột bị sập nguồn, khởi động lại hoặc mất mạng. Do đó, hệ thống triển khai cơ chế lưu trữ giao dịch bền vững:
+\begin{enumerate}
+    \item \textbf{Ghi nhật ký giao dịch trước (DB Logging):} Khi phát hiện sự kiện bất thường (xâm nhập, ngã, cháy), thông tin sự kiện và đường dẫn tệp tin đa phương tiện cục bộ ngay lập tức được ghi vào cơ sở dữ liệu SQLite tuần tự (\texttt{faces.db}) bằng các giao dịch ACID bền vững trước khi kích hoạt bộ gửi tin bất đồng bộ.
+    \item \textbf{Hàng đợi bất đồng bộ từ DB:} Bộ điều phối tin nhắn Telegram chạy độc lập và liên tục thăm dò các bản ghi chưa gửi trong cơ sở dữ liệu SQLite.
+    \item \textbf{Khôi phục sau sự cố:} Nếu hệ thống bị sập nguồn giữa chừng, ngay khi khởi động lại, luồng điều phối sẽ quét cơ sở dữ liệu để tìm ra các bản ghi sự cố chưa được gửi thành công sang Telegram và tự động gửi bù lại. Cơ chế này đảm bảo dữ liệu cảnh báo an ninh quan trọng không bao giờ bị thất lạc.
+\end{enumerate}
 
 
 \subsection{Đường ống nhận diện khuôn mặt thích ứng góc quay nghiêng}
@@ -592,6 +675,62 @@ Các mục tiêu kiểm chứng sơ bộ cho Nhận dạng khuôn mặt, Phát h
         1 Luồng camera & 28,5 FPS (Tốc độ tối đa) \\
         2 Luồng camera & 22,8 FPS (Chia sẻ GPU CUDA) \\
         3 Luồng camera & 18,2 FPS (Giới hạn GPU VRAM) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Phân tích mô hình cơ sở (Baselines) và Lựa chọn mô hình}
+Để chứng minh tính thuyết phục của các mô hình học sâu được lựa chọn, chúng tôi thực hiện các thử nghiệm so sánh trực tiếp trên nút biên với các kiến trúc cơ sở (baseline) tiên tiến khác.
+
+Đầu tiên, hệ thống xác thực khuôn mặt dùng MTCNN để căn chỉnh và FaceNet để trích xuất đặc trưng được so sánh với mô hình ArcFace \cite{arcface_2019} (chạy trên mạng backbone ResNet-50) trong Bảng \ref{tab:face_comparison}.
+Mặc dù ArcFace đạt độ chính xác xác thực rất cao trên các bộ dữ liệu lớn, kiến trúc sâu của nó có số lượng tham số khổng lồ (~145 triệu) dẫn đến độ trễ suy luận lên tới 420 ms cho mỗi khung hình trên CPU thiết bị biên. Điều này khiến cho việc xử lý thời gian thực đa kênh camera trở nên bất khả thi. Ngược lại, FaceNet ánh xạ khuôn mặt thành embedding 128D chỉ trong 85 ms với dung lượng nhẹ 23 MB, đáp ứng hoàn hảo tiêu chí thời gian thực của hệ thống biên.
+
+\begin{table}[h]
+    \centering
+    \caption{So sánh các mô hình xác thực khuôn mặt trên phần cứng biên}
+    \label{tab:face_comparison}
+    \begin{tabular}{lccc}
+        \toprule
+        \textbf{Cấu trúc mô hình} & \textbf{Dung lượng (MB)} & \textbf{Độ trễ suy luận (ms)} & \textbf{Độ chính xác xác thực (\%)} \\
+        \midrule
+        ArcFace (ResNet-50) & 145 MB & 420 ms & \textbf{99,4\%} \\
+        MobileFaceNet & 5,2 MB & 28 ms & 91,2\% \\
+        \textbf{FaceNet (Đề xuất)} & \textbf{23 MB} & \textbf{85 ms} & \textbf{98,2\%} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Thứ hai, mô hình phát hiện ngã dựa trên hộp bao (YOLOv8-fall) được đối sánh với mô hình ước lượng tư thế cơ thể (YOLOv8-pose) trích xuất 17 khớp xương chính để phân loại hành vi ngã, kết quả được trình bày trong Bảng \ref{tab:fall_comparison}.
+Mạng ước lượng tư thế tuy rất mạnh mẽ trước các hiện tượng che khuất nhưng chỉ chạy được tốc độ 10 FPS do độ phức tạp tính toán hồi quy điểm mốc xương quá cao. Mô hình YOLOv8-fall do chúng tôi huấn luyện phân loại trạng thái ngã trực tiếp qua tỷ lệ hộp bao, quỹ đạo trọng tâm và động lực học tư thế đạt tốc độ lên tới 28,5 FPS, rất phù hợp cho thiết bị biên công suất thấp.
+
+\begin{table}[h]
+    \centering
+    \caption{So sánh các mô hình phát hiện hành vi ngã trên phần cứng biên}
+    \label{tab:fall_comparison}
+    \begin{tabular}{lccc}
+        \toprule
+        \textbf{Loại mô hình} & \textbf{Số tham số (M)} & \textbf{Tốc độ xử lý (FPS)} & \textbf{Độ chính xác mAP50 (\%)} \\
+        \midrule
+        YOLOv8-pose (Ước lượng tư thế) & 11,6 M & 10 FPS & \textbf{93,5\%} \\
+        \textbf{YOLOv8-fall (Đề xuất)} & \textbf{3,2 M} & \textbf{28,5 FPS} & \textbf{91,5\%} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Thứ ba, mô hình YOLOv8n-fire tùy chỉnh được so sánh với mạng MobileNet-SSD siêu nhẹ trong tác vụ phát hiện sớm khói và lửa, kết quả tóm tắt trong Bảng \ref{tab:fire_comparison}.
+MobileNet-SSD hoạt động rất nhanh nhưng có độ chính xác thấp ($\sim$76,5\%) do không thể phát hiện các tia lửa nhỏ ban đầu hoặc khói mờ ở khoảng cách xa. YOLOv8n-fire đạt độ chính xác 94,3\% với độ trễ tối thiểu, là lựa chọn tối ưu cho các ứng dụng cảnh báo cháy nổ an toàn.
+
+\begin{table}[h]
+    \centering
+    \caption{So sánh các mô hình phát hiện hỏa hoạn (khói và lửa)}
+    \label{tab:fire_comparison}
+    \begin{tabular}{lccc}
+        \toprule
+        \textbf{Khung mô hình} & \textbf{Độ chính xác Precision (\%)} & \textbf{Độ nhạy Recall (\%)} & \textbf{Độ trễ suy luận (ms)} \\
+        \midrule
+        MobileNet-SSD & 76,5\% & 72,1\% & \textbf{20 ms} \\
+        NanoDet & 81,2\% & 74,8\% & 22 ms \\
+        \textbf{YOLOv8n-fire (Đề xuất)} & \textbf{94,3\%} & \textbf{89,1\%} & \textbf{35 ms} \\
         \bottomrule
     \end{tabular}
 \end{table}

@@ -50,7 +50,8 @@ DEFAULT_SETTINGS = {
     "face_log_cooldown": 30,
     "face_threshold": 0.70,
     "fire_conf_threshold": 0.55,
-    "fire_frame_buffer": 25
+    "fire_frame_buffer": 25,
+    "record_full_video": False
 }
 
 # Tải cài đặt lúc khởi chạy

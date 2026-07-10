@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Video Lưu Trữ - AI Surveillance{% endblock %}
+{% block page_title %}Video Ghi Hình Liên Tục{% endblock %}
+
+{% block content %}
+<div class="glass-card">
+    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+        <i class="fa-solid fa-video"></i> Danh Sách Video Ghi Hình Liên Tục
+    </h3>
+    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+            <input type="text" id="rec-search" class="form-input" placeholder="Tìm kiếm theo Camera ID hoặc Tên tệp..." oninput="filterRecordings()">
+        </div>
+        <button class="btn btn-primary" onclick="loadRecordings()">
+            <i class="fa-solid fa-arrows-rotate"></i> Làm Mới Dữ Liệu
+        </button>
+    </div>
+    <div class="faces-table-container">
+        <table class="faces-table">
+            <thead>
+                <tr>
+                    <th>Thời Gian Ghi</th>
+                    <th>Camera ID</th>
+                    <th>Tên Tệp Tin</th>
+                    <th>Dung Lượng (MB)</th>
+                    <th style="text-align: right;">Thao Tác</th>
+                </tr>
+            </thead>
+            <tbody id="recordings-tbody">
+                <!-- Nạp động qua JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Phát Video Ghi Hình -->
+<div id="video-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div style="position: relative; max-width: 95%; max-height: 90%; text-align: center; width: 680px;">
+        <span style="position: absolute; top: -45px; right: 0; color: #fff; font-size: 35px; cursor: pointer; font-weight: bold;" onclick="closeVideoModal()">&times;</span>
+        <video id="modal-video" controls autoplay style="width: 100%; border-radius: 12px; border: 2px solid rgba(255,255,255,0.15); background: #000;"></video>
+        <div id="video-modal-caption" style="margin-top: 15px; color: #fff; font-size: 15px; font-weight: 500;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let recordings = [];
+    const userRole = "{{ request.session.role }}";
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadRecordings();
+    });
+
+    async function loadRecordings() {
+        try {
+            const response = await fetch('/api/recordings');
+            recordings = await response.json();
+            filterRecordings();
+        } catch (err) {
+            console.error("Lỗi khi tải danh sách video:", err);
+        }
+    }
+
+    function filterRecordings() {
+        const search = document.getElementById('rec-search').value.toLowerCase();
+        const tbody = document.getElementById('recordings-tbody');
+        
+        const filtered = recordings.filter(rec => {
+            return rec.camera_id.toLowerCase().includes(search) || rec.filename.toLowerCase().includes(search);
+        });
+        
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Không tìm thấy video ghi hình nào.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(rec => `
+            <tr>
+                <td>${rec.timestamp}</td>
+                <td><strong>${rec.camera_id}</strong></td>
+                <td style="font-family: monospace; font-size: 12px; color: var(--text-muted);">${rec.filename}</td>
+                <td>${rec.size_mb} MB</td>
+                <td style="text-align: right; display: flex; justify-content: flex-end; gap: 8px;">
+                    <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="openVideoModal('${rec.video_path}', '${rec.camera_id} - ${rec.timestamp}')">
+                        <i class="fa-solid fa-play"></i> Xem lại
+                    </button>
+                    ${userRole === 'admin' ? `
+                        <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px; background: rgba(239, 68, 68, 0.2); color: #ef4444; border-color: rgba(239, 68, 68, 0.4);" onclick="deleteRecording('${rec.filename}')">
+                            <i class="fa-solid fa-trash"></i> Xóa
+                        </button>
+                    ` : ''}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function openVideoModal(src, caption) {
+        const video = document.getElementById('modal-video');
+        video.src = src;
+        video.load();
+        document.getElementById('video-modal-caption').innerText = caption;
+        document.getElementById('video-modal').style.display = "flex";
+    }
+
+    function closeVideoModal() {
+        const video = document.getElementById('modal-video');
+        video.pause();
+        video.src = "";
+        document.getElementById('video-modal').style.display = "none";
+    }
+
+    async function deleteRecording(filename) {
+        if (!confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn video "${filename}"?`)) {
+            return;
+        }
+        try {
+            const response = await fetch(`/api/recordings/${filename}`, { method: 'DELETE' });
+            if (response.ok) {
+                alert("Đã xóa video thành công!");
+                loadRecordings();
+            } else {
+                const data = await response.json();
+                alert("Lỗi khi xóa video: " + (data.detail || "Không rõ nguyên nhân"));
+            }
+        } catch (err) {
+            console.error("Lỗi khi gọi API xóa video:", err);
+            alert("Lỗi kết nối máy chủ!");
+        }
+    }
+</script>
+{% endblock %}

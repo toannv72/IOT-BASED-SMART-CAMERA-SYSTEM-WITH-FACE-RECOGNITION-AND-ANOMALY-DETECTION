@@ -94,6 +94,16 @@
             </select>
         </div>
         <div class="form-group">
+            <label class="form-label">Lưu Trữ Toàn Bộ Video (Continuous Recording)</label>
+            <select id="setting-record-full-video" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="true">Bật Ghi Hình Liên Tục</option>
+                <option value="false">Tắt Ghi Hình Liên Tục</option>
+            </select>
+            <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">
+                Tự động ghi hình tất cả các luồng xử lý của camera thành tệp 10 phút.
+            </span>
+        </div>
+        <div class="form-group">
             <label class="form-label">Tự Động Dọn Dẹp Nhật Ký & Ảnh Cảnh Báo</label>
             <select id="setting-cleanup-enabled" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
                 <option value="true">Bật Tự Động Xóa</option>
@@ -340,6 +350,7 @@
             document.getElementById('setting-face-threshold').value = settings.face_threshold !== undefined ? settings.face_threshold : 0.65;
             document.getElementById('setting-telegram-cooldown').value = settings.telegram_cooldown || 15;
             document.getElementById('setting-alerts-enabled').value = settings.alerts_enabled ? "true" : "false";
+            document.getElementById('setting-record-full-video').value = settings.record_full_video ? "true" : "false";
             document.getElementById('setting-cleanup-enabled').value = settings.auto_cleanup_enabled ? "true" : "false";
             document.getElementById('setting-cleanup-days').value = settings.cleanup_older_than_days !== undefined ? settings.cleanup_older_than_days : 7;
             document.getElementById('setting-cleanup-size').value = settings.cleanup_max_size_gb !== undefined ? settings.cleanup_max_size_gb : 2.0;
@@ -363,6 +374,7 @@
             face_threshold: parseFloat(document.getElementById('setting-face-threshold').value),
             telegram_cooldown: parseInt(document.getElementById('setting-telegram-cooldown').value),
             alerts_enabled: document.getElementById('setting-alerts-enabled').value === "true",
+            record_full_video: document.getElementById('setting-record-full-video').value === "true",
             auto_cleanup_enabled: document.getElementById('setting-cleanup-enabled').value === "true",
             cleanup_older_than_days: parseInt(document.getElementById('setting-cleanup-days').value),
             cleanup_max_size_gb: parseFloat(document.getElementById('setting-cleanup-size').value),
