@@ -34,10 +34,19 @@ Dự án này là hệ thống **Smart Camera giám sát đa nguy cơ biên** (E
   * Xuất mức HIGH ra GPIO 23 trong vòng **3 giây** (hút rơ-le thông mạch cấp nguồn mở khóa), sau đó trả về mức LOW (khóa chốt) để tránh cháy cuộn hút.
   * Đặt lại cờ `SystemStatus.door_unlock_active = False`.
 
-### 4. Giao tiếp 2 chiều với Telegram Bot (Long Polling)
+### 4. Phân hệ Còi báo động vật lý (Active Buzzer)
+* **Chân cắm GPIO**: Chân tín hiệu Còi báo động nối vào **GPIO 24 (Pin 18)** trên Pi 4.
+* **Cơ chế hoạt động**: Chạy vòng lặp điều khiển tần số nháy còi tùy theo độ ưu tiên nguy cơ:
+  * *Hỏa hoạn (Fire)*: Nhấp nháy còi cực nhanh (0.1 giây bật, 0.1 giây tắt).
+  * *Rò rỉ khí Ga (Gas)*: Nhấp nháy còi chu kỳ vừa (0.3 giây bật, 0.3 giây tắt).
+  * *Khóa nhà có xâm nhập (Intrusion)*: Nhấp nháy còi chu kỳ chậm (0.8 giây bật, 0.8 giây tắt) khi cờ `house_locked` trong cài đặt được bật và camera tương ứng có kích hoạt `trigger_alarm`.
+  * *Chế độ thường*: Còi tắt (`LOW`).
+
+### 5. Giao tiếp 2 chiều với Telegram Bot (Long Polling)
 * Bot tự động xóa Webhook và chạy cơ chế Long Polling qua luồng daemon trong tệp `app/alerts.py`.
 * Hỗ trợ các nút tương tác Inline: Tắt báo động (`mute_alerts`), tạm dừng camera (`pause_<cam_id>_30`), mở cửa từ xa (`unlock_door`).
 * Hỗ trợ xử lý tin nhắn lệnh trực tiếp từ Admin: Nhận diện `/unlock`, `/mo_cua`, `unlock`, `mo cua`, `mở cửa` để gọi hàm mở cửa.
+* Hỗ trợ kích hoạt/tắt (Arm/Disarm) cảnh báo an ninh cho từng camera riêng biệt bằng câu lệnh `/cameras`, `/cam`, `/danh_sach_cam`, `cameras`, `cam`. Bot sẽ trả về menu tương tác Inline hiển thị trạng thái của từng camera để bật/tắt trực tiếp.
 
 ---
 

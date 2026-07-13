@@ -490,6 +490,8 @@ def start_all_camera_threads():
     try:
         # Khởi chạy luồng giám sát cảm biến khí Ga MQ-2
         start_gas_sensor_monitoring()
+        # Khởi chạy luồng còi báo động hệ thống
+        start_buzzer_monitoring()
         
         cameras = config.get_cameras_config()
         for cam in cameras:
@@ -636,7 +638,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         fire_conf_thr = config.settings.get("fire_conf_threshold", 0.55)
         fire_frame_buf_thr = config.settings.get("fire_frame_buffer", 25)
         cooldown_thr = config.settings.get("counter_cooldown", 45)
-        alerts_enabled = config.settings.get("alerts_enabled", True)
+        alerts_enabled = config.settings.get("alerts_enabled", True) and cfg.get("alerts_enabled", True)
         face_thr = config.settings.get("face_threshold", 0.80)
 
         is_paused = time.time() < paused_cameras.get(camera_id, 0)
@@ -1213,18 +1215,38 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 try:
                     os.makedirs("static/recordings", exist_ok=True)
                     from datetime import datetime
+                    from app.alerts import sanitize_filename_component
+                    sanitized_cam = sanitize_filename_component(camera_id)
                     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    full_video_filename = f"recording_{camera_id}_{timestamp_str}.mp4"
+                    full_video_filename = f"recording_{sanitized_cam}_{timestamp_str}.mp4"
                     filepath = os.path.join("static", "recordings", full_video_filename)
                     
+                    # Thử mở trình ghi video với các codec khác nhau
                     fourcc = cv2.VideoWriter_fourcc(*'avc1')
                     full_writer = cv2.VideoWriter(filepath, fourcc, 15.0, (640, 360))
+                    
                     if not full_writer.isOpened():
                         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                         full_writer = cv2.VideoWriter(filepath, fourcc, 15.0, (640, 360))
-                    
-                    frames_written = 0
-                    print(f"[RECORDING] Bắt đầu ghi hình toàn bộ cho camera '{camera_id}': {full_video_filename}")
+                        
+                    if not full_writer.isOpened():
+                        # Thử ghi định dạng AVI bằng codec XVID nếu MP4 thất bại
+                        full_video_filename = f"recording_{sanitized_cam}_{timestamp_str}.avi"
+                        filepath = os.path.join("static", "recordings", full_video_filename)
+                        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                        full_writer = cv2.VideoWriter(filepath, fourcc, 15.0, (640, 360))
+                        
+                    if not full_writer.isOpened():
+                        # Thử codec MJPG
+                        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+                        full_writer = cv2.VideoWriter(filepath, fourcc, 15.0, (640, 360))
+                        
+                    if not full_writer.isOpened():
+                        print(f"[RECORDING] [ERROR] Không thể khởi tạo bất kỳ codec nào cho camera '{camera_id}'!")
+                        full_writer = None
+                    else:
+                        frames_written = 0
+                        print(f"[RECORDING] Khởi tạo thành công trình ghi cho camera '{camera_id}': {full_video_filename}")
                 except Exception as e:
                     print(f"[RECORDING] Lỗi khởi tạo trình ghi video: {e}")
                     full_writer = None
@@ -1255,8 +1277,18 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
         state.last_jpeg_frame = buffer.tobytes()
 
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + state.last_jpeg_frame + b'\r\n')
+        try:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + state.last_jpeg_frame + b'\r\n')
+        except GeneratorExit:
+            if full_writer is not None:
+                try:
+                    full_writer.release()
+                    print(f"[RECORDING] Giải phóng trình ghi video cho camera '{camera_id}' khi đóng generator (GeneratorExit).")
+                except Exception:
+                    pass
+            cap.release()
+            raise
 
         t_end = time.time()
         fps = 1.0 / (t_end - t_start + 1e-6)
@@ -1398,3 +1430,106 @@ def _unlock_door_worker():
             
     SystemStatus.door_unlock_active = False
     SystemStatus.add_log("🔒 HỆ THỐNG: Cửa đã tự động khóa lại.", "muted")
+
+# =========================================================================
+# PHÂN HỆ CÒI BÁO ĐỘNG HỆ THỐNG (ALARM BUZZER VIA GPIO 24)
+# =========================================================================
+buzzer_thread_started = False
+
+def start_buzzer_monitoring():
+    global buzzer_thread_started
+    if buzzer_thread_started:
+        return
+    buzzer_thread_started = True
+    t = threading.Thread(target=_buzzer_control_loop, daemon=True)
+    t.start()
+    print("[BUZZER] Bắt đầu khởi chạy luồng nền giám sát và nháy còi báo động.")
+
+def _buzzer_control_loop():
+    has_gpio = False
+    try:
+        import RPi.GPIO as GPIO
+        has_gpio = True
+    except ImportError:
+        pass
+        
+    BUZZER_PIN = 24 # GPIO 24 (Pin 18)
+    
+    if has_gpio:
+        try:
+            orig_mode = GPIO.getmode()
+            if orig_mode is None:
+                GPIO.setmode(GPIO.BCM)
+            GPIO.setup(BUZZER_PIN, GPIO.OUT)
+            GPIO.output(BUZZER_PIN, GPIO.LOW)
+        except Exception as e:
+            print(f"[BUZZER] [ERROR] Lỗi cấu hình GPIO còi: {e}")
+            has_gpio = False
+
+    while True:
+        try:
+            # 1. Xác định điều kiện kích hoạt báo động
+            is_fire = SystemStatus.fire_active
+            is_gas = SystemStatus.gas_active
+            is_mock = getattr(SystemStatus, "mock_buzzer", False)
+            
+            # Kiểm tra chế độ khóa nhà và xâm nhập tại các camera được cấu hình
+            is_intrusion_alarm = False
+            house_locked = config.settings.get("house_locked", False)
+            if house_locked:
+                cameras = config.get_cameras_config()
+                for cam in cameras:
+                    cam_id = cam["camera_id"]
+                    if cam.get("trigger_alarm", False):
+                        state = camera_states.get(cam_id)
+                        if state and getattr(state, "intrusion_active", False):
+                            is_intrusion_alarm = True
+                            break
+            
+            # 2. Xử lý nháy còi báo động tùy theo mức độ ưu tiên
+            if is_fire:
+                SystemStatus.buzzer_active = True
+                # Báo cháy: Nháy cực nhanh (0.1s)
+                if has_gpio:
+                    GPIO.output(BUZZER_PIN, GPIO.HIGH)
+                time.sleep(0.1)
+                if has_gpio:
+                    GPIO.output(BUZZER_PIN, GPIO.LOW)
+                time.sleep(0.1)
+            elif is_gas:
+                SystemStatus.buzzer_active = True
+                # Rò rỉ khí ga: Nháy vừa (0.3s)
+                if has_gpio:
+                    GPIO.output(BUZZER_PIN, GPIO.HIGH)
+                time.sleep(0.3)
+                if has_gpio:
+                    GPIO.output(BUZZER_PIN, GPIO.LOW)
+                time.sleep(0.3)
+            elif is_intrusion_alarm:
+                SystemStatus.buzzer_active = True
+                # Báo động xâm nhập khóa nhà: Nháy chậm (0.8s)
+                if has_gpio:
+                    GPIO.output(BUZZER_PIN, GPIO.HIGH)
+                time.sleep(0.8)
+                if has_gpio:
+                    GPIO.output(BUZZER_PIN, GPIO.LOW)
+                time.sleep(0.8)
+            elif is_mock:
+                SystemStatus.buzzer_active = True
+                # Giả lập: Nháy chu kỳ 0.5s
+                if has_gpio:
+                    GPIO.output(BUZZER_PIN, GPIO.HIGH)
+                time.sleep(0.5)
+                if has_gpio:
+                    GPIO.output(BUZZER_PIN, GPIO.LOW)
+                time.sleep(0.5)
+            else:
+                if SystemStatus.buzzer_active:
+                    SystemStatus.buzzer_active = False
+                if has_gpio:
+                    GPIO.output(BUZZER_PIN, GPIO.LOW)
+                time.sleep(0.5)
+                
+        except Exception as e:
+            print(f"[BUZZER] Lỗi vòng lặp điều khiển: {e}")
+            time.sleep(2.0)

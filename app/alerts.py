@@ -162,6 +162,41 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
 # =========================================================================
 # LUỒNG LẮNG NGHE PHẢN HỒI 2 CHIỀU TỪ TELEGRAM BOT (LONG POLLING)
 # =========================================================================
+def send_camera_menu(token, chat_id, message_id=None):
+    from app.config import get_cameras_config
+    cameras = get_cameras_config()
+    
+    text = "🎥 *DANH SÁCH CAMERA AN NÌNH*\n\nChọn một camera dưới đây để Bật/Tắt (Arm/Disarm) cảnh báo an ninh của camera đó:"
+    keyboard = []
+    
+    for cam in cameras:
+        cam_id = cam["camera_id"]
+        cam_name = cam.get("name", cam_id)
+        is_armed = cam.get("alerts_enabled", True)
+        
+        status_str = "🟢 Đang bật" if is_armed else "🔴 Đang tắt"
+        button_text = f"{cam_name}: {status_str}"
+        keyboard.append([{"text": button_text, "callback_data": f"tg_cam_{cam_id}"}])
+        
+    keyboard.append([{"text": "🔄 Làm mới danh sách", "callback_data": "refresh_cam_menu"}])
+    
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "Markdown",
+        "reply_markup": json.dumps({"inline_keyboard": keyboard})
+    }
+    
+    try:
+        if message_id:
+            payload["message_id"] = message_id
+            edit_url = f"https://api.telegram.org/bot{token}/editMessageText"
+            requests.post(edit_url, json=payload, timeout=5)
+        else:
+            send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+            requests.post(send_url, json=payload, timeout=5)
+    except Exception as e:
+        print(f"[TELEGRAM] Lỗi khi gửi menu camera: {e}")
 def telegram_polling_loop():
     time.sleep(5)  # Đợi hệ thống khởi chạy ổn định
     offset = 0
@@ -209,6 +244,8 @@ def telegram_polling_loop():
                                     "chat_id": chat_id,
                                     "text": "🔓 [ĐIỀU KHIỂN TỪ XA]\nĐã gửi lệnh mở cửa thành công! Khóa Solenoid sẽ được mở trong vòng 3 giây."
                                 }, timeout=5)
+                            elif txt in ("/cameras", "/cam", "/danh_sach_cam", "cameras", "cam"):
+                                send_camera_menu(token, chat_id)
                                 
                         # Xử lý sự kiện bấm nút inline
                         if "callback_query" in update:
@@ -238,7 +275,33 @@ def telegram_polling_loop():
                             except Exception:
                                 pass
 
-                            if cb_data == "mute_alerts":
+                            if cb_data.startswith("tg_cam_"):
+                                cam_id = cb_data.split("tg_cam_")[-1]
+                                from app.config import get_cameras_config, save_full_cameras_config, SystemStatus
+                                cameras = get_cameras_config()
+                                found = False
+                                status_str = "Tắt"
+                                for cam in cameras:
+                                    if cam["camera_id"] == cam_id:
+                                        new_state = not cam.get("alerts_enabled", True)
+                                        cam["alerts_enabled"] = new_state
+                                        found = True
+                                        status_str = "Bật" if new_state else "Tắt"
+                                        response_text = f"🔄 Đã {status_str} cảnh báo camera '{cam_id}'"
+                                        break
+                                if found:
+                                    save_full_cameras_config(cameras)
+                                    SystemStatus.add_log(f"Telegram Bot: Đã {status_str.lower()} cảnh báo cho camera '{cam_id}'", "info")
+                                else:
+                                    response_text = "Không tìm thấy camera tương ứng."
+                                
+                                send_camera_menu(token, chat_id, message_id)
+                                
+                            elif cb_data == "refresh_cam_menu":
+                                response_text = "Đã làm mới danh sách camera."
+                                send_camera_menu(token, chat_id, message_id)
+                                
+                            elif cb_data == "mute_alerts":
                                 settings["alerts_enabled"] = False
                                 from app.config import save_settings, SystemStatus
                                 save_settings()

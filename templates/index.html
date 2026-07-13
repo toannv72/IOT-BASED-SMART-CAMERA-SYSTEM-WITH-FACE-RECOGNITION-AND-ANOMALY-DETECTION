@@ -578,11 +578,31 @@
                         <div class="status-dot" style="background-color: var(--danger); box-shadow: 0 0 8px var(--danger-glow); animation: pulse 1s infinite;"></div>
                         <span style="color: var(--danger); font-weight: bold;">💨 RÒ RỈ KHÍ GA!</span>
                     </div>
+                    <div id="live-buzzer-indicator" class="status-badge" style="display: none; background: rgba(239, 68, 68, 0.15); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--danger); box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);">
+                        <div class="status-dot" style="background-color: var(--danger); box-shadow: 0 0 8px var(--danger-glow); animation: pulse 1s infinite;"></div>
+                        <span style="color: var(--danger); font-weight: bold;">🔊 CÒI BÁO ĐỘNG ĐANG KÊU!</span>
+                    </div>
                 </div>
             </header>
 
             <!-- TAB 1: LIVE MONITOR -->
             <section id="panel-monitor" class="tab-panel active">
+                <!-- Thanh trạng thái an ninh & Điều khiển Khóa nhà -->
+                <div class="glass-card" style="margin-bottom: 24px; padding: 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 24px;" id="house-lock-icon">🔓</span>
+                        <div>
+                            <h4 style="font-size: 15px; font-weight: 600;" id="house-lock-status-title">Hệ thống đang ở trạng thái: BÌNH THƯỜNG (DISARMED)</h4>
+                            <p style="font-size: 12px; color: var(--text-muted);">Khi KÍCH HOẠT KHÓA NHÀ, bất kỳ camera nào phát hiện người xâm nhập (có tích hợp còi báo) sẽ hú còi báo động.</p>
+                        </div>
+                    </div>
+                    <div>
+                        <button class="btn" id="btn-toggle-house-lock" onclick="toggleHouseLock()" style="background: #3b82f6; color: white; padding: 8px 16px; font-weight: 600; border-radius: 8px; font-size: 13px;">
+                            🔒 Kích Hoạt Khóa Nhà
+                        </button>
+                    </div>
+                </div>
+
                 <div class="camera-grid" id="camera-streams-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
                     <!-- Sinh tự động qua JavaScript -->
                 </div>
@@ -877,6 +897,15 @@
             <div class="form-group">
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                     <input type="checkbox" id="cam-sched-enabled" onchange="toggleSchedInputs(this.checked)"> Kích hoạt giờ hoạt động cảnh báo
+                </label>
+            </div>
+            
+            <div class="form-group" style="display: flex; flex-direction: column; gap: 10px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="cam-alerts-enabled"> 🔔 Kích hoạt cảnh báo an ninh cho camera này
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="cam-trigger-alarm"> 🚨 Kích hoạt còi báo động (Buzzer) khi phát hiện xâm nhập
                 </label>
             </div>
             
@@ -1250,6 +1279,8 @@
             document.getElementById('cam-sched-enabled').checked = false;
             document.getElementById('cam-sched-start').value = "23:00";
             document.getElementById('cam-sched-end').value = "06:00";
+            document.getElementById('cam-trigger-alarm').checked = false;
+            document.getElementById('cam-alerts-enabled').checked = true;
             toggleSchedInputs(false);
             document.getElementById('camera-modal').style.display = "flex";
         }
@@ -1271,6 +1302,8 @@
             document.getElementById('cam-sched-enabled').checked = cam.schedule_enabled || false;
             document.getElementById('cam-sched-start').value = cam.schedule_start || "23:00";
             document.getElementById('cam-sched-end').value = cam.schedule_end || "06:00";
+            document.getElementById('cam-trigger-alarm').checked = cam.trigger_alarm || false;
+            document.getElementById('cam-alerts-enabled').checked = cam.alerts_enabled !== false;
             toggleSchedInputs(cam.schedule_enabled || false);
             
             document.getElementById('camera-modal').style.display = "flex";
@@ -1310,7 +1343,9 @@
                 roi: existingRoi,
                 schedule_enabled: document.getElementById('cam-sched-enabled').checked,
                 schedule_start: document.getElementById('cam-sched-start').value,
-                schedule_end: document.getElementById('cam-sched-end').value
+                schedule_end: document.getElementById('cam-sched-end').value,
+                trigger_alarm: document.getElementById('cam-trigger-alarm').checked,
+                alerts_enabled: document.getElementById('cam-alerts-enabled').checked
             };
 
             const url = action === 'add' ? '/api/cameras' : `/api/cameras/${cameraId}`;
@@ -1880,6 +1915,14 @@
                 document.getElementById('live-fall-indicator').style.display = data.fall_alert ? "inline-flex" : "none";
                 document.getElementById('live-fire-indicator').style.display = data.fire_alert ? "inline-flex" : "none";
                 document.getElementById('live-gas-indicator').style.display = data.gas_alert ? "inline-flex" : "none";
+                document.getElementById('live-buzzer-indicator').style.display = data.buzzer_alert ? "inline-flex" : "none";
+                
+                // Đồng bộ trạng thái khóa nhà (house_locked) động từ server
+                if (data.house_locked !== undefined) {
+                    isHouseLocked = data.house_locked;
+                    updateHouseLockUI();
+                }
+                
                 if (data.new_logs) data.new_logs.forEach(log => addLog(log.msg, log.type));
             } catch(e) {}
         }, 1500);
@@ -1908,6 +1951,56 @@
             }
         }
 
+        let isHouseLocked = false;
+
+        async function loadHouseLockState() {
+            try {
+                const r = await fetch('/api/settings');
+                const settings = await r.json();
+                isHouseLocked = settings.house_locked || false;
+                updateHouseLockUI();
+            } catch(e) {}
+        }
+
+        function updateHouseLockUI() {
+            const icon = document.getElementById('house-lock-icon');
+            const title = document.getElementById('house-lock-status-title');
+            const btn = document.getElementById('btn-toggle-house-lock');
+            
+            if (!icon || !title || !btn) return;
+            
+            if (isHouseLocked) {
+                icon.innerText = "🔒";
+                title.innerText = "Hệ thống đang ở trạng thái: KHÓA NHÀ (ARMED)";
+                title.style.color = "#ef4444";
+                btn.innerText = "🔓 Tắt Khóa Nhà (Disarm)";
+                btn.style.background = "#ef4444";
+            } else {
+                icon.innerText = "🔓";
+                title.innerText = "Hệ thống đang ở trạng thái: BÌNH THƯỜNG (DISARMED)";
+                title.style.color = "#10b981";
+                btn.innerText = "🔒 Kích Hoạt Khóa Nhà";
+                btn.style.background = "#3b82f6";
+            }
+        }
+
+        async function toggleHouseLock() {
+            if (userRole === 'operator') return alert("Bạn không có quyền thay đổi chế độ an ninh!");
+            try {
+                const newLockState = !isHouseLocked;
+                const response = await fetch('/api/settings/house_lock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ house_locked: newLockState })
+                });
+                const data = await response.json();
+                isHouseLocked = data.house_locked;
+                updateHouseLockUI();
+            } catch(e) {
+                addLog("🚨 Lỗi khi thay đổi trạng thái khóa nhà!", 'danger');
+            }
+        }
+
         window.addEventListener('load', () => {
             fetch('/gpu_info')
                 .then(r => r.json())
@@ -1916,6 +2009,7 @@
                 });
             loadSettings();
             loadCamerasGrid();
+            loadHouseLockState();
             setTimeout(updateSystemHealth, 500);
         });
     </script>

@@ -237,6 +237,7 @@ The proposed framework is designed as an Edge-Cloud Collaborative IoT architectu
         \node[box] (camera) {Camera Stream\\(RTSP/Webcam)};
         \node[box, below=1.0cm of camera] (gassensor) {MQ-2 Gas Sensor\\(GPIO18 Interface)};
         \node[box, below=1.0cm of gassensor] (doorlock) {Solenoid Door Lock\\(GPIO23 Control)};
+        \node[box, below=1.0cm of doorlock] (buzzer) {Physical Alarm Buzzer\\(GPIO24 Output)};
         \node[box, right=1.2cm of camera] (roi) {YOLOv5 ROI\\(Intrusion\\Detection)};
         \node[box, below=0.5cm of roi] (facenet) {MTCNN + FaceNet\\(Face\\Verification)};
         \node[box, below=0.5cm of facenet] (anomaly) {Multi-Hazard\\Anomaly\\(YOLOv8-fall/fire)};
@@ -252,7 +253,7 @@ The proposed framework is designed as an Edge-Cloud Collaborative IoT architectu
         \draw[arrow] (anomaly) -- (buffer);
         
         % Edge Border
-        \node[container, fit=(camera) (gassensor) (doorlock) (roi) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Edge Processing Layer}}] (edge_group) {};
+        \node[container, fit=(camera) (gassensor) (doorlock) (buzzer) (roi) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Edge Processing Layer}}] (edge_group) {};
         
         % --- DISPATCHER & CLOUD/BACKEND ---
         \node[box, right=2.0cm of buffer] (dispatcher) {Asynchronous\\Alert Dispatcher\\(Daemon Threads)};
@@ -273,6 +274,7 @@ The proposed framework is designed as an Edge-Cloud Collaborative IoT architectu
         \draw[arrow] (facenet) -- (dispatcher);
         \draw[arrow] (gassensor) -- (dispatcher);
         \draw[arrow, dashed, draw=red!70] (dispatcher) |- (doorlock);
+        \draw[arrow, dashed, draw=red!70] (dispatcher) |- (buzzer);
         
         \draw[arrow] (dispatcher) -- (telegram);
         \draw[arrow] (dispatcher) -- (fastapi);

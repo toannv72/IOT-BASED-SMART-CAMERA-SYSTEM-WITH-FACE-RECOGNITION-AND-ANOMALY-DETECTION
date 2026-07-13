@@ -236,6 +236,7 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
         \node[box] (camera) {Luồng Camera\\(RTSP/Webcam)};
         \node[box, below=1.0cm of camera] (gassensor) {Cảm biến khí ga MQ-2\\(Giao tiếp GPIO18)};
         \node[box, below=1.0cm of gassensor] (doorlock) {Rơ-le Khóa cửa điện từ\\(Điều khiển GPIO23)};
+        \node[box, below=1.0cm of doorlock] (buzzer) {Còi báo động vật lý\\(Đầu ra GPIO24)};
         \node[box, right=1.2cm of camera] (roi) {YOLOv5 ROI\\(Phát hiện\\xâm nhập)};
         \node[box, below=0.5cm of roi] (facenet) {MTCNN + FaceNet\\(Xác thực\\khuôn mặt)};
         \node[box, below=0.5cm of facenet] (anomaly) {Bất thường\\đa nguy cơ\\(YOLOv8-fall/fire)};
@@ -251,7 +252,7 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
         \draw[arrow] (anomaly) -- (buffer);
         
         % Edge Border
-        \node[container, fit=(camera) (gassensor) (doorlock) (roi) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Lớp xử lý biên (Edge)}}] (edge_group) {};
+        \node[container, fit=(camera) (gassensor) (doorlock) (buzzer) (roi) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Lớp xử lý biên (Edge)}}] (edge_group) {};
         
         % --- DISPATCHER & CLOUD/BACKEND ---
         \node[box, right=2.0cm of buffer] (dispatcher) {Bộ điều phối\\cảnh báo\\bất đồng bộ\\(Luồng Daemon)};
@@ -272,6 +273,7 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
         \draw[arrow] (facenet) -- (dispatcher);
         \draw[arrow] (gassensor) -- (dispatcher);
         \draw[arrow, dashed, draw=red!70] (dispatcher) |- (doorlock);
+        \draw[arrow, dashed, draw=red!70] (dispatcher) |- (buzzer);
         
         \draw[arrow] (dispatcher) -- (telegram);
         \draw[arrow] (dispatcher) -- (fastapi);

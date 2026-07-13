@@ -192,6 +192,8 @@ def get_system_status(request: Request):
         "fall_alert": SystemStatus.fall_active,
         "fire_alert": SystemStatus.fire_active,
         "gas_alert": SystemStatus.gas_active,
+        "buzzer_alert": SystemStatus.buzzer_active,
+        "house_locked": config.settings.get("house_locked", False),
         "new_logs": logs_to_return
     }
 
@@ -815,6 +817,7 @@ async def add_camera(request: Request):
     if "schedule_start" not in new_cam: new_cam["schedule_start"] = "23:00"
     if "schedule_end" not in new_cam: new_cam["schedule_end"] = "06:00"
     if "map_id" not in new_cam: new_cam["map_id"] = "khu_a_tang_1"
+    if "trigger_alarm" not in new_cam: new_cam["trigger_alarm"] = False
 
     cameras.append(new_cam)
     config.save_full_cameras_config(cameras)
@@ -876,7 +879,7 @@ def get_recordings_api(request: Request):
     recordings = []
     for f in os.listdir(recordings_dir):
         fp = os.path.join(recordings_dir, f)
-        if os.path.isfile(fp) and f.endswith(".mp4"):
+        if os.path.isfile(fp) and (f.endswith(".mp4") or f.endswith(".avi")):
             mtime = os.path.getmtime(fp)
             size_bytes = os.path.getsize(fp)
             size_mb = round(size_bytes / (1024 * 1024), 2)
@@ -936,3 +939,61 @@ def unlock_door_api(request: Request):
     from app.processors import unlock_door
     unlock_door()
     return {"message": "Đã kích hoạt mở khóa cửa thành công!"}
+
+@app.post("/api/settings/house_lock")
+async def toggle_house_lock_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+    payload = await request.json()
+    house_locked = payload.get("house_locked", False)
+    config.settings["house_locked"] = house_locked
+    config.save_settings()
+    
+    msg = "🔒 HỆ THỐNG: Đã KÍCH HOẠT chế độ KHÓA NHÀ (Arm)." if house_locked else "🔓 HỆ THỐNG: Đã TẮT chế độ KHÓA NHÀ (Disarm)."
+    SystemStatus.add_log(msg, "warning" if house_locked else "info")
+    return {"message": msg, "house_locked": house_locked}
+
+@app.get("/api/test_buzzer")
+def test_buzzer_api(active: bool, request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+    SystemStatus.mock_buzzer = active
+    return {"message": f"Đã thiết lập trạng thái giả lập còi báo động: {active}", "mock_buzzer": active}
+
+@app.get("/api/play_recording")
+def play_recording_stream(filepath: str, request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+        
+    # Chuẩn hóa đường dẫn bằng cách loại bỏ dấu gạch chéo đầu tiên
+    path_to_open = filepath.lstrip('/')
+    if not (path_to_open.startswith("static/recordings") or path_to_open.startswith("static/alerts")):
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập thư mục này!")
+        
+    if not os.path.exists(path_to_open):
+        raise HTTPException(status_code=404, detail="Không tìm thấy tệp video!")
+        
+    from fastapi.responses import StreamingResponse
+    import time
+    import cv2
+    
+    def frame_generator():
+        cap = cv2.VideoCapture(path_to_open)
+        try:
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                ret_enc, jpeg_buf = cv2.imencode('.jpg', frame)
+                if not ret_enc:
+                    continue
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg_buf.tobytes() + b'\r\n')
+                # Giới hạn phát lại ở tốc độ ~15 FPS
+                time.sleep(0.066)
+        finally:
+            cap.release()
+            
+    return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")

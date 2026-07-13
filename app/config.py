@@ -51,7 +51,8 @@ DEFAULT_SETTINGS = {
     "face_threshold": 0.80,
     "fire_conf_threshold": 0.55,
     "fire_frame_buffer": 25,
-    "record_full_video": False
+    "record_full_video": False,
+    "house_locked": False
 }
 
 # Tải cài đặt lúc khởi chạy
@@ -179,6 +180,8 @@ class SystemStatus:
     mock_gas_leak = False
     door_unlock_active = False
     mock_door_unlock = False
+    buzzer_active = False
+    mock_buzzer = False
     new_logs = []
     log_lock = threading.Lock()
     

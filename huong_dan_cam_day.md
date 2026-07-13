@@ -13,6 +13,7 @@ Tài liệu này hướng dẫn chi tiết cách cắm các cổng kết nối n
   [Quạt 5V] --->| [GPIO Pins]  (Cắm chân Đỏ -> chân 4, Đen -> chân 6)
  [Cảm biến Ga]->|              (VCC -> chân 2 (5V), GND -> chân 9, DO -> chân 12 (GPIO 18))
  [Khóa/Rơ-le] ->|              (VCC -> chân 4 (5V) chia sẻ, GND -> chân 14, IN -> chân 16 (GPIO 23))
+ [Còi báo động]->|             (VCC -> chân 2 (5V) chia sẻ, GND -> chân 14 chia sẻ, IN -> chân 18 (GPIO 24))
                 |                                                    |
  [Nguồn USB-C] | [USB-C Port] (Nguồn cấp chính hãng 5V-3A)          |
    (Cắm điện)  |                                                    |
@@ -85,6 +86,16 @@ Tài liệu này hướng dẫn chi tiết cách cắm các cổng kết nối n
 * **Chân GND (Đất)**: Nối vào **Chân số 14** (Hàng ngoài, chân thứ 7 từ bên trái) hoặc bất kỳ chân Ground trống nào trên Pi.
 * **Chân IN (Tín hiệu điều khiển)**: Nối vào **Chân số 16 (GPIO 23)** trên Pi 4.
 * **Đầu ra Relay (Cổng COM và NO)**: Đấu nối tiếp với nguồn cấp độc lập của khóa Solenoid (thường là nguồn tổ ong 12V-2A hoặc pin ngoài). Khi có lệnh mở cửa từ Telegram/Web, Pi sẽ xuất mức HIGH lên chân GPIO 23, hút cuộn dây Rơ-le làm thông mạch COM-NO để cấp điện mở khóa cửa trong 3 giây rồi tự động khóa lại.
+
+### Bước 9: Cắm Còi báo động vật lý (Active Buzzer 5V)
+Để hệ thống có thể hú còi báo động vật lý tại chỗ khi phát hiện hỏa hoạn, rò rỉ khí ga, hoặc có xâm nhập khi khóa nhà, bạn kết nối còi báo động 5V vào Raspberry Pi 4 như sau:
+* **Chân VCC (Nguồn 5V)**: Nối vào **Chân số 2** (Hàng ngoài, chân thứ 1 từ bên trái) - đấu song song chia sẻ với VCC của cảm biến Ga.
+* **Chân GND (Đất)**: Nối vào **Chân số 14** (Hàng ngoài, chân thứ 7 từ bên trái) - đấu song song chia sẻ với GND của module Rơ-le.
+* **Chân I/O (Tín hiệu điều khiển)**: Nối vào **Chân số 18 (GPIO 24)** trên Pi 4.
+* **Cơ chế hoạt động**: Khi hệ thống báo động kích hoạt, Pi sẽ xuất tín hiệu HIGH/LOW liên tục để hú còi theo nhịp:
+  * *Báo cháy (Fire)*: Nhấp nháy còi cực nhanh (0.1 giây ON, 0.1 giây OFF).
+  * *Rò rỉ khí Ga (Gas)*: Nhấp nháy còi chu kỳ vừa (0.3 giây ON, 0.3 giây OFF).
+  * *Khóa nhà có xâm nhập (Intrusion)*: Nhấp nháy còi chu kỳ chậm (0.8 giây ON, 0.8 giây OFF).
 
 ---
 

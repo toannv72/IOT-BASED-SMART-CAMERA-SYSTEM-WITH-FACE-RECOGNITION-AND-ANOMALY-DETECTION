@@ -8,14 +8,33 @@
     <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
         <i class="fa-solid fa-video"></i> Danh Sách Video Ghi Hình Liên Tục
     </h3>
-    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-        <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
-            <input type="text" id="rec-search" class="form-input" placeholder="Tìm kiếm theo Camera ID hoặc Tên tệp..." oninput="filterRecordings()">
+    
+    <!-- Bộ lọc video theo camera và thời gian -->
+    <div style="display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; align-items: flex-end; background: rgba(0,0,0,0.15); padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+        <div class="form-group" style="flex: 1; min-width: 150px; margin-bottom: 0;">
+            <label class="form-label" style="font-size: 11px; margin-bottom: 6px; display: block; color: var(--text-muted);">Lọc theo Camera</label>
+            <select id="filter-camera" class="form-input" onchange="filterRecordings()" style="background: rgba(0,0,0,0.3); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 38px; border-radius: 8px;">
+                <option value="all">-- Tất cả Camera --</option>
+            </select>
         </div>
-        <button class="btn btn-primary" onclick="loadRecordings()">
-            <i class="fa-solid fa-arrows-rotate"></i> Làm Mới Dữ Liệu
-        </button>
+        <div class="form-group" style="flex: 1; min-width: 180px; margin-bottom: 0;">
+            <label class="form-label" style="font-size: 11px; margin-bottom: 6px; display: block; color: var(--text-muted);">Từ thời gian (Bắt đầu)</label>
+            <input type="datetime-local" id="filter-start-time" class="form-input" onchange="filterRecordings()" style="background: rgba(0,0,0,0.3); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 38px; border-radius: 8px;">
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 180px; margin-bottom: 0;">
+            <label class="form-label" style="font-size: 11px; margin-bottom: 6px; display: block; color: var(--text-muted);">Đến thời gian (Kết thúc)</label>
+            <input type="datetime-local" id="filter-end-time" class="form-input" onchange="filterRecordings()" style="background: rgba(0,0,0,0.3); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 38px; border-radius: 8px;">
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn" onclick="clearFilters()" style="background: rgba(255,255,255,0.08); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 38px; border-radius: 8px; font-size: 12px; font-weight: 500; padding: 0 16px;">
+                <i class="fa-solid fa-eraser"></i> Xóa Bộ Lọc
+            </button>
+            <button class="btn btn-primary" onclick="loadRecordings()" style="height: 38px; border-radius: 8px; font-size: 12px; font-weight: 500; padding: 0 16px;">
+                <i class="fa-solid fa-arrows-rotate"></i> Làm Mới
+            </button>
+        </div>
     </div>
+    
     <div class="faces-table-container">
         <table class="faces-table">
             <thead>
@@ -47,7 +66,6 @@
 {% block scripts %}
 <script>
     let recordings = [];
-    const userRole = "{{ request.session.role }}";
 
     window.addEventListener('DOMContentLoaded', () => {
         loadRecordings();
@@ -57,6 +75,19 @@
         try {
             const response = await fetch('/api/recordings');
             recordings = await response.json();
+            
+            // Cập nhật danh sách camera vào dropdown lọc
+            const camSelect = document.getElementById('filter-camera');
+            const currentSelected = camSelect.value;
+            const uniqueCams = [...new Set(recordings.map(r => r.camera_id))].filter(c => c && c !== 'unknown');
+            
+            camSelect.innerHTML = '<option value="all">-- Tất cả Camera --</option>' + 
+                uniqueCams.map(cam => `<option value="${cam}">${cam}</option>`).join('');
+            
+            if (uniqueCams.includes(currentSelected)) {
+                camSelect.value = currentSelected;
+            }
+            
             filterRecordings();
         } catch (err) {
             console.error("Lỗi khi tải danh sách video:", err);
@@ -64,15 +95,30 @@
     }
 
     function filterRecordings() {
-        const search = document.getElementById('rec-search').value.toLowerCase();
+        const camFilter = document.getElementById('filter-camera').value;
+        const startTimeVal = document.getElementById('filter-start-time').value;
+        const endTimeVal = document.getElementById('filter-end-time').value;
         const tbody = document.getElementById('recordings-tbody');
         
+        const startTime = startTimeVal ? new Date(startTimeVal) : null;
+        const endTime = endTimeVal ? new Date(endTimeVal) : null;
+        
         const filtered = recordings.filter(rec => {
-            return rec.camera_id.toLowerCase().includes(search) || rec.filename.toLowerCase().includes(search);
+            // Lọc theo camera
+            if (camFilter !== 'all' && rec.camera_id !== camFilter) {
+                return false;
+            }
+            // Lọc theo thời gian (rec.timestamp có dạng "YYYY-MM-DD HH:MM:SS")
+            if (startTime || endTime) {
+                const recDate = new Date(rec.timestamp);
+                if (startTime && recDate < startTime) return false;
+                if (endTime && recDate > endTime) return false;
+            }
+            return true;
         });
         
         if (filtered.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Không tìm thấy video ghi hình nào.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Không tìm thấy video ghi hình nào phù hợp với bộ lọc.</td></tr>';
             return;
         }
 
@@ -82,18 +128,28 @@
                 <td><strong>${rec.camera_id}</strong></td>
                 <td style="font-family: monospace; font-size: 12px; color: var(--text-muted);">${rec.filename}</td>
                 <td>${rec.size_mb} MB</td>
-                <td style="text-align: right; display: flex; justify-content: flex-end; gap: 8px;">
-                    <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="openVideoModal('${rec.video_path}', '${rec.camera_id} - ${rec.timestamp}')">
+                <td style="text-align: right; display: flex; justify-content: flex-end; gap: 8px; align-items: center;">
+                    <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" onclick="openVideoModal('${rec.video_path}', '${rec.camera_id} - ${rec.timestamp}')">
                         <i class="fa-solid fa-play"></i> Xem lại
                     </button>
+                    <a href="${rec.video_path}" download class="btn" style="padding: 4px 8px; font-size: 11px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; border-color: rgba(59, 130, 246, 0.3); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                        <i class="fa-solid fa-download"></i> Tải về
+                    </a>
                     ${userRole === 'admin' ? `
-                        <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px; background: rgba(239, 68, 68, 0.2); color: #ef4444; border-color: rgba(239, 68, 68, 0.4);" onclick="deleteRecording('${rec.filename}')">
+                        <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px; background: rgba(239, 68, 68, 0.2); color: #ef4444; border-color: rgba(239, 68, 68, 0.4); display: inline-flex; align-items: center; gap: 4px;" onclick="deleteRecording('${rec.filename}')">
                             <i class="fa-solid fa-trash"></i> Xóa
                         </button>
                     ` : ''}
                 </td>
             </tr>
         `).join('');
+    }
+
+    function clearFilters() {
+        document.getElementById('filter-camera').value = 'all';
+        document.getElementById('filter-start-time').value = '';
+        document.getElementById('filter-end-time').value = '';
+        filterRecordings();
     }
 
     function openVideoModal(src, caption) {
@@ -131,3 +187,4 @@
     }
 </script>
 {% endblock %}
+
