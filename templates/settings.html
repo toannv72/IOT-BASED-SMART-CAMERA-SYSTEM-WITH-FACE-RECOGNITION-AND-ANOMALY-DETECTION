@@ -21,51 +21,86 @@
                 <span style="font-size: 11px; color: var(--text-muted);">
                     Hỗ trợ gửi cho nhiều tài khoản cá nhân hoặc nhóm chat
                 </span>
-                <a href="javascript:void(0)" onclick="toggleTelegramGuide()" style="color: var(--primary); font-size: 11px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; font-weight: 500;">
+                <a href="javascript:void(0)" onclick="toggleTelegramGuide()"
+                    style="color: var(--primary); font-size: 11px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; font-weight: 500;">
                     <i class="fa-solid fa-circle-info"></i> Hướng dẫn cấu hình Telegram
                 </a>
             </div>
         </div>
 
         <!-- Collapsible Telegram Guide (Beginner Friendly) -->
-        <div id="telegram-guide-card" style="display: none; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--text-main); max-height: 400px; overflow-y: auto;">
-            <h4 style="font-size: 13px; font-weight: 600; color: #60a5fa; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+        <div id="telegram-guide-card"
+            style="display: none; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--text-main); max-height: 400px; overflow-y: auto;">
+            <h4
+                style="font-size: 13px; font-weight: 600; color: #60a5fa; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
                 <i class="fa-brands fa-telegram" style="font-size: 16px;"></i> HƯỚNG DẪN KẾT NỐI TELEGRAM BOT
             </h4>
-            
-            <p style="margin-bottom: 12px; color: var(--text-muted); font-size: 12px;">Hệ thống hỗ trợ gửi thông báo cảnh báo (kèm hình ảnh sự cố và nút tương tác tắt còi từ xa) đến <strong>nhiều tài khoản Telegram cá nhân hoặc Nhóm chat</strong> cùng một lúc.</p>
-            
+
+            <p style="margin-bottom: 12px; color: var(--text-muted); font-size: 12px;">Hệ thống hỗ trợ gửi thông báo
+                cảnh báo (kèm hình ảnh sự cố và nút tương tác tắt còi từ xa) đến <strong>nhiều tài khoản Telegram cá
+                    nhân hoặc Nhóm chat</strong> cùng một lúc.</p>
+
             <div style="display: flex; flex-direction: column; gap: 12px;">
                 <div>
-                    <strong style="color: #fff; display: block; margin-bottom: 4px; font-size: 12px;">Bước 1: Tạo Bot Telegram mới (Lấy Bot Token)</strong>
-                    <ol style="padding-left: 18px; margin: 0; color: var(--text-muted); font-size: 12px; display: flex; flex-direction: column; gap: 3px;">
-                        <li>Tìm kiếm bot <code style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@BotFather</code> trên ứng dụng Telegram và nhấn <strong>Start</strong>.</li>
-                        <li>Gửi tin nhắn <code style="color: #60a5fa;">/newbot</code> và làm theo hướng dẫn của nó để đặt tên hiển thị và username cho bot (username viết liền không dấu, kết thúc bằng chữ "bot", ví dụ: <code style="color: #e5e7eb;">MyHomeAlarm_bot</code>).</li>
-                        <li>Sau khi hoàn thành, BotFather sẽ cấp cho bạn một đoạn mã <strong>HTTP API Token</strong> (ví dụ: <code style="color: #10b981; font-size: 11px;">8788292129:AAG-BKl...</code>). Sao chép và dán mã này vào ô <strong>Telegram Bot Token</strong> ở trên.</li>
+                    <strong style="color: #fff; display: block; margin-bottom: 4px; font-size: 12px;">Bước 1: Tạo Bot
+                        Telegram mới (Lấy Bot Token)</strong>
+                    <ol
+                        style="padding-left: 18px; margin: 0; color: var(--text-muted); font-size: 12px; display: flex; flex-direction: column; gap: 3px;">
+                        <li>Tìm kiếm bot <code
+                                style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@BotFather</code>
+                            trên ứng dụng Telegram và nhấn <strong>Start</strong>.</li>
+                        <li>Gửi tin nhắn <code style="color: #60a5fa;">/newbot</code> và làm theo hướng dẫn của nó để
+                            đặt tên hiển thị và username cho bot (username viết liền không dấu, kết thúc bằng chữ "bot",
+                            ví dụ: <code style="color: #e5e7eb;">MyHomeAlarm_bot</code>).</li>
+                        <li>Sau khi hoàn thành, BotFather sẽ cấp cho bạn một đoạn mã <strong>HTTP API Token</strong> (ví
+                            dụ: <code style="color: #10b981; font-size: 11px;">8788292129:AAG-BKl...</code>). Sao chép
+                            và dán mã này vào ô <strong>Telegram Bot Token</strong> ở trên.</li>
                     </ol>
                 </div>
-                
+
                 <div>
-                    <strong style="color: #fff; display: block; margin-bottom: 4px; font-size: 12px;">Bước 2: Lấy Chat ID của người nhận thông báo</strong>
-                    <ul style="padding-left: 18px; margin: 0; color: var(--text-muted); font-size: 12px; display: flex; flex-direction: column; gap: 6px; list-style-type: square;">
+                    <strong style="color: #fff; display: block; margin-bottom: 4px; font-size: 12px;">Bước 2: Lấy Chat
+                        ID của người nhận thông báo</strong>
+                    <ul
+                        style="padding-left: 18px; margin: 0; color: var(--text-muted); font-size: 12px; display: flex; flex-direction: column; gap: 6px; list-style-type: square;">
                         <li>
                             <span style="color: #fff; font-weight: 500;">Nhận cảnh báo Cá nhân:</span>
-                            Tìm kiếm bot <code style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@GetMyChatID_Bot</code> hoặc <code style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@userinfobot</code> trên Telegram. Nhấn <strong>Start</strong>, bot sẽ gửi lại mã Chat ID cá nhân của bạn (chuỗi số ví dụ: <code style="color: #e5e7eb;">8438973190</code>).
+                            Tìm kiếm bot <code
+                                style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@GetMyChatID_Bot</code>
+                            hoặc <code
+                                style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@userinfobot</code>
+                            trên Telegram. Nhấn <strong>Start</strong>, bot sẽ gửi lại mã Chat ID cá nhân của bạn (chuỗi
+                            số ví dụ: <code style="color: #e5e7eb;">8438973190</code>).
                         </li>
                         <li>
                             <span style="color: #fff; font-weight: 500;">Nhận cảnh báo nhóm (Group Chat):</span>
                             <br>1. Thêm Bot của bạn (được tạo ở Bước 1) vào Nhóm chat đó.
-                            <br>2. Thêm tạm thời bot <code style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@RawDataBot</code> vào Nhóm chat. Nó sẽ gửi thông tin chi tiết của nhóm. Hãy tìm mã <code style="color: #e5e7eb;">"chat": {"id": -100xxxxxxxxxx}</code>. Đó chính là Chat ID nhóm (luôn có dấu trừ <code style="color: #ef4444;">-</code> phía trước, ví dụ: <code style="color: #e5e7eb;">-1002244556677</code>). Xóa bot RawDataBot sau khi lấy xong ID.
+                            <br>2. Thêm tạm thời bot <code
+                                style="color: #60a5fa; background: rgba(96,165,250,0.1); padding: 1px 4px; border-radius: 3px;">@RawDataBot</code>
+                            vào Nhóm chat. Nó sẽ gửi thông tin chi tiết của nhóm. Hãy tìm mã <code
+                                style="color: #e5e7eb;">"chat": {"id": -100xxxxxxxxxx}</code>. Đó chính là Chat ID nhóm
+                            (luôn có dấu trừ <code style="color: #ef4444;">-</code> phía trước, ví dụ: <code
+                                style="color: #e5e7eb;">-1002244556677</code>). Xóa bot RawDataBot sau khi lấy xong ID.
                         </li>
                     </ul>
                 </div>
-                
+
                 <div>
-                    <strong style="color: #fff; display: block; margin-bottom: 4px; font-size: 12px;">Bước 3: Bắt đầu và kích hoạt nhận tin</strong>
-                    <ol style="padding-left: 18px; margin: 0; color: var(--text-muted); font-size: 12px; display: flex; flex-direction: column; gap: 3px;">
-                        <li><span style="color: var(--warning); font-weight: bold;">Lưu ý quan trọng:</span> Bạn (và các thành viên nhận tin) bắt buộc phải truy cập vào Bot Telegram của bạn và nhấn nút <strong>Bắt đầu (Start)</strong> hoặc gửi tin nhắn bất kỳ cho nó trước khi lưu. Nếu không, Telegram sẽ chặn không cho Bot gửi tin nhắn tự động.</li>
-                        <li>Để cấu hình nhận cho <strong>nhiều tài khoản/nhóm</strong>: Nhập các Chat ID vào ô cấu hình cách nhau bằng dấu phẩy. Ví dụ: <code style="color: #10b981; font-size: 11px;">8438973190, -10022445566, 987654321</code>.</li>
-                        <li>Nhấn <strong>Lưu Cấu Hình Hệ Thống</strong> ở bên dưới. Sau đó nhấn nút <strong>Gửi Tin Nhắn Thử Nghiệm Telegram</strong> để kiểm tra kết nối xem tất cả mọi người/nhóm đã nhận được tin nhắn test chưa.</li>
+                    <strong style="color: #fff; display: block; margin-bottom: 4px; font-size: 12px;">Bước 3: Bắt đầu và
+                        kích hoạt nhận tin</strong>
+                    <ol
+                        style="padding-left: 18px; margin: 0; color: var(--text-muted); font-size: 12px; display: flex; flex-direction: column; gap: 3px;">
+                        <li><span style="color: var(--warning); font-weight: bold;">Lưu ý quan trọng:</span> Bạn (và các
+                            thành viên nhận tin) bắt buộc phải truy cập vào Bot Telegram của bạn và nhấn nút <strong>Bắt
+                                đầu (Start)</strong> hoặc gửi tin nhắn bất kỳ cho nó trước khi lưu. Nếu không, Telegram
+                            sẽ chặn không cho Bot gửi tin nhắn tự động.</li>
+                        <li>Để cấu hình nhận cho <strong>nhiều tài khoản/nhóm</strong>: Nhập các Chat ID vào ô cấu hình
+                            cách nhau bằng dấu phẩy. Ví dụ: <code
+                                style="color: #10b981; font-size: 11px;">8438973190, -10022445566, 987654321</code>.
+                        </li>
+                        <li>Nhấn <strong>Lưu Cấu Hình Hệ Thống</strong> ở bên dưới. Sau đó nhấn nút <strong>Gửi Tin Nhắn
+                                Thử Nghiệm Telegram</strong> để kiểm tra kết nối xem tất cả mọi người/nhóm đã nhận được
+                            tin nhắn test chưa.</li>
                     </ol>
                 </div>
             </div>
@@ -76,9 +111,11 @@
         </div>
         <div class="form-group">
             <label class="form-label">Ngưỡng Nhận Diện Khuôn Mặt (Face Threshold)</label>
-            <input type="number" id="setting-face-threshold" class="form-input" step="0.05" min="0.3" max="0.95" placeholder="Mặc định: 0.65">
+            <input type="number" id="setting-face-threshold" class="form-input" step="0.05" min="0.3" max="0.95"
+                placeholder="Mặc định: 0.65">
             <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">
-                Khoảng cách khớp. Số càng lớn càng dễ nhận diện nghiêng/quay ngang (nhưng tăng rủi ro nhận nhầm), số nhỏ càng khắt khe chỉ nhận chính diện.
+                Khoảng cách khớp. Số càng lớn càng dễ nhận diện nghiêng/quay ngang (nhưng tăng rủi ro nhận nhầm), số nhỏ
+                càng khắt khe chỉ nhận chính diện.
             </span>
         </div>
 
@@ -88,16 +125,18 @@
         </div>
         <div class="form-group">
             <label class="form-label">Kích Hoạt Cảnh Báo An Ninh</label>
-            <select id="setting-alerts-enabled" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
-                <option value="true">Bật Cảnh Báo</option>
-                <option value="false">Tắt Cảnh Báo</option>
+            <select id="setting-alerts-enabled" class="form-input"
+                style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="true" style="color: #000000;">Bật Cảnh Báo</option>
+                <option value="false" style="color: #000000;">Tắt Cảnh Báo</option>
             </select>
         </div>
         <div class="form-group">
             <label class="form-label">Lưu Trữ Toàn Bộ Video (Continuous Recording)</label>
-            <select id="setting-record-full-video" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
-                <option value="true">Bật Ghi Hình Liên Tục</option>
-                <option value="false">Tắt Ghi Hình Liên Tục</option>
+            <select id="setting-record-full-video" class="form-input"
+                style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="true" style="color: #000000;">Bật Ghi Hình Liên Tục</option>
+                <option value="false" style="color: #000000;">Tắt Ghi Hình Liên Tục</option>
             </select>
             <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">
                 Tự động ghi hình tất cả các luồng xử lý của camera thành tệp 10 phút.
@@ -105,9 +144,10 @@
         </div>
         <div class="form-group">
             <label class="form-label">Tự Động Dọn Dẹp Nhật Ký & Ảnh Cảnh Báo</label>
-            <select id="setting-cleanup-enabled" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
-                <option value="true">Bật Tự Động Xóa</option>
-                <option value="false">Tắt Tự Động Xóa</option>
+            <select id="setting-cleanup-enabled" class="form-input"
+                style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="true" style="color: #000000;">Bật Tự Động Xóa</option>
+                <option value="false" style="color: #000000;">Tắt Tự Động Xóa</option>
             </select>
         </div>
         <div class="form-group">
@@ -120,9 +160,10 @@
         </div>
         <div class="form-group">
             <label class="form-label">Phát Âm Thanh Giọng Nói Tiếng Việt (TTS)</label>
-            <select id="setting-tts-enabled" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
-                <option value="true">Bật Đọc Cảnh Báo</option>
-                <option value="false">Tắt Đọc Cảnh Báo</option>
+            <select id="setting-tts-enabled" class="form-input"
+                style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="true" style="color: #000000;">Bật Đọc Cảnh Báo</option>
+                <option value="false" style="color: #000000;">Tắt Đọc Cảnh Báo</option>
             </select>
         </div>
         <div class="form-group">
@@ -139,7 +180,8 @@
         </div>
         <div class="form-group">
             <label class="form-label">Ngưỡng Tin Cậy Nhận Diện Cháy Nổ (Confidence)</label>
-            <input type="number" id="setting-fire-conf" class="form-input" step="0.05" min="0.1" max="0.95" value="0.55">
+            <input type="number" id="setting-fire-conf" class="form-input" step="0.05" min="0.1" max="0.95"
+                value="0.55">
         </div>
         <div class="form-group">
             <label class="form-label">Bộ Lọc Trễ Xác Minh Cháy Nổ (Frames)</label>
@@ -149,7 +191,9 @@
             <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="saveSettings()">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình Hệ Thống
             </button>
-            <button class="btn btn-primary" style="width: 100%; justify-content: center; background-color: var(--primary);" onclick="testTelegramConnection()">
+            <button class="btn btn-primary"
+                style="width: 100%; justify-content: center; background-color: var(--primary);"
+                onclick="testTelegramConnection()">
                 <i class="fa-solid fa-paper-plane"></i> Gửi Tin Nhắn Thử Nghiệm Telegram
             </button>
         </div>
@@ -183,7 +227,8 @@
                 </thead>
                 <tbody id="cameras-config-tbody">
                     <tr>
-                        <td colspan="5" style="text-align: center; color: var(--text-muted);">Đang nạp cấu hình camera...</td>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted);">Đang nạp cấu hình
+                            camera...</td>
                     </tr>
                 </tbody>
             </table>
@@ -192,21 +237,24 @@
 </div>
 
 <!-- Modal Thêm/Sửa Camera -->
-<div id="camera-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+<div id="camera-modal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
     <div class="glass-card" style="width: 100%; max-width: 500px; margin: 0 16px; margin-bottom: 0;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 id="camera-modal-title" style="font-size: 18px; font-weight: 600;">Thêm Camera Mới</h3>
-            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closeCameraModal()">&times;</span>
+            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);"
+                onclick="closeCameraModal()">&times;</span>
         </div>
         <input type="hidden" id="camera-modal-action" value="add">
-        
+
         <div class="form-group">
             <label class="form-label">Camera ID (Duy nhất, viết liền không dấu)</label>
             <input type="text" id="cam-id-input" class="form-input" placeholder="Ví dụ: Cam_San_Sau">
         </div>
         <div class="form-group">
             <label class="form-label">Nguồn Stream (Index webcam, file video hoặc link RTSP)</label>
-            <input type="text" id="cam-source-input" class="form-input" placeholder="Ví dụ: 0 hoặc video.mp4 hoặc rtsp://...">
+            <input type="text" id="cam-source-input" class="form-input"
+                placeholder="Ví dụ: 0 hoặc video.mp4 hoặc rtsp://...">
         </div>
         <div class="form-group">
             <label class="form-label">Mặt bằng E-map (Khu vực - Tầng)</label>
@@ -214,10 +262,11 @@
                 <!-- Dữ liệu được nạp động từ API /api/maps -->
             </select>
         </div>
-        
+
         <div class="form-group">
             <label class="form-label">Kích Hoạt Tính Năng AI</label>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+            <div
+                style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
 
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
                     <input type="checkbox" id="cam-feat-roi"> Phát hiện xâm nhập ROI
@@ -236,23 +285,26 @@
                 </label>
             </div>
         </div>
-        
+
         <div class="form-group" style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; margin-bottom: 8px;">
+            <label
+                style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; margin-bottom: 8px;">
                 <input type="checkbox" id="cam-lowlight-enhance"> Tăng cường ánh sáng yếu (Low-Light CLAHE)
             </label>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 12px; color: var(--text-muted);">Ngưỡng Clip Limit:</span>
-                <input type="number" id="cam-lowlight-clip" class="form-input" style="padding: 4px 8px; width: 80px;" step="0.5" value="2.0">
+                <input type="number" id="cam-lowlight-clip" class="form-input" style="padding: 4px 8px; width: 80px;"
+                    step="0.5" value="2.0">
             </div>
         </div>
 
         <div class="form-group">
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                <input type="checkbox" id="cam-sched-enabled" onchange="toggleSchedInputs(this.checked)"> Kích hoạt giờ hoạt động cảnh báo
+                <input type="checkbox" id="cam-sched-enabled" onchange="toggleSchedInputs(this.checked)"> Kích hoạt giờ
+                hoạt động cảnh báo
             </label>
         </div>
-        
+
         <div id="cam-sched-times" style="display: flex; gap: 12px; margin-bottom: 20px; transition: opacity 0.3s;">
             <div style="flex: 1;">
                 <label class="form-label">Bắt đầu</label>
@@ -272,18 +324,26 @@
 </div>
 
 <!-- Modal Quản Lý Bản Đồ -->
-<div id="map-manager-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
-    <div class="glass-card" style="width: 100%; max-width: 600px; margin: 0 16px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 0;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0;">
-            <h3 style="font-size: 18px; font-weight: 600;"><i class="fa-solid fa-folder-open"></i> Quản Lý Danh Sách Bản Đồ</h3>
-            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closeMapManagerModal()">&times;</span>
+<div id="map-manager-modal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div class="glass-card"
+        style="width: 100%; max-width: 600px; margin: 0 16px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 0;">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0;">
+            <h3 style="font-size: 18px; font-weight: 600;"><i class="fa-solid fa-folder-open"></i> Quản Lý Danh Sách Bản
+                Đồ</h3>
+            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);"
+                onclick="closeMapManagerModal()">&times;</span>
         </div>
-        
+
         <!-- Form thêm bản đồ mới -->
-        <div style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); flex-shrink: 0; align-items: flex-end;">
+        <div
+            style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); flex-shrink: 0; align-items: flex-end;">
             <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                <label class="form-label" style="font-size: 12px; color: var(--text-muted);">Tên mặt bằng mới (Ví dụ: Khu C - Tầng 1)</label>
-                <input type="text" id="new-map-name-input" class="form-input" style="padding: 8px 12px;" placeholder="Tên mặt bằng...">
+                <label class="form-label" style="font-size: 12px; color: var(--text-muted);">Tên mặt bằng mới (Ví dụ:
+                    Khu C - Tầng 1)</label>
+                <input type="text" id="new-map-name-input" class="form-input" style="padding: 8px 12px;"
+                    placeholder="Tên mặt bằng...">
             </div>
             <button class="btn btn-success" style="padding: 10px 16px;" onclick="addNewMap()">
                 <i class="fa-solid fa-plus"></i> Thêm
@@ -291,11 +351,13 @@
         </div>
 
         <!-- Danh sách bản đồ hiện có -->
-        <div style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;" id="map-manager-list">
+        <div style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;"
+            id="map-manager-list">
             <!-- Render động bằng JS -->
         </div>
-        
-        <div style="display: flex; justify-content: flex-end; margin-top: 20px; flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 15px;">
+
+        <div
+            style="display: flex; justify-content: flex-end; margin-top: 20px; flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 15px;">
             <button class="btn" onclick="closeMapManagerModal()">Đóng</button>
         </div>
     </div>
@@ -329,13 +391,13 @@
         try {
             const response = await fetch('/api/maps');
             availableMaps = await response.json();
-            
+
             // Populate dropdown in Modal
             const select = document.getElementById('cam-map-input');
             if (select) {
                 select.innerHTML = availableMaps.map(m => `<option value="${m.map_id}">${m.name}</option>`).join('');
             }
-        } catch(e) {
+        } catch (e) {
             console.error("Lỗi tải danh sách mặt bằng:", e);
         }
     }
@@ -360,11 +422,11 @@
             document.getElementById('setting-face-cooldown').value = settings.face_log_cooldown !== undefined ? settings.face_log_cooldown : 30;
             document.getElementById('setting-fire-conf').value = settings.fire_conf_threshold !== undefined ? settings.fire_conf_threshold : 0.55;
             document.getElementById('setting-fire-buffer').value = settings.fire_frame_buffer !== undefined ? settings.fire_frame_buffer : 25;
-        } catch(e) {
+        } catch (e) {
             console.error("Lỗi khi nạp cấu hình hệ thống:", e);
         }
     }
-    
+
     async function saveSettings() {
         if (userRole === 'operator') return alert("Bạn không có quyền thay đổi cấu hình!");
         const payload = {
@@ -386,10 +448,10 @@
             fire_frame_buffer: parseInt(document.getElementById('setting-fire-buffer').value)
         };
         try {
-            const response = await fetch('/api/settings', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify(payload) 
+            const response = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
             if (response.ok) {
                 alert("Lưu cấu hình thành công!");
@@ -397,8 +459,8 @@
             } else {
                 alert("Lỗi khi lưu cấu hình!");
             }
-        } catch(e) { 
-            alert("Lỗi khi lưu cấu hình!"); 
+        } catch (e) {
+            alert("Lỗi khi lưu cấu hình!");
         }
     }
 
@@ -487,20 +549,20 @@
         document.getElementById('cam-id-input').disabled = true;
         document.getElementById('cam-source-input').value = cam.source;
         document.getElementById('cam-map-input').value = cam.map_id || "khu_a_tang_1";
-        
+
         document.getElementById('cam-feat-roi').checked = cam.features.includes('intrusion_roi');
         document.getElementById('cam-feat-face').checked = cam.features.includes('face_id');
         document.getElementById('cam-feat-fall').checked = cam.features.includes('fall_detection');
         document.getElementById('cam-feat-behavior').checked = cam.features.includes('abnormal_behavior');
         document.getElementById('cam-feat-fire').checked = cam.features.includes('fire_detection');
-        
+
         document.getElementById('cam-sched-enabled').checked = cam.schedule_enabled || false;
         document.getElementById('cam-sched-start').value = cam.schedule_start || "23:00";
         document.getElementById('cam-sched-end').value = cam.schedule_end || "06:00";
         document.getElementById('cam-lowlight-enhance').checked = cam.low_light_enhance || false;
         document.getElementById('cam-lowlight-clip').value = cam.enhance_clip_limit !== undefined ? cam.enhance_clip_limit : "2.0";
         toggleSchedInputs(cam.schedule_enabled || false);
-        
+
         document.getElementById('camera-modal').style.display = "flex";
     }
 
@@ -512,7 +574,7 @@
         const action = document.getElementById('camera-modal-action').value;
         const cameraId = document.getElementById('cam-id-input').value.trim();
         const source = document.getElementById('cam-source-input').value.trim();
-        
+
         if (!cameraId || !source) return alert("Vui lòng nhập đầy đủ thông tin bắt buộc!");
 
         const features = [];
@@ -603,20 +665,20 @@
 
     async function testTelegramConnection() {
         if (userRole === 'operator') return alert("Bạn không có quyền test cấu hình!");
-        
+
         const token = document.getElementById('setting-token').value.trim();
         const chats = document.getElementById('setting-chats').value.trim();
-        
+
         if (!token || token === "YOUR_TELEGRAM_BOT_TOKEN" || token === "") {
             return alert("Vui lòng cấu hình Token thực tế của bạn trước khi thử nghiệm!");
         }
         if (!chats) {
             return alert("Vui lòng cấu hình Chat ID hợp lệ!");
         }
-        
+
         if (confirm("Hệ thống sẽ lưu cấu hình hiện tại và gửi tin nhắn test. Bạn có chắc chắn muốn tiếp tục?")) {
             await saveSettings();
-            
+
             try {
                 const response = await fetch('/api/settings/test_telegram', { method: 'POST' });
                 const res = await response.json();
@@ -646,7 +708,7 @@
         const wrapper = document.getElementById('map-manager-list');
         if (!wrapper) return;
         wrapper.innerHTML = '';
-        
+
         availableMaps.forEach(m => {
             const item = document.createElement('div');
             item.style.display = "flex";
@@ -656,7 +718,7 @@
             item.style.background = "rgba(0,0,0,0.2)";
             item.style.borderRadius = "8px";
             item.style.border = "1px solid var(--border-color)";
-            
+
             item.innerHTML = `
                 <div>
                     <strong style="color: #fff;">${m.name}</strong>
@@ -683,7 +745,7 @@
         const input = document.getElementById('new-map-name-input');
         const name = input.value.trim();
         if (!name) return alert("Vui lòng nhập tên mặt bằng!");
-        
+
         try {
             const response = await fetch('/api/maps', {
                 method: 'POST',
@@ -700,14 +762,14 @@
             } else {
                 alert("Lỗi: " + res.detail);
             }
-        } catch(e) {
+        } catch (e) {
             alert("Lỗi kết nối khi thêm mặt bằng!");
         }
     }
 
     async function deleteMap(mapId) {
         if (!confirm(`Bạn có chắc chắn muốn xóa mặt bằng '${mapId}'?`)) return;
-        
+
         try {
             const response = await fetch(`/api/maps/${mapId}`, {
                 method: 'DELETE'
@@ -721,7 +783,7 @@
             } else {
                 alert("Lỗi: " + res.detail);
             }
-        } catch(e) {
+        } catch (e) {
             alert("Lỗi kết nối khi xóa mặt bằng!");
         }
     }
@@ -732,7 +794,7 @@
         const name = newName.trim();
         if (!name) return alert("Tên mặt bằng không được để trống!");
         if (name === oldName) return;
-        
+
         try {
             const response = await fetch(`/api/maps/${mapId}`, {
                 method: 'PUT',
@@ -748,18 +810,18 @@
             } else {
                 alert("Lỗi: " + res.detail);
             }
-        } catch(e) {
+        } catch (e) {
             alert("Lỗi kết nối khi đổi tên mặt bằng!");
         }
     }
 
     async function uploadMapFileForMap(mapId, fileInput) {
         if (fileInput.files.length === 0) return;
-        
+
         const file = fileInput.files[0];
         const formData = new FormData();
         formData.append("file", file);
-        
+
         try {
             const response = await fetch(`/api/emap/upload/${mapId}`, {
                 method: 'POST',
@@ -772,7 +834,7 @@
             } else {
                 alert("Lỗi tải ảnh lên máy chủ!");
             }
-        } catch(e) {
+        } catch (e) {
             alert("Lỗi kết nối!");
         }
     }

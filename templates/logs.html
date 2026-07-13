@@ -10,14 +10,16 @@
     </h3>
     <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
         <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
-            <input type="text" id="log-search" class="form-input" placeholder="Tìm kiếm chi tiết sự kiện..." oninput="filterHistoryLogs()">
+            <input type="text" id="log-search" class="form-input" placeholder="Tìm kiếm chi tiết sự kiện..."
+                oninput="filterHistoryLogs()">
         </div>
         <div class="form-group" style="width: 200px; margin-bottom: 0;">
-            <select id="log-filter-type" class="form-input" onchange="filterHistoryLogs()" style="background: rgba(255,255,255,0.03); color: #fff;">
-                <option value="">Tất cả sự kiện</option>
-                <option value="intrusion">Xâm nhập vùng cấm (ROI)</option>
-                <option value="fall">Phát hiện người ngã</option>
-                <option value="face">Nhận diện khuôn mặt lạ</option>
+            <select id="log-filter-type" class="form-input" onchange="filterHistoryLogs()"
+                style="background: rgba(255,255,255,0.03); color: #fff;">
+                <option value="" style="color: #000000;">Tất cả sự kiện</option>
+                <option value="intrusion" style="color: #000000;">Xâm nhập vùng cấm (ROI)</option>
+                <option value="fall" style="color: #000000;">Phát hiện người ngã</option>
+                <option value="face" style="color: #000000;">Nhận diện khuôn mặt lạ</option>
 
             </select>
         </div>
@@ -45,19 +47,28 @@
 </div>
 
 <!-- Lightbox Modal Xem Ảnh Sự Kiện Cảnh Báo -->
-<div id="image-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+<div id="image-modal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
     <div style="position: relative; max-width: 90%; max-height: 90%; text-align: center;">
-        <span style="position: absolute; top: -45px; right: 0; color: #fff; font-size: 35px; cursor: pointer; font-weight: bold;" onclick="closeImageModal()">&times;</span>
-        <img id="modal-img" src="" style="max-width: 100%; max-height: 80vh; border-radius: 12px; border: 2px solid rgba(255,255,255,0.15);" alt="Alert snapshot">
+        <span
+            style="position: absolute; top: -45px; right: 0; color: #fff; font-size: 35px; cursor: pointer; font-weight: bold;"
+            onclick="closeImageModal()">&times;</span>
+        <img id="modal-img" src=""
+            style="max-width: 100%; max-height: 80vh; border-radius: 12px; border: 2px solid rgba(255,255,255,0.15);"
+            alt="Alert snapshot">
         <div id="modal-caption" style="margin-top: 15px; color: #fff; font-size: 15px; font-weight: 500;"></div>
     </div>
 </div>
 
 <!-- Modal Phát Video Sự Cố -->
-<div id="video-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+<div id="video-modal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
     <div style="position: relative; max-width: 95%; max-height: 90%; text-align: center; width: 680px;">
-        <span style="position: absolute; top: -45px; right: 0; color: #fff; font-size: 35px; cursor: pointer; font-weight: bold;" onclick="closeVideoModal()">&times;</span>
-        <video id="modal-video" controls autoplay style="width: 100%; border-radius: 12px; border: 2px solid rgba(255,255,255,0.15); background: #000;"></video>
+        <span
+            style="position: absolute; top: -45px; right: 0; color: #fff; font-size: 35px; cursor: pointer; font-weight: bold;"
+            onclick="closeVideoModal()">&times;</span>
+        <video id="modal-video" controls autoplay
+            style="width: 100%; border-radius: 12px; border: 2px solid rgba(255,255,255,0.15); background: #000;"></video>
         <div id="video-modal-caption" style="margin-top: 15px; color: #fff; font-size: 15px; font-weight: 500;"></div>
     </div>
 </div>
@@ -85,13 +96,13 @@
         const search = document.getElementById('log-search').value.toLowerCase();
         const typeFilter = document.getElementById('log-filter-type').value;
         const tbody = document.getElementById('history-logs-tbody');
-        
+
         const filtered = historyLogs.filter(log => {
             const matchSearch = log.message.toLowerCase().includes(search) || log.camera_id.toLowerCase().includes(search);
             const matchType = typeFilter === "" || log.event_type === typeFilter;
             return matchSearch && matchType;
         });
-        
+
         if (filtered.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Không tìm thấy sự kiện nào tương ứng.</td></tr>';
             return;
@@ -125,8 +136,8 @@
         document.getElementById('image-modal').style.display = "flex";
     }
 
-    function closeImageModal() { 
-        document.getElementById('image-modal').style.display = "none"; 
+    function closeImageModal() {
+        document.getElementById('image-modal').style.display = "none";
     }
 
     function openVideoModal(src, caption) {
