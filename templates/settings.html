@@ -28,6 +28,29 @@
             </div>
         </div>
 
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+            <label class="form-label" style="color: #f87171; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-triangle-exclamation"></i> Cấu Hình Cảnh Báo Nguy Hiểm (Không thể tắt)
+            </label>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 12px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-main); cursor: pointer;">
+                    <input type="checkbox" id="unmute-fire" value="fire" style="width: 16px; height: 16px; cursor: pointer;"> <span>🔥 Cảnh báo Hỏa hoạn (Fire)</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-main); cursor: pointer;">
+                    <input type="checkbox" id="unmute-gas" value="gas" style="width: 16px; height: 16px; cursor: pointer;"> <span>💨 Cảnh báo Rò rỉ khí Ga (Gas)</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-main); cursor: pointer;">
+                    <input type="checkbox" id="unmute-intrusion" value="intrusion" style="width: 16px; height: 16px; cursor: pointer;"> <span>🚨 Cảnh báo Xâm nhập vùng cấm (Intrusion)</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-main); cursor: pointer;">
+                    <input type="checkbox" id="unmute-fall" value="fall" style="width: 16px; height: 16px; cursor: pointer;"> <span>🚶 Cảnh báo Té ngã / Nằm sàn (Fall)</span>
+                </label>
+            </div>
+            <div style="margin-top: 10px; font-size: 11px; color: var(--text-muted); line-height: 1.5;">
+                Các loại cảnh báo được chọn ở trên sẽ <strong>không thể bị tắt</strong> bởi nút bấm "Tắt Báo Động" trên Telegram hoặc công tắc tắt cảnh báo chung, nhằm bảo đảm an toàn tuyệt đối.
+            </div>
+        </div>
+
         <!-- Collapsible Telegram Guide (Beginner Friendly) -->
         <div id="telegram-guide-card"
             style="display: none; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--text-main); max-height: 400px; overflow-y: auto;">
@@ -422,6 +445,12 @@
             document.getElementById('setting-face-cooldown').value = settings.face_log_cooldown !== undefined ? settings.face_log_cooldown : 30;
             document.getElementById('setting-fire-conf').value = settings.fire_conf_threshold !== undefined ? settings.fire_conf_threshold : 0.55;
             document.getElementById('setting-fire-buffer').value = settings.fire_frame_buffer !== undefined ? settings.fire_frame_buffer : 25;
+            
+            const unmutable = settings.unmutable_alerts || ["fire", "gas"];
+            document.getElementById('unmute-fire').checked = unmutable.includes('fire');
+            document.getElementById('unmute-gas').checked = unmutable.includes('gas');
+            document.getElementById('unmute-intrusion').checked = unmutable.includes('intrusion');
+            document.getElementById('unmute-fall').checked = unmutable.includes('fall');
         } catch (e) {
             console.error("Lỗi khi nạp cấu hình hệ thống:", e);
         }
@@ -429,6 +458,13 @@
 
     async function saveSettings() {
         if (userRole === 'operator') return alert("Bạn không có quyền thay đổi cấu hình!");
+        
+        const unmutableAlerts = [];
+        if (document.getElementById('unmute-fire').checked) unmutableAlerts.push('fire');
+        if (document.getElementById('unmute-gas').checked) unmutableAlerts.push('gas');
+        if (document.getElementById('unmute-intrusion').checked) unmutableAlerts.push('intrusion');
+        if (document.getElementById('unmute-fall').checked) unmutableAlerts.push('fall');
+
         const payload = {
             telegram_token: document.getElementById('setting-token').value.trim(),
             telegram_chats: document.getElementById('setting-chats').value.split(',').map(s => s.trim()).filter(s => s !== ""),
@@ -445,7 +481,8 @@
             loitering_threshold: parseInt(document.getElementById('setting-loitering-threshold').value),
             face_log_cooldown: parseInt(document.getElementById('setting-face-cooldown').value),
             fire_conf_threshold: parseFloat(document.getElementById('setting-fire-conf').value),
-            fire_frame_buffer: parseInt(document.getElementById('setting-fire-buffer').value)
+            fire_frame_buffer: parseInt(document.getElementById('setting-fire-buffer').value),
+            unmutable_alerts: unmutableAlerts
         };
         try {
             const response = await fetch('/api/settings', {

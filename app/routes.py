@@ -997,3 +997,4 @@ def play_recording_stream(filepath: str, request: Request):
             cap.release()
             
     return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
+

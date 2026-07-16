@@ -52,7 +52,9 @@ DEFAULT_SETTINGS = {
     "fire_conf_threshold": 0.55,
     "fire_frame_buffer": 25,
     "record_full_video": False,
-    "house_locked": False
+    "house_locked": False,
+    "muted_telegram_chats": [],
+    "unmutable_alerts": ["fire", "gas"]
 }
 
 # Tải cài đặt lúc khởi chạy

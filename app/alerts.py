@@ -5,7 +5,7 @@ import json
 import requests
 import threading
 from datetime import datetime, timedelta
-from app.config import settings
+from app.config import settings, SystemStatus
 from app.database import SessionLocal, SystemEventLog
 
 # Quản lý thời gian gửi cảnh báo trước đó để tính Cooldown tránh gửi lặp
@@ -30,7 +30,9 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
     global last_alert_times
     
     # Kiểm tra xem tính năng cảnh báo có đang được kích hoạt hay không
-    if not settings.get("alerts_enabled", True):
+    # Nếu là cảnh báo nguy hiểm thì bỏ qua kiểm tra công tắc tắt cảnh báo chung
+    unmutable_alerts = settings.get("unmutable_alerts", ["fire", "gas"])
+    if not settings.get("alerts_enabled", True) and alert_type not in unmutable_alerts:
         return
         
     cooldown = settings.get("telegram_cooldown", 15)
@@ -117,7 +119,8 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
             
         # 4. Tiến hành gọi API Telegram để gửi tin nhắn kèm hình ảnh và nút bấm tương tác
         token = settings.get("telegram_token")
-        chats = settings.get("telegram_chats", [])
+        chats = [str(x) for x in settings.get("telegram_chats", [])]
+        muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
         
         if not token or not chats:
             print("[ALERTS] Thiếu token hoặc chat ID Telegram. Bỏ qua việc gửi tin nhắn.")
@@ -129,20 +132,25 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
             if not success:
                 return
             
-            # Cấu hình nút bấm tương tác 2 chiều
-            reply_markup = {
-                "inline_keyboard": [
-                    [
-                        {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"},
-                        {"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"}
-                    ],
-                    [
-                        {"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"}
-                    ]
-                ]
-            }
-            
+            sent_count = 0
             for chat_id in chats:
+                # Nếu người dùng này đã tắt nhận cảnh báo, và loại cảnh báo có thể tắt (không nằm trong danh sách không thể tắt)
+                if chat_id in muted_chats and alert_type not in unmutable_alerts:
+                    continue
+                
+                # Cấu hình nút bấm tương tác 2 chiều
+                reply_markup = {
+                    "inline_keyboard": [
+                        [
+                            {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"},
+                            {"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"}
+                        ],
+                        [
+                            {"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"}
+                        ]
+                    ]
+                }
+                
                 files = {"photo": ("alert.jpg", buffer.tobytes(), "image/jpeg")}
                 payload = {
                     "chat_id": chat_id,
@@ -150,8 +158,9 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
                     "reply_markup": json.dumps(reply_markup)
                 }
                 requests.post(url, data=payload, files=files, timeout=10)
+                sent_count += 1
                 
-            print(f"[TELEGRAM] Đã gửi hình ảnh cảnh báo kèm nút bấm tương tác đến {len(chats)} người dùng.")
+            print(f"[TELEGRAM] Đã gửi hình ảnh cảnh báo kèm nút bấm tương tác đến {sent_count} người dùng (bỏ qua {len(chats) - sent_count} người đã tắt).")
         except Exception as e:
             print(f"[TELEGRAM] Lỗi gọi API gửi Telegram: {e}")
 
@@ -234,7 +243,7 @@ def telegram_polling_loop():
                         # Xử lý tin nhắn văn bản (Text Commands)
                         if "message" in update and "text" in update["message"]:
                             msg = update["message"]
-                            chat_id = msg["chat"]["id"]
+                            chat_id = str(msg["chat"]["id"])
                             txt = msg["text"].strip().lower()
                             if txt in ("/unlock", "/mo_cua", "mo cua", "unlock", "mở cửa"):
                                 from app.processors import unlock_door
@@ -246,17 +255,47 @@ def telegram_polling_loop():
                                 }, timeout=5)
                             elif txt in ("/cameras", "/cam", "/danh_sach_cam", "cameras", "cam"):
                                 send_camera_menu(token, chat_id)
+                            elif txt in ("/mute", "/tat_bao_dong", "tat bao dong", "tat_bao_dong"):
+                                from app.config import save_settings
+                                muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
+                                if chat_id not in muted_chats:
+                                    muted_chats.append(chat_id)
+                                    settings["muted_telegram_chats"] = muted_chats
+                                    save_settings()
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "🔕 Bạn đã tắt nhận cảnh báo từ hệ thống. Các quản trị viên khác vẫn nhận bình thường."
+                                }, timeout=5)
+                            elif txt in ("/unmute", "/bat_bao_dong", "bat bao dong", "bat_bao_dong"):
+                                from app.config import save_settings
+                                muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
+                                if chat_id in muted_chats:
+                                    muted_chats.remove(chat_id)
+                                    settings["muted_telegram_chats"] = muted_chats
+                                    save_settings()
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "🔔 Bạn đã bật lại nhận cảnh báo từ hệ thống."
+                                }, timeout=5)
                                 
                         # Xử lý sự kiện bấm nút inline
                         if "callback_query" in update:
                             cb = update["callback_query"]
                             cb_id = cb["id"]
                             cb_data = cb["data"]
-                            chat_id = cb["message"]["chat"]["id"]
+                            chat_id = str(cb["message"]["chat"]["id"])
                             message_id = cb["message"]["message_id"]
                             
                             response_text = ""
                             new_markup = None
+                            
+                            # Xác định trạng thái câm hiện tại cho riêng user này
+                            muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
+                            is_muted = chat_id in muted_chats
+                            mute_text = "🔔 Bật Lại Báo Động" if is_muted else "🔕 Tắt Báo Động"
+                            mute_cb = "unmute_alerts" if is_muted else "mute_alerts"
                             
                             # Trích xuất camera_id từ markup hiện tại nếu có
                             camera_id = None
@@ -302,11 +341,14 @@ def telegram_polling_loop():
                                 send_camera_menu(token, chat_id, message_id)
                                 
                             elif cb_data == "mute_alerts":
-                                settings["alerts_enabled"] = False
                                 from app.config import save_settings, SystemStatus
-                                save_settings()
-                                SystemStatus.add_log("Telegram Bot: Đã tắt cảnh báo an ninh hệ thống.", "warning")
-                                response_text = "🔕 Đã tắt cảnh báo an ninh hệ thống."
+                                muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
+                                if chat_id not in muted_chats:
+                                    muted_chats.append(chat_id)
+                                    settings["muted_telegram_chats"] = muted_chats
+                                    save_settings()
+                                SystemStatus.add_log(f"Telegram Bot: Người dùng {chat_id} đã tắt nhận cảnh báo.", "warning")
+                                response_text = "🔕 Bạn đã tắt nhận cảnh báo từ hệ thống. Các quản trị viên khác vẫn nhận bình thường."
                                 
                                 keyboard = [
                                     [
@@ -318,11 +360,14 @@ def telegram_polling_loop():
                                 new_markup = {"inline_keyboard": keyboard}
                                 
                             elif cb_data == "unmute_alerts":
-                                settings["alerts_enabled"] = True
                                 from app.config import save_settings, SystemStatus
-                                save_settings()
-                                SystemStatus.add_log("Telegram Bot: Đã bật lại cảnh báo an ninh hệ thống.", "success")
-                                response_text = "🔔 Đã bật lại cảnh báo an ninh hệ thống."
+                                muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
+                                if chat_id in muted_chats:
+                                    muted_chats.remove(chat_id)
+                                    settings["muted_telegram_chats"] = muted_chats
+                                    save_settings()
+                                SystemStatus.add_log(f"Telegram Bot: Người dùng {chat_id} đã bật lại nhận cảnh báo.", "success")
+                                response_text = "🔔 Bạn đã bật lại nhận cảnh báo từ hệ thống."
                                 
                                 keyboard = [
                                     [
@@ -345,7 +390,7 @@ def telegram_polling_loop():
                                 new_markup = {
                                     "inline_keyboard": [
                                         [
-                                            {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"},
+                                            {"text": mute_text, "callback_data": mute_cb},
                                             {"text": "▶️ Bật Lại Cam", "callback_data": f"resume_{cam_id}"}
                                         ]
                                     ]
@@ -361,7 +406,7 @@ def telegram_polling_loop():
                                 new_markup = {
                                     "inline_keyboard": [
                                         [
-                                            {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"},
+                                            {"text": mute_text, "callback_data": mute_cb},
                                             {"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{cam_id}_30"}
                                         ]
                                     ]
@@ -374,7 +419,7 @@ def telegram_polling_loop():
                                 
                                 keyboard = [
                                     [
-                                        {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"}
+                                        {"text": mute_text, "callback_data": mute_cb}
                                     ]
                                 ]
                                 if camera_id:
