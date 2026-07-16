@@ -184,6 +184,7 @@ class SystemStatus:
     mock_door_unlock = False
     buzzer_active = False
     mock_buzzer = False
+    light_active = False
     new_logs = []
     log_lock = threading.Lock()
     
