@@ -194,6 +194,7 @@ def get_system_status(request: Request):
         "gas_alert": SystemStatus.gas_active,
         "buzzer_alert": SystemStatus.buzzer_active,
         "house_locked": config.settings.get("house_locked", False),
+        "light_active": SystemStatus.light_active,
         "new_logs": logs_to_return
     }
 
@@ -216,7 +217,7 @@ async def update_settings_route(request: Request):
             # Chuyển đổi kiểu dữ liệu phù hợp
             if k in ["conf_threshold", "fire_conf_threshold", "face_threshold"]:
                 config.settings[k] = float(v)
-            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer"]:
+            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer", "light_auto_off_seconds", "light_brightness_threshold"]:
                 config.settings[k] = int(v)
             elif k in ["alerts_enabled", "tts_enabled", "auto_cleanup_enabled", "record_full_video"]:
                 config.settings[k] = bool(v)
@@ -939,6 +940,16 @@ def unlock_door_api(request: Request):
     from app.processors import unlock_door
     unlock_door()
     return {"message": "Đã kích hoạt mở khóa cửa thành công!"}
+
+@app.post("/api/control_light")
+async def control_light_api(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    payload = await request.json()
+    state = payload.get("state", False)
+    from app.processors import set_light_state
+    set_light_state(state)
+    return {"message": f"Đã {'BẬT' if state else 'TẮT'} đèn thành công!", "light_active": state}
 
 @app.post("/api/settings/house_lock")
 async def toggle_house_lock_route(request: Request):

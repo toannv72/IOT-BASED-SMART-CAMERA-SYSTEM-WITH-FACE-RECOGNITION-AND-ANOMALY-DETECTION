@@ -49,6 +49,15 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
             return
         last_alert_times[cooldown_key] = current_time
         
+    # Kích hoạt tự động bật đèn nếu phát hiện xâm nhập vùng cấm
+    if alert_type == "intrusion":
+        try:
+            from app.processors import trigger_auto_light
+            duration = settings.get("light_auto_off_seconds", 30)
+            trigger_auto_light(duration, frame)
+        except Exception as err:
+            print(f"[LIGHT RELAY] Lỗi tự động kích hoạt đèn: {err}")
+        
     # Tạo bản sao của khung hình để tránh xung đột ghi đè giữa luồng xử lý và luồng gửi tin
     frame_copy = frame.copy()
     
@@ -146,7 +155,8 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
                             {"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"}
                         ],
                         [
-                            {"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"}
+                            {"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"},
+                            {"text": "💡 Bật/Tắt Đèn", "callback_data": "toggle_light"}
                         ]
                     ]
                 }
@@ -252,6 +262,22 @@ def telegram_polling_loop():
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
                                     "text": "🔓 [ĐIỀU KHIỂN TỪ XA]\nĐã gửi lệnh mở cửa thành công! Khóa Solenoid sẽ được mở trong vòng 3 giây."
+                                }, timeout=5)
+                            elif txt in ("/light_on", "bat den", "bật đèn", "bật đèn chiếu sáng"):
+                                from app.processors import set_light_state
+                                set_light_state(True)
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "💡 [ĐIỀU KHIỂN TỪ XA]\nĐã bật đèn chiếu sáng thông minh thành công."
+                                }, timeout=5)
+                            elif txt in ("/light_off", "tat den", "tắt đèn", "tắt đèn chiếu sáng"):
+                                from app.processors import set_light_state
+                                set_light_state(False)
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "🔌 [ĐIỀU KHIỂN TỪ XA]\nĐã tắt đèn chiếu sáng thông minh thành công."
                                 }, timeout=5)
                             elif txt in ("/cameras", "/cam", "/danh_sach_cam", "cameras", "cam"):
                                 send_camera_menu(token, chat_id)
@@ -424,7 +450,31 @@ def telegram_polling_loop():
                                 ]
                                 if camera_id:
                                     keyboard[0].append({"text": "⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
-                                keyboard.append([{"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"}])
+                                keyboard.append([
+                                    {"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"},
+                                    {"text": "💡 Bật/Tắt Đèn", "callback_data": "toggle_light"}
+                                ])
+                                new_markup = {"inline_keyboard": keyboard}
+                                
+                            elif cb_data == "toggle_light":
+                                from app.processors import set_light_state
+                                from app.config import SystemStatus
+                                new_state = not SystemStatus.light_active
+                                set_light_state(new_state)
+                                state_str = "BẬT" if new_state else "TẮT"
+                                response_text = f"💡 Đã {state_str} đèn thành công."
+                                
+                                keyboard = [
+                                    [
+                                        {"text": mute_text, "callback_data": mute_cb}
+                                    ]
+                                ]
+                                if camera_id:
+                                    keyboard[0].append({"text": "⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
+                                keyboard.append([
+                                    {"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"},
+                                    {"text": "💡 Bật/Tắt Đèn", "callback_data": "toggle_light"}
+                                ])
                                 new_markup = {"inline_keyboard": keyboard}
                                 
                             # Phản hồi lại Telegram xác nhận bấm nút thành công

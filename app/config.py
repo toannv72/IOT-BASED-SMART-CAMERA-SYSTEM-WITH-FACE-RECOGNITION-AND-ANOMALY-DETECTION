@@ -54,7 +54,12 @@ DEFAULT_SETTINGS = {
     "record_full_video": False,
     "house_locked": False,
     "muted_telegram_chats": [],
-    "unmutable_alerts": ["fire", "gas"]
+    "unmutable_alerts": ["fire", "gas"],
+    "light_auto_off_seconds": 30,
+    "light_trigger_mode": "always",
+    "light_schedule_start": "18:00",
+    "light_schedule_end": "06:00",
+    "light_brightness_threshold": 60
 }
 
 # Tải cài đặt lúc khởi chạy

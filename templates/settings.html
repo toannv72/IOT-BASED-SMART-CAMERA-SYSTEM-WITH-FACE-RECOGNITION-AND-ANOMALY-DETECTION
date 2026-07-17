@@ -51,6 +51,56 @@
             </div>
         </div>
 
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+            <label class="form-label" style="color: #3b82f6; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-lightbulb"></i> Đèn Chiếu Sáng Thông Minh (Relay)
+            </label>
+            <div style="margin-top: 8px;">
+                <label class="form-label" style="font-size: 11px;">Thời gian tự động tắt đèn sau khi hết đột nhập (Giây)</label>
+                <input type="number" id="setting-light-auto-off" class="form-input" min="5" max="3600" value="30" style="width: 100%;">
+            </div>
+            
+            <div style="margin-top: 12px;">
+                <label class="form-label" style="font-size: 11px;">Điều kiện tự động bật đèn</label>
+                <select id="setting-light-trigger-mode" class="form-input" style="width: 100%; cursor: pointer;" onchange="onLightTriggerModeChange()">
+                    <option value="always">Luôn tự động bật khi có đột nhập</option>
+                    <option value="schedule">Chỉ tự động bật trong khung giờ cấu hình</option>
+                    <option value="dark">Chỉ tự động bật khi trời tối (phân tích camera)</option>
+                    <option value="both">Kết hợp cả hai (Trời tối TRONG khung giờ cấu hình)</option>
+                </select>
+            </div>
+
+            <!-- Khung giờ cấu hình -->
+            <div id="light-schedule-fields" style="display: none; margin-top: 12px; border: 1px dashed var(--border-color); padding: 10px; border-radius: 6px; background: rgba(255,255,255,0.02);">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <label class="form-label" style="font-size: 11px; color: var(--text-muted);">Giờ bắt đầu</label>
+                        <input type="time" id="setting-light-schedule-start" class="form-input" style="width: 100%;">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 11px; color: var(--text-muted);">Giờ kết thúc</label>
+                        <input type="time" id="setting-light-schedule-end" class="form-input" style="width: 100%;">
+                    </div>
+                </div>
+                <div style="margin-top: 6px; font-size: 10px; color: var(--text-muted);">
+                    Hỗ trợ cấu hình giờ xuyên đêm (Ví dụ: Bắt đầu từ 18:00 đến 06:00 sáng hôm sau).
+                </div>
+            </div>
+
+            <!-- Ngưỡng độ tối camera -->
+            <div id="light-dark-fields" style="display: none; margin-top: 12px; border: 1px dashed var(--border-color); padding: 10px; border-radius: 6px; background: rgba(255,255,255,0.02);">
+                <label class="form-label" style="font-size: 11px;">Ngưỡng nhận diện trời tối (0 - 255)</label>
+                <input type="number" id="setting-light-brightness-threshold" class="form-input" min="5" max="250" value="60" style="width: 100%;">
+                <div style="margin-top: 6px; font-size: 10px; color: var(--text-muted); line-height: 1.4;">
+                    Độ sáng trung bình của khung hình (0: Tối hoàn toàn, 255: Sáng nhất). Nếu độ sáng camera đo được dưới ngưỡng này, đèn mới tự động bật. Ngưỡng tối ưu khuyên dùng từ 50 đến 80.
+                </div>
+            </div>
+            
+            <div style="margin-top: 10px; font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                Khi camera phát hiện có xâm nhập vùng cấm ROI, rơ-le đèn (GPIO 22) sẽ tự động kích hoạt BẬT và tự động TẮT dựa trên các điều kiện kiểm tra ở trên.
+            </div>
+        </div>
+
         <!-- Collapsible Telegram Guide (Beginner Friendly) -->
         <div id="telegram-guide-card"
             style="display: none; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--text-main); max-height: 400px; overflow-y: auto;">
@@ -445,14 +495,40 @@
             document.getElementById('setting-face-cooldown').value = settings.face_log_cooldown !== undefined ? settings.face_log_cooldown : 30;
             document.getElementById('setting-fire-conf').value = settings.fire_conf_threshold !== undefined ? settings.fire_conf_threshold : 0.55;
             document.getElementById('setting-fire-buffer').value = settings.fire_frame_buffer !== undefined ? settings.fire_frame_buffer : 25;
+            document.getElementById('setting-light-auto-off').value = settings.light_auto_off_seconds !== undefined ? settings.light_auto_off_seconds : 30;
+            document.getElementById('setting-light-trigger-mode').value = settings.light_trigger_mode || "always";
+            document.getElementById('setting-light-schedule-start').value = settings.light_schedule_start || "18:00";
+            document.getElementById('setting-light-schedule-end').value = settings.light_schedule_end || "06:00";
+            document.getElementById('setting-light-brightness-threshold').value = settings.light_brightness_threshold !== undefined ? settings.light_brightness_threshold : 60;
             
             const unmutable = settings.unmutable_alerts || ["fire", "gas"];
             document.getElementById('unmute-fire').checked = unmutable.includes('fire');
             document.getElementById('unmute-gas').checked = unmutable.includes('gas');
             document.getElementById('unmute-intrusion').checked = unmutable.includes('intrusion');
             document.getElementById('unmute-fall').checked = unmutable.includes('fall');
+            onLightTriggerModeChange();
         } catch (e) {
             console.error("Lỗi khi nạp cấu hình hệ thống:", e);
+        }
+    }
+
+    function onLightTriggerModeChange() {
+        const mode = document.getElementById('setting-light-trigger-mode').value;
+        const scheduleFields = document.getElementById('light-schedule-fields');
+        const darkFields = document.getElementById('light-dark-fields');
+        
+        if (mode === 'always') {
+            scheduleFields.style.display = 'none';
+            darkFields.style.display = 'none';
+        } else if (mode === 'schedule') {
+            scheduleFields.style.display = 'block';
+            darkFields.style.display = 'none';
+        } else if (mode === 'dark') {
+            scheduleFields.style.display = 'none';
+            darkFields.style.display = 'block';
+        } else if (mode === 'both') {
+            scheduleFields.style.display = 'block';
+            darkFields.style.display = 'block';
         }
     }
 
@@ -482,7 +558,12 @@
             face_log_cooldown: parseInt(document.getElementById('setting-face-cooldown').value),
             fire_conf_threshold: parseFloat(document.getElementById('setting-fire-conf').value),
             fire_frame_buffer: parseInt(document.getElementById('setting-fire-buffer').value),
-            unmutable_alerts: unmutableAlerts
+            unmutable_alerts: unmutableAlerts,
+            light_auto_off_seconds: parseInt(document.getElementById('setting-light-auto-off').value),
+            light_trigger_mode: document.getElementById('setting-light-trigger-mode').value,
+            light_schedule_start: document.getElementById('setting-light-schedule-start').value,
+            light_schedule_end: document.getElementById('setting-light-schedule-end').value,
+            light_brightness_threshold: parseInt(document.getElementById('setting-light-brightness-threshold').value)
         };
         try {
             const response = await fetch('/api/settings', {

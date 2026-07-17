@@ -674,6 +674,9 @@
                         <h3 style="font-size: 16px; font-weight: 600;"><i class="fa-solid fa-list-ul"></i> Nhật Ký Sự
                             Kiện Hệ Thống Trực Tuyến</h3>
                         <div style="display: flex; gap: 8px;">
+                            <button class="btn" id="btn-toggle-light"
+                                style="padding: 4px 8px; font-size: 11px; background: #4b5563; color: white; transition: all 0.2s ease;"
+                                onclick="toggleLightRemote()">🔌 Đèn: TẮT</button>
                             <button class="btn"
                                 style="padding: 4px 8px; font-size: 11px; background: #10b981; color: white;"
                                 onclick="unlockDoorRemote()">🔓 Mở Khóa Cửa</button>
@@ -2027,6 +2030,11 @@
                     updateHouseLockUI();
                 }
 
+                // Đồng bộ trạng thái đèn thông minh
+                if (data.light_active !== undefined) {
+                    updateLightUI(data.light_active);
+                }
+
                 if (data.new_logs) data.new_logs.forEach(log => addLog(log.msg, log.type));
             } catch (e) { }
         }, 1500);
@@ -2052,6 +2060,40 @@
                 addLog(`🔑 Lệnh điều khiển: ${data.message}`, 'info');
             } catch (e) {
                 addLog("🚨 Lỗi khi gửi lệnh mở khóa cửa!", 'danger');
+            }
+        }
+
+        let isLightActive = false;
+
+        function updateLightUI(active) {
+            isLightActive = active;
+            const btn = document.getElementById('btn-toggle-light');
+            if (btn) {
+                if (active) {
+                    btn.innerHTML = '💡 Đèn: BẬT';
+                    btn.style.background = '#eab308'; // Màu vàng ấm
+                    btn.style.boxShadow = '0 0 10px rgba(234, 179, 8, 0.4)';
+                } else {
+                    btn.innerHTML = '🔌 Đèn: TẮT';
+                    btn.style.background = '#4b5563'; // Màu xám
+                    btn.style.boxShadow = 'none';
+                }
+            }
+        }
+
+        async function toggleLightRemote() {
+            try {
+                const targetState = !isLightActive;
+                const response = await fetch('/api/control_light', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ state: targetState })
+                });
+                const data = await response.json();
+                addLog(`💡 Lệnh điều khiển: ${data.message}`, targetState ? 'success' : 'muted');
+                updateLightUI(targetState);
+            } catch (e) {
+                addLog("🚨 Lỗi khi gửi lệnh điều khiển đèn!", 'danger');
             }
         }
 

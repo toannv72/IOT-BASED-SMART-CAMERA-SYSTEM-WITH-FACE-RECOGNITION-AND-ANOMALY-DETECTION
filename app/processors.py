@@ -1533,3 +1533,119 @@ def _buzzer_control_loop():
         except Exception as e:
             print(f"[BUZZER] Lỗi vòng lặp điều khiển: {e}")
             time.sleep(2.0)
+
+# =========================================================================
+# PHÂN HỆ ĐIỀU KHIỂN ĐÈN CHIẾU SÁNG THÔNG MINH (LIGHT RELAY VIA GPIO 22)
+# =========================================================================
+auto_light_timer = None
+auto_light_lock = threading.Lock()
+
+def set_light_state(state: bool):
+    """Đặt trạng thái bật/tắt rơ-le đèn chiếu sáng (GPIO 22)"""
+    SystemStatus.light_active = state
+    
+    has_gpio = False
+    try:
+        import RPi.GPIO as GPIO
+        has_gpio = True
+    except ImportError:
+        pass
+        
+    LIGHT_PIN = 22 # GPIO 22 (Pin 15)
+    
+    if has_gpio:
+        try:
+            orig_mode = GPIO.getmode()
+            if orig_mode is None:
+                GPIO.setmode(GPIO.BCM)
+            GPIO.setup(LIGHT_PIN, GPIO.OUT)
+            # Kích hoạt rơ-le đèn (HIGH = Bật, LOW = Tắt)
+            GPIO.output(LIGHT_PIN, GPIO.HIGH if state else GPIO.LOW)
+            print(f"[LIGHT RELAY] GPIO {LIGHT_PIN} set to {'HIGH' if state else 'LOW'}.")
+        except Exception as e:
+            print(f"[LIGHT RELAY] [ERROR] Lỗi điều khiển GPIO rơ-le đèn: {e}")
+    else:
+        print(f"[LIGHT RELAY] [SIMULATION] Rơ-le đèn đã được {'BẬT' if state else 'TẮT'} (Giả lập).")
+    
+    # Thêm log vào hệ thống
+    state_str = "BẬT" if state else "TẮT"
+    log_type = "success" if state else "muted"
+    SystemStatus.add_log(f"💡 HỆ THỐNG: Đèn chiếu sáng thông minh đã được {state_str}.", log_type)
+
+def get_frame_brightness(frame):
+    """Tính toán độ sáng trung bình của khung hình (0-255)"""
+    try:
+        import cv2
+        import numpy as np
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        return float(np.mean(gray))
+    except Exception as e:
+        print(f"[LIGHT RELAY] Lỗi tính độ sáng khung hình: {e}")
+        return 127.0
+
+def trigger_auto_light(duration=30, frame=None):
+    """Tự động bật đèn trong một khoảng thời gian (duration) rồi tắt."""
+    global auto_light_timer
+    
+    # Đọc cấu hình chế độ hoạt động
+    from app.config import settings
+    mode = settings.get("light_trigger_mode", "always")
+    
+    # 1. Kiểm tra khung giờ hoạt động
+    if mode in ("schedule", "both"):
+        try:
+            from datetime import datetime, time
+            now_time = datetime.now().time()
+            start_str = settings.get("light_schedule_start", "18:00")
+            end_str = settings.get("light_schedule_end", "06:00")
+            
+            sh, sm = map(int, start_str.split(":"))
+            start_t = time(sh, sm)
+            
+            eh, em = map(int, end_str.split(":"))
+            end_t = time(eh, em)
+            
+            in_range = False
+            if start_t <= end_t:
+                in_range = (start_t <= now_time <= end_t)
+            else:
+                in_range = (now_time >= start_t or now_time <= end_t)
+                
+            if not in_range:
+                print(f"[LIGHT RELAY] Tự động bật đèn bị bỏ qua: Ngoài khung giờ cấu hình ({start_str} - {end_str}). Hiện tại: {now_time.strftime('%H:%M:%S')}")
+                return
+        except Exception as err:
+            print(f"[LIGHT RELAY] Lỗi kiểm tra khung giờ: {err}")
+            
+    # 2. Kiểm tra độ sáng khung hình (Trời tối)
+    if mode in ("dark", "both"):
+        if frame is not None:
+            brightness = get_frame_brightness(frame)
+            threshold = settings.get("light_brightness_threshold", 60)
+            if brightness >= threshold:
+                print(f"[LIGHT RELAY] Tự động bật đèn bị bỏ qua: Khung hình đủ sáng ({brightness:.1f} >= ngưỡng {threshold}).")
+                return
+            else:
+                print(f"[LIGHT RELAY] Phát hiện trời tối: Độ sáng khung hình {brightness:.1f} < ngưỡng {threshold}.")
+        else:
+            print(f"[LIGHT RELAY] Bỏ qua kiểm tra độ sáng vì không có khung hình sự cố.")
+            
+    with auto_light_lock:
+        # Bật đèn nếu chưa bật
+        if not SystemStatus.light_active:
+            set_light_state(True)
+        
+        # Hủy timer cũ nếu có
+        if auto_light_timer is not None:
+            auto_light_timer.cancel()
+            
+        # Tạo timer mới tắt đèn sau `duration` giây
+        auto_light_timer = threading.Timer(duration, _auto_light_off_worker)
+        auto_light_timer.start()
+        print(f"[LIGHT RELAY] Tự động bật đèn trong {duration} giây...")
+
+def _auto_light_off_worker():
+    global auto_light_timer
+    with auto_light_lock:
+        set_light_state(False)
+        auto_light_timer = None
