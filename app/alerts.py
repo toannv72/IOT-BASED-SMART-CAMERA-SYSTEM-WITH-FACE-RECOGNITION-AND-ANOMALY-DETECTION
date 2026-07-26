@@ -22,6 +22,47 @@ def sanitize_filename_component(text):
     sanitized = re.sub(r'[^a-zA-Z0-9_\-]', '_', translated)
     return sanitized
 
+def get_alert_keyboard(chat_id, camera_id=None, is_paused=False):
+    """
+    Tạo cấu hình bàn phím Inline đồng nhất cho các cảnh báo gửi qua Telegram
+    """
+    from app.config import SystemStatus, settings
+    import time
+    
+    # Xác định trạng thái câm hiện tại cho riêng user này
+    muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
+    is_muted = chat_id in muted_chats
+    mute_text = "🔔 Bật Lại Báo Động" if is_muted else "🔕 Tắt Báo Động"
+    mute_cb = "unmute_alerts" if is_muted else "mute_alerts"
+    
+    keyboard = []
+    
+    # Dòng 1: Điều khiển tắt còi vật lý tạm thời
+    is_buzzer_muted = time.time() < getattr(SystemStatus, "buzzer_mute_until", 0.0)
+    if is_buzzer_muted:
+        keyboard.append([{"text": "🔊 Bật Lại Còi Báo Động", "callback_data": "unmute_buzzer"}])
+    else:
+        keyboard.append([
+            {"text": "🔇 Tắt Còi 30p", "callback_data": "mute_buzzer_30"},
+            {"text": "🔇 Tắt Còi 1h", "callback_data": "mute_buzzer_60"}
+        ])
+        
+    # Dòng 2: Tắt nhận thông báo cho user hiện tại & Tạm dừng camera
+    row2 = [{"text": mute_text, "callback_data": mute_cb}]
+    if camera_id and camera_id != "Unknown":
+        if is_paused:
+            row2.append({"text": "▶️ Bật Lại Cam", "callback_data": f"resume_{camera_id}"})
+        else:
+            row2.append({"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
+    keyboard.append(row2)
+    
+    # Dòng 3: Bật/Tắt đèn
+    keyboard.append([
+        {"text": "💡 Bật/Tắt Đèn", "callback_data": "toggle_light"}
+    ])
+    
+    return {"inline_keyboard": keyboard}
+
 def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unknown", frame_buffer=None, face_name=None):
     """
     Gửi tin nhắn cảnh báo chứa hình ảnh chụp được qua Telegram và lưu lại cơ sở dữ liệu.
@@ -147,19 +188,8 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
                 if chat_id in muted_chats and alert_type not in unmutable_alerts:
                     continue
                 
-                # Cấu hình nút bấm tương tác 2 chiều
-                reply_markup = {
-                    "inline_keyboard": [
-                        [
-                            {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"},
-                            {"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"}
-                        ],
-                        [
-                            {"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"},
-                            {"text": "💡 Bật/Tắt Đèn", "callback_data": "toggle_light"}
-                        ]
-                    ]
-                }
+                # Cấu hình nút bấm tương tác 2 chiều động dùng hàm dùng chung
+                reply_markup = get_alert_keyboard(chat_id, camera_id)
                 
                 files = {"photo": ("alert.jpg", buffer.tobytes(), "image/jpeg")}
                 payload = {
@@ -255,15 +285,7 @@ def telegram_polling_loop():
                             msg = update["message"]
                             chat_id = str(msg["chat"]["id"])
                             txt = msg["text"].strip().lower()
-                            if txt in ("/unlock", "/mo_cua", "mo cua", "unlock", "mở cửa"):
-                                from app.processors import unlock_door
-                                unlock_door()
-                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
-                                requests.post(send_url, json={
-                                    "chat_id": chat_id,
-                                    "text": "🔓 [ĐIỀU KHIỂN TỪ XA]\nĐã gửi lệnh mở cửa thành công! Khóa Solenoid sẽ được mở trong vòng 3 giây."
-                                }, timeout=5)
-                            elif txt in ("/light_on", "bat den", "bật đèn", "bật đèn chiếu sáng"):
+                            if txt in ("/light_on", "bat den", "bật đèn", "bật đèn chiếu sáng"):
                                 from app.processors import set_light_state
                                 set_light_state(True)
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -304,6 +326,35 @@ def telegram_polling_loop():
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
                                     "text": "🔔 Bạn đã bật lại nhận cảnh báo từ hệ thống."
+                                }, timeout=5)
+                            elif txt in ("/mute_buzzer_30", "tat coi 30p", "tắt còi 30p", "tắt còi 30 phút"):
+                                from app.config import SystemStatus
+                                import time
+                                SystemStatus.buzzer_mute_until = time.time() + 30 * 60
+                                SystemStatus.add_log("Telegram Bot: Đã tắt còi báo động vật lý trong 30 phút.", "warning")
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "🔇 [ĐIỀU KHIỂN TỪ XA]\nĐã tắt còi báo động vật lý trong 30 phút thành công!"
+                                }, timeout=5)
+                            elif txt in ("/mute_buzzer_60", "tat coi 1h", "tắt còi 1h", "tắt còi 1 tiếng", "tắt còi 60 phút"):
+                                from app.config import SystemStatus
+                                import time
+                                SystemStatus.buzzer_mute_until = time.time() + 60 * 60
+                                SystemStatus.add_log("Telegram Bot: Đã tắt còi báo động vật lý trong 1 tiếng.", "warning")
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "🔇 [ĐIỀU KHIỂN TỪ XA]\nĐã tắt còi báo động vật lý trong 1 tiếng thành công!"
+                                }, timeout=5)
+                            elif txt in ("/unmute_buzzer", "bat coi", "bật còi", "bật còi báo động"):
+                                from app.config import SystemStatus
+                                SystemStatus.buzzer_mute_until = 0.0
+                                SystemStatus.add_log("Telegram Bot: Đã bật lại còi báo động vật lý.", "success")
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "🔊 [ĐIỀU KHIỂN TỪ XA]\nĐã kích hoạt lại còi báo động vật lý thành công!"
                                 }, timeout=5)
                                 
                         # Xử lý sự kiện bấm nút inline
@@ -375,15 +426,7 @@ def telegram_polling_loop():
                                     save_settings()
                                 SystemStatus.add_log(f"Telegram Bot: Người dùng {chat_id} đã tắt nhận cảnh báo.", "warning")
                                 response_text = "🔕 Bạn đã tắt nhận cảnh báo từ hệ thống. Các quản trị viên khác vẫn nhận bình thường."
-                                
-                                keyboard = [
-                                    [
-                                        {"text": "🔔 Bật Lại Báo Động", "callback_data": "unmute_alerts"}
-                                    ]
-                                ]
-                                if camera_id:
-                                    keyboard[0].append({"text": "⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
-                                new_markup = {"inline_keyboard": keyboard}
+                                new_markup = get_alert_keyboard(chat_id, camera_id)
                                 
                             elif cb_data == "unmute_alerts":
                                 from app.config import save_settings, SystemStatus
@@ -394,15 +437,7 @@ def telegram_polling_loop():
                                     save_settings()
                                 SystemStatus.add_log(f"Telegram Bot: Người dùng {chat_id} đã bật lại nhận cảnh báo.", "success")
                                 response_text = "🔔 Bạn đã bật lại nhận cảnh báo từ hệ thống."
-                                
-                                keyboard = [
-                                    [
-                                        {"text": "🔕 Tắt Báo Động", "callback_data": "mute_alerts"}
-                                    ]
-                                ]
-                                if camera_id:
-                                    keyboard[0].append({"text": "⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
-                                new_markup = {"inline_keyboard": keyboard}
+                                new_markup = get_alert_keyboard(chat_id, camera_id)
                                 
                             elif cb_data.startswith("pause_"):
                                 parts = cb_data.split("_")
@@ -412,15 +447,7 @@ def telegram_polling_loop():
                                 from app.processors import pause_camera_alerts
                                 pause_camera_alerts(cam_id, duration)
                                 response_text = f"⏸️ Đã tạm ngắt cảnh báo camera '{cam_id}' trong {duration} phút."
-                                
-                                new_markup = {
-                                    "inline_keyboard": [
-                                        [
-                                            {"text": mute_text, "callback_data": mute_cb},
-                                            {"text": "▶️ Bật Lại Cam", "callback_data": f"resume_{cam_id}"}
-                                        ]
-                                    ]
-                                }
+                                new_markup = get_alert_keyboard(chat_id, camera_id, is_paused=True)
                                 
                             elif cb_data.startswith("resume_"):
                                 cam_id = cb_data.split("resume_")[-1]
@@ -428,33 +455,7 @@ def telegram_polling_loop():
                                 from app.processors import resume_camera_alerts
                                 resume_camera_alerts(cam_id)
                                 response_text = f"▶️ Đã bật lại cảnh báo camera '{cam_id}' thành công."
-                                
-                                new_markup = {
-                                    "inline_keyboard": [
-                                        [
-                                            {"text": mute_text, "callback_data": mute_cb},
-                                            {"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{cam_id}_30"}
-                                        ]
-                                    ]
-                                }
-                                
-                            elif cb_data == "unlock_door":
-                                from app.processors import unlock_door
-                                unlock_door()
-                                response_text = "🔓 Đã gửi lệnh mở cửa thành công."
-                                
-                                keyboard = [
-                                    [
-                                        {"text": mute_text, "callback_data": mute_cb}
-                                    ]
-                                ]
-                                if camera_id:
-                                    keyboard[0].append({"text": "⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
-                                keyboard.append([
-                                    {"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"},
-                                    {"text": "💡 Bật/Tắt Đèn", "callback_data": "toggle_light"}
-                                ])
-                                new_markup = {"inline_keyboard": keyboard}
+                                new_markup = get_alert_keyboard(chat_id, camera_id, is_paused=False)
                                 
                             elif cb_data == "toggle_light":
                                 from app.processors import set_light_state
@@ -463,19 +464,23 @@ def telegram_polling_loop():
                                 set_light_state(new_state)
                                 state_str = "BẬT" if new_state else "TẮT"
                                 response_text = f"💡 Đã {state_str} đèn thành công."
-                                
-                                keyboard = [
-                                    [
-                                        {"text": mute_text, "callback_data": mute_cb}
-                                    ]
-                                ]
-                                if camera_id:
-                                    keyboard[0].append({"text": "⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
-                                keyboard.append([
-                                    {"text": "🔓 Mở Cửa (Unlock)", "callback_data": "unlock_door"},
-                                    {"text": "💡 Bật/Tắt Đèn", "callback_data": "toggle_light"}
-                                ])
-                                new_markup = {"inline_keyboard": keyboard}
+                                new_markup = get_alert_keyboard(chat_id, camera_id)
+
+                            elif cb_data.startswith("mute_buzzer_"):
+                                minutes = int(cb_data.split("_")[-1])
+                                from app.config import SystemStatus
+                                import time
+                                SystemStatus.buzzer_mute_until = time.time() + minutes * 60
+                                SystemStatus.add_log(f"Telegram Bot: Đã tắt còi báo động vật lý trong {minutes} phút.", "warning")
+                                response_text = f"🔇 Đã tắt còi báo động vật lý trong {minutes} phút."
+                                new_markup = get_alert_keyboard(chat_id, camera_id)
+
+                            elif cb_data == "unmute_buzzer":
+                                from app.config import SystemStatus
+                                SystemStatus.buzzer_mute_until = 0.0
+                                SystemStatus.add_log("Telegram Bot: Đã kích hoạt lại còi báo động vật lý.", "success")
+                                response_text = "🔊 Đã kích hoạt lại còi báo động vật lý."
+                                new_markup = get_alert_keyboard(chat_id, camera_id)
                                 
                             # Phản hồi lại Telegram xác nhận bấm nút thành công
                             answer_url = f"https://api.telegram.org/bot{token}/answerCallbackQuery"

@@ -13,9 +13,24 @@ import supervision as sv
 import threading
 import app.config as config
 from app.config import SystemStatus
-from app.ai import device, mtcnn_multi, resnet, yolov5_model, yolov8_model, yolov8_pose_model, yolov8_fall_model, yolov8_fire_model
+from app.ai import device
+from app.ai import device as ai_device
 from app.alerts import send_telegram_alert
 from app.database import SessionLocal, FaceRecord
+
+# Tự động cấu hình khoảng giãn cách khung hình (frame skipping intervals) dựa trên thiết bị xử lý
+if ai_device.type == 'cuda':
+    YOLO_INTERVAL = 1
+    FACE_INTERVAL = 3
+    FALL_INTERVAL = 2
+    FIRE_INTERVAL = 2
+    print("[PROCESSORS] CUDA detected: Set optimized default intervals (YOLO=1, Face=3, Fall=2, Fire=2)")
+else:
+    YOLO_INTERVAL = 2
+    FACE_INTERVAL = 12
+    FALL_INTERVAL = 6
+    FIRE_INTERVAL = 8
+    print("[PROCESSORS] CPU mode: Set lightweight intervals (YOLO=2, Face=12, Fall=6, Fire=8)")
 
 # Khóa Lock dùng chung toàn cục để đồng bộ suy luận trên thiết bị biên CPU/GPU (Tránh xung đột/Nghẽn cổ chai)
 gpu_lock = threading.Lock()
@@ -77,6 +92,7 @@ def gen_face_stream():
                 db_embeddings = db_embeddings / norms
 
         # 3. Phát hiện khuôn mặt bằng MTCNN
+        from app.ai import mtcnn_multi, resnet
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         with gpu_lock:
             with torch.no_grad():
@@ -178,6 +194,7 @@ def gen_roi_stream():
             continue
             
         # 1. Phát hiện người bằng YOLOv5s
+        from app.ai import yolov5_model
         with gpu_lock:
             with torch.no_grad():
                 results = yolov5_model(frame)
@@ -276,6 +293,7 @@ def gen_fall_stream():
         conf_thr = config.settings.get("conf_threshold", 0.25)
         
         # Nhận diện ngã ưu tiên mô hình custom tự train, nếu không sử dụng pose estimation dự phòng
+        from app.ai import yolov8_fall_model, yolov8_pose_model
         if yolov8_fall_model is not None:
             with gpu_lock:
                 with torch.no_grad():
@@ -659,11 +677,18 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
         detections = None
         if run_yolo:
-            with gpu_lock:
-                with torch.no_grad():
-                    results = yolov8_model.track(frame, persist=True, tracker="custom_bytetrack.yaml", conf=conf_thr, classes=[0], verbose=False, device=device)
-            detections = sv.Detections.from_ultralytics(results[0])
-            detections = detections[detections.class_id == 0]
+            if not hasattr(state, "last_detections"):
+                state.last_detections = None
+            if state.frame_index % YOLO_INTERVAL == 0 or state.last_detections is None:
+                from app.ai import yolov8_model
+                with gpu_lock:
+                    with torch.no_grad():
+                        results = yolov8_model.track(frame, persist=True, tracker="custom_bytetrack.yaml", conf=conf_thr, classes=[0], verbose=False, device=device)
+                detections = sv.Detections.from_ultralytics(results[0])
+                detections = detections[detections.class_id == 0]
+                state.last_detections = detections
+            else:
+                detections = state.last_detections
 
         annotated_frame = frame.copy()
 
@@ -755,95 +780,133 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     state.intrusion_active = False
 
         if run_face:
-            img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            with gpu_lock:
-                with torch.no_grad():
-                    boxes, _ = mtcnn_multi.detect(img_pil)
-            if boxes is not None:
+            # Kiểm tra xem có cần quét khuôn mặt không (nếu tất cả mọi người đã được định danh thì bỏ qua)
+            need_face_recognition = True
+            if detections is not None and detections.tracker_id is not None:
+                unrecognized_people = False
+                for tid in detections.tracker_id:
+                    face_name = state.track_face_status.get(tid)
+                    if face_name is None or face_name == "Unknown":
+                        unrecognized_people = True
+                        break
+                if not unrecognized_people:
+                    need_face_recognition = False
+
+            # Thực hiện quét mặt theo chu kỳ FACE_INTERVAL (Giảm độ phân giải khi detect để siêu nhẹ trên CPU Pi)
+            if need_face_recognition and (state.frame_index % FACE_INTERVAL == 0):
+                from app.ai import mtcnn_multi, resnet
+                # 1. Thu nhỏ ảnh đi 2 lần (320x180) để chạy detect MTCNN cực nhanh
+                small_frame = cv2.resize(frame, (320, 180))
+                img_pil_small = Image.fromarray(cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB))
                 with gpu_lock:
                     with torch.no_grad():
-                        faces = mtcnn_multi(img_pil)
-                if faces is not None:
-                    # Che khuất phần mặt dưới (45% từ dưới lên) để hỗ trợ nhận diện khẩu trang
-                    faces[:, :, 88:, :] = 0.0
+                        boxes, _ = mtcnn_multi.detect(img_pil_small)
+                if boxes is not None:
+                    # 2. Nhân đôi tọa độ hộp phát hiện được để tương thích với ảnh gốc 640x360
+                    boxes_orig = boxes * 2.0
+                    # 3. Tạo ảnh PIL gốc để trích xuất khuôn mặt
+                    img_pil_orig = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                     with gpu_lock:
                         with torch.no_grad():
-                            embeddings = resnet(faces.to(device)).detach().cpu().numpy()
-                    face_log_cooldown = config.settings.get("face_log_cooldown", 30)
-                    current_time = time.time()
+                            # Sử dụng phương thức extract trực tiếp để tránh chạy lại detect lần thứ hai
+                            faces = mtcnn_multi.extract(img_pil_orig, boxes_orig, save_path=None)
+                    if faces is not None:
+                        # Che khuất phần mặt dưới (45% từ dưới lên) để hỗ trợ nhận diện khẩu trang
+                        faces[:, :, 88:, :] = 0.0
+                        with gpu_lock:
+                            with torch.no_grad():
+                                embeddings = resnet(faces.to(device)).detach().cpu().numpy()
+                        
+                        state.last_face_boxes = boxes_orig
+                        state.last_face_embeddings = embeddings
+                    else:
+                        state.last_face_boxes = None
+                        state.last_face_embeddings = None
+                else:
+                    state.last_face_boxes = None
+                    state.last_face_embeddings = None
+
+            # Sử dụng kết quả quét mặt gần nhất để vẽ UI và xử lý log/alert
+            boxes = getattr(state, "last_face_boxes", None)
+            embeddings = getattr(state, "last_face_embeddings", None)
+
+            if boxes is not None and embeddings is not None:
+                face_log_cooldown = config.settings.get("face_log_cooldown", 30)
+                current_time = time.time()
+                
+                for box, emb in zip(boxes, embeddings):
+                    x_1, y_1, x_2, y_2 = [int(b) for b in box]
+                    best_match_name = "Unknown"
+                    best_distance = float("inf")
                     
-                    for box, emb in zip(boxes, embeddings):
-                        x_1, y_1, x_2, y_2 = [int(b) for b in box]
-                        best_match_name = "Unknown"
-                        best_distance = float("inf")
-                        # Chuẩn hóa L2-norm cho vector nhúng hiện tại
-                        norm_val = np.linalg.norm(emb)
-                        if norm_val > 0:
-                            emb = emb / norm_val
+                    # Chuẩn hóa L2-norm cho vector nhúng hiện tại
+                    norm_val = np.linalg.norm(emb)
+                    if norm_val > 0:
+                        emb = emb / norm_val
 
-                        if len(db_embeddings) > 0:
-                            distances = np.linalg.norm(db_embeddings - emb, axis=1)
-                            min_idx = np.argmin(distances)
-                            min_dist = distances[min_idx]
-                            if min_dist < face_thr:
-                                best_match_name = names[min_idx]
-                                best_distance = min_dist
+                    if len(db_embeddings) > 0:
+                        distances = np.linalg.norm(db_embeddings - emb, axis=1)
+                        min_idx = np.argmin(distances)
+                        min_dist = distances[min_idx]
+                        if min_dist < face_thr:
+                            best_match_name = names[min_idx]
+                            best_distance = min_dist
 
-                        # Liên kết khuôn mặt với tracker_id của YOLOv8 bằng độ chồng khớp hình học (overlap)
-                        overlap_tid = None
-                        if detections is not None and detections.tracker_id is not None:
-                            best_overlap = 0.0
-                            for det_idx, tid in enumerate(detections.tracker_id):
-                                px1, py1, px2, py2 = detections.xyxy[det_idx]
-                                ix1 = max(x_1, px1)
-                                iy1 = max(y_1, py1)
-                                ix2 = min(x_2, px2)
-                                iy2 = min(y_2, py2)
-                                if ix2 > ix1 and iy2 > iy1:
-                                    area = (ix2 - ix1) * (iy2 - iy1)
-                                    face_area = (x_2 - x_1) * (y_2 - y_1)
-                                    overlap_ratio = area / float(face_area)
-                                    if overlap_ratio > 0.5 and overlap_ratio > best_overlap:
-                                        best_overlap = overlap_ratio
-                                        overlap_tid = tid
-                        if overlap_tid is not None:
-                            old_face = state.track_face_status.get(overlap_tid)
-                            if old_face is None or old_face == "Unknown" or (best_match_name != "Unknown" and old_face != best_match_name):
-                                state.track_face_status[overlap_tid] = best_match_name
+                    # Liên kết khuôn mặt với tracker_id của YOLOv8 bằng độ chồng khớp hình học (overlap)
+                    overlap_tid = None
+                    if detections is not None and detections.tracker_id is not None:
+                        best_overlap = 0.0
+                        for det_idx, tid in enumerate(detections.tracker_id):
+                            px1, py1, px2, py2 = detections.xyxy[det_idx]
+                            ix1 = max(x_1, px1)
+                            iy1 = max(y_1, py1)
+                            ix2 = min(x_2, px2)
+                            iy2 = min(y_2, py2)
+                            if ix2 > ix1 and iy2 > iy1:
+                                area = (ix2 - ix1) * (iy2 - iy1)
+                                face_area = (x_2 - x_1) * (y_2 - y_1)
+                                overlap_ratio = area / float(face_area)
+                                if overlap_ratio > 0.5 and overlap_ratio > best_overlap:
+                                    best_overlap = overlap_ratio
+                                    overlap_tid = tid
+                    if overlap_tid is not None:
+                        old_face = state.track_face_status.get(overlap_tid)
+                        if old_face is None or old_face == "Unknown" or (best_match_name != "Unknown" and old_face != best_match_name):
+                            state.track_face_status[overlap_tid] = best_match_name
 
-                        if "face_id" in features:
-                            color = (0, 255, 0) if best_match_name != "Unknown" else (0, 0, 255)
-                            cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
-                            text = f"{best_match_name} ({best_distance:.2f})" if best_match_name != "Unknown" else "Unknown"
-                            cv2.putText(annotated_frame, text, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                    if "face_id" in features:
+                        color = (0, 255, 0) if best_match_name != "Unknown" else (0, 0, 255)
+                        cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
+                        text = f"{best_match_name} ({best_distance:.2f})" if best_match_name != "Unknown" else "Unknown"
+                        cv2.putText(annotated_frame, text, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
-                            last_log_time = state.last_face_log_times.get(best_match_name, 0)
-                            if current_time - last_log_time > face_log_cooldown:
-                                state.last_face_log_times[best_match_name] = current_time
-                                
-                                if best_match_name == "Unknown":
-                                    if "abnormal_behavior" not in features:
-                                        if alerts_enabled and alert_allowed_by_schedule and not is_paused:
-                                            SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện khuôn mặt lạ!", "danger")
-                                            send_telegram_alert(
-                                                message=f"⚠️ [{camera_id}] Phát hiện khuôn mặt lạ xuất hiện!",
-                                                frame=frame,
-                                                alert_type="face",
-                                                camera_id=camera_id,
-                                                frame_buffer=list(state.frame_buffer),
-                                                face_name="Unknown"
-                                            )
-                                else:
+                        last_log_time = state.last_face_log_times.get(best_match_name, 0)
+                        if current_time - last_log_time > face_log_cooldown:
+                            state.last_face_log_times[best_match_name] = current_time
+                            
+                            if best_match_name == "Unknown":
+                                if "abnormal_behavior" not in features:
                                     if alerts_enabled and alert_allowed_by_schedule and not is_paused:
-                                        SystemStatus.add_log(f"👤 {camera_id}: Nhận diện thành công khuôn mặt: {best_match_name}", "info")
+                                        SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện khuôn mặt lạ!", "danger")
                                         send_telegram_alert(
-                                            message=f"👤 [{camera_id}] Nhận diện thành công khuôn mặt: {best_match_name}",
+                                            message=f"⚠️ [{camera_id}] Phát hiện khuôn mặt lạ xuất hiện!",
                                             frame=frame,
                                             alert_type="face",
                                             camera_id=camera_id,
                                             frame_buffer=list(state.frame_buffer),
-                                            face_name=best_match_name
+                                            face_name="Unknown"
                                         )
+                            else:
+                                if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                                    SystemStatus.add_log(f"👤 {camera_id}: Nhận diện thành công khuôn mặt: {best_match_name}", "info")
+                                    send_telegram_alert(
+                                        message=f"👤 [{camera_id}] Nhận diện thành công khuôn mặt: {best_match_name}",
+                                        frame=frame,
+                                        alert_type="face",
+                                        camera_id=camera_id,
+                                        frame_buffer=list(state.frame_buffer),
+                                        face_name=best_match_name
+                                    )
 
         if "abnormal_behavior" in features:
             current_time = time.time()
@@ -1065,69 +1128,97 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
         if run_fall:
             fall_in_frame = False
-            if yolov8_fall_model is not None:
-                with gpu_lock:
-                    with torch.no_grad():
-                        results = yolov8_fall_model(frame, verbose=False, device=device)
-                if len(results) > 0 and results[0].boxes is not None:
-                    boxes = results[0].boxes
-                    for box in boxes:
-                        cls_id = int(box.cls[0].cpu().item())
-                        conf = float(box.conf[0].cpu().item())
-                        if conf > conf_thr:
-                            x_1, y_1, x_2, y_2 = [int(b) for b in box.xyxy[0].cpu().numpy()[:4]]
-                            if cls_id == 0:
+            
+            # Thực hiện phát hiện ngã theo chu kỳ FALL_INTERVAL
+            if state.frame_index % FALL_INTERVAL == 0:
+                from app.ai import yolov8_fall_model, yolov8_pose_model
+                
+                # Ưu tiên mô hình ngã chuyên biệt tự huấn luyện
+                if yolov8_fall_model is not None:
+                    with gpu_lock:
+                        with torch.no_grad():
+                            results = yolov8_fall_model(frame, verbose=False, device=device)
+                    detected_boxes = []
+                    if len(results) > 0 and results[0].boxes is not None:
+                        boxes = results[0].boxes
+                        for box in boxes:
+                            cls_id = int(box.cls[0].cpu().item())
+                            conf = float(box.conf[0].cpu().item())
+                            if conf > conf_thr:
+                                x_1, y_1, x_2, y_2 = [int(b) for b in box.xyxy[0].cpu().numpy()[:4]]
+                                if cls_id == 0:
+                                    fall_in_frame = True
+                                detected_boxes.append((x_1, y_1, x_2, y_2, cls_id, conf))
+                    state.last_fall_boxes = detected_boxes
+                    state.last_fall_in_frame = fall_in_frame
+                else:
+                    # Thuật toán dự phòng dựa trên tư thế
+                    with gpu_lock:
+                        with torch.no_grad():
+                            results = yolov8_pose_model(frame, verbose=False, device=device)
+                    detected_pose_falls = []
+                    if len(results) > 0 and results[0].keypoints is not None:
+                        keypoints_data = results[0].keypoints.data.cpu().numpy()
+                        boxes = results[0].boxes.xyxy.cpu().numpy()
+                        for i, kpts in enumerate(keypoints_data):
+                            box = boxes[i]
+                            x_1, y_1, x_2, y_2 = [int(b) for b in box[:4]]
+                            w = x_2 - x_1
+                            h = y_2 - y_1
+                            aspect_ratio = w / (h + 1e-5)
+
+                            l_sho, r_sho = kpts[5], kpts[6]
+                            l_hip, r_hip = kpts[11], kpts[12]
+                            has_conf = kpts.shape[1] == 3
+
+                            sho_x = (l_sho[0] + r_sho[0]) / 2
+                            sho_y = (l_sho[1] + r_sho[1]) / 2
+                            hip_x = (l_hip[0] + r_hip[0]) / 2
+                            hip_y = (l_hip[1] + r_hip[1]) / 2
+
+                            sho_conf = min(l_sho[2], r_sho[2]) if has_conf else 1.0
+                            hip_conf = min(l_hip[2], r_hip[2]) if has_conf else 1.0
+
+                            is_horizontal = False
+                            if sho_conf > 0.3 and hip_conf > 0.3:
+                                dy = sho_y - hip_y
+                                dx = sho_x - hip_x
+                                angle_body = abs(np.arctan2(dy, dx) * 180 / np.pi)
+                                if angle_body < 40 or angle_body > 140:
+                                    is_horizontal = True
+
+                            is_fall = is_horizontal or aspect_ratio > 1.4
+                            if is_fall:
                                 fall_in_frame = True
-                                color = (0, 0, 255)
-                                label = f"FALL ({conf:.2f})"
-                            else:
-                                color = (0, 255, 0)
-                                label = f"Normal ({conf:.2f})"
-                            cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
-                            cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                            detected_pose_falls.append((x_1, y_1, x_2, y_2, is_fall))
+                    state.last_fall_boxes = detected_pose_falls
+                    state.last_fall_in_frame = fall_in_frame
             else:
-                with gpu_lock:
-                    with torch.no_grad():
-                        results = yolov8_pose_model(frame, verbose=False, device=device)
-                if len(results) > 0 and results[0].keypoints is not None:
-                    keypoints_data = results[0].keypoints.data.cpu().numpy()
-                    boxes = results[0].boxes.xyxy.cpu().numpy()
-                    for i, kpts in enumerate(keypoints_data):
-                        box = boxes[i]
-                        x_1, y_1, x_2, y_2 = [int(b) for b in box[:4]]
-                        w = x_2 - x_1
-                        h = y_2 - y_1
-                        aspect_ratio = w / (h + 1e-5)
+                fall_in_frame = getattr(state, "last_fall_in_frame", False)
 
-                        l_sho, r_sho = kpts[5], kpts[6]
-                        l_hip, r_hip = kpts[11], kpts[12]
-                        has_conf = kpts.shape[1] == 3
-
-                        sho_x = (l_sho[0] + r_sho[0]) / 2
-                        sho_y = (l_sho[1] + r_sho[1]) / 2
-                        hip_x = (l_hip[0] + r_hip[0]) / 2
-                        hip_y = (l_hip[1] + r_hip[1]) / 2
-
-                        sho_conf = min(l_sho[2], r_sho[2]) if has_conf else 1.0
-                        hip_conf = min(l_hip[2], r_hip[2]) if has_conf else 1.0
-
-                        is_horizontal = False
-                        if sho_conf > 0.3 and hip_conf > 0.3:
-                            dy = sho_y - hip_y
-                            dx = sho_x - hip_x
-                            angle_body = abs(np.arctan2(dy, dx) * 180 / np.pi)
-                            if angle_body < 40 or angle_body > 140:
-                                is_horizontal = True
-
-                        if is_horizontal or aspect_ratio > 1.4:
-                            fall_in_frame = True
-                            color = (0, 0, 255)
-                            label = "FALL (Pose)"
-                        else:
-                            color = (0, 255, 0)
-                            label = "Normal (Pose)"
-                        cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
-                        cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+            # Vẽ UI dựa trên bộ nhớ đệm
+            fall_boxes = getattr(state, "last_fall_boxes", [])
+            from app.ai import yolov8_fall_model
+            if yolov8_fall_model is not None:
+                for x_1, y_1, x_2, y_2, cls_id, conf in fall_boxes:
+                    if cls_id == 0:
+                        color = (0, 0, 255)
+                        label = f"FALL ({conf:.2f})"
+                    else:
+                        color = (0, 255, 0)
+                        label = f"Normal ({conf:.2f})"
+                    cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
+                    cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+            else:
+                for x_1, y_1, x_2, y_2, is_fall in fall_boxes:
+                    if is_fall:
+                        color = (0, 0, 255)
+                        label = "FALL (Pose)"
+                    else:
+                        color = (0, 255, 0)
+                        label = "Normal (Pose)"
+                    cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
+                    cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
             if fall_in_frame:
                 state.fall_counter += 1
@@ -1150,32 +1241,45 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
         if run_fire:
             fire_in_frame = False
-            if yolov8_fire_model is not None:
-                with gpu_lock:
-                    with torch.no_grad():
-                        results = yolov8_fire_model(frame, verbose=False, device=device)
-                if len(results) > 0 and results[0].boxes is not None:
-                    boxes = results[0].boxes
-                    for box in boxes:
-                        cls_id = int(box.cls[0].cpu().item())
-                        conf = float(box.conf[0].cpu().item())
-                        if conf > fire_conf_thr:
-                            x_1, y_1, x_2, y_2 = [int(b) for b in box.xyxy[0].cpu().numpy()[:4]]
-                            label_name = yolov8_fire_model.names.get(cls_id, f"Class {cls_id}").capitalize()
-                            
-                            if "fire" in label_name.lower():
-                                color = (0, 0, 255)
-                                fire_in_frame = True
-                            elif "smoke" in label_name.lower():
-                                color = (128, 128, 128)
-                                fire_in_frame = True
-                            else:
-                                color = (0, 165, 255)
-                                fire_in_frame = True
+            
+            # Thực hiện phát hiện cháy nổ theo chu kỳ FIRE_INTERVAL
+            if state.frame_index % FIRE_INTERVAL == 0:
+                from app.ai import yolov8_fire_model
+                detected_fires = []
+                if yolov8_fire_model is not None:
+                    with gpu_lock:
+                        with torch.no_grad():
+                            results = yolov8_fire_model(frame, verbose=False, device=device)
+                    if len(results) > 0 and results[0].boxes is not None:
+                        boxes = results[0].boxes
+                        for box in boxes:
+                            cls_id = int(box.cls[0].cpu().item())
+                            conf = float(box.conf[0].cpu().item())
+                            if conf > fire_conf_thr:
+                                x_1, y_1, x_2, y_2 = [int(b) for b in box.xyxy[0].cpu().numpy()[:4]]
+                                label_name = yolov8_fire_model.names.get(cls_id, f"Class {cls_id}").capitalize()
                                 
-                            label = f"{label_name} ({conf:.2f})"
-                            cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
-                            cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                                is_fire_or_smoke = "fire" in label_name.lower() or "smoke" in label_name.lower()
+                                if is_fire_or_smoke:
+                                    fire_in_frame = True
+                                detected_fires.append((x_1, y_1, x_2, y_2, label_name, conf))
+                state.last_fire_boxes = detected_fires
+                state.last_fire_in_frame = fire_in_frame
+            else:
+                fire_in_frame = getattr(state, "last_fire_in_frame", False)
+
+            # Vẽ UI dựa trên bộ nhớ đệm
+            fire_boxes = getattr(state, "last_fire_boxes", [])
+            for x_1, y_1, x_2, y_2, label_name, conf in fire_boxes:
+                if "fire" in label_name.lower():
+                    color = (0, 0, 255)
+                elif "smoke" in label_name.lower():
+                    color = (128, 128, 128)
+                else:
+                    color = (0, 165, 255)
+                label = f"{label_name} ({conf:.2f})"
+                cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
+                cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
             if fire_in_frame:
                 state.fire_counter += 1
@@ -1297,9 +1401,10 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         if stop_event is not None:
             if stop_event.is_set():
                 break
-            # Giới hạn tốc độ gửi về client khoảng 25 FPS để giảm tải CPU cho các file video tĩnh
+            # Giới hạn tốc độ gửi về client (10 FPS trên CPU để tiết kiệm tối đa tài nguyên / 25 FPS trên GPU)
             elapsed = t_end - t_start
-            delay = max(0.005, 0.04 - elapsed)
+            target_fps_delay = 0.10 if ai_device.type != 'cuda' else 0.04
+            delay = max(0.005, target_fps_delay - elapsed)
             time.sleep(delay)
 
     if full_writer is not None:
@@ -1380,58 +1485,6 @@ def _gas_sensor_loop():
             time.sleep(5.0)
 
 # =========================================================================
-# PHÂN HỆ ĐIỀU KHIỂN KHÓA CỬA TỰ ĐỘNG (SOLENOID DOOR LOCK VIA GPIO)
-# =========================================================================
-def unlock_door():
-    """Kích hoạt mở khóa cửa bằng luồng nền bất đồng bộ"""
-    t = threading.Thread(target=_unlock_door_worker, daemon=True)
-    t.start()
-
-def _unlock_door_worker():
-    # Tránh kích hoạt trùng lặp khi cửa đang mở
-    if SystemStatus.door_unlock_active:
-        return
-        
-    SystemStatus.door_unlock_active = True
-    SystemStatus.add_log("🔑 HỆ THỐNG: Đang kích hoạt mở khóa cửa (3 giây)...", "info")
-    
-    has_gpio = False
-    try:
-        import RPi.GPIO as GPIO
-        has_gpio = True
-    except ImportError:
-        pass
-        
-    UNLOCK_PIN = 23 # GPIO 23 (Pin 16)
-    
-    if has_gpio:
-        try:
-            orig_mode = GPIO.getmode()
-            if orig_mode is None:
-                GPIO.setmode(GPIO.BCM)
-                
-            GPIO.setup(UNLOCK_PIN, GPIO.OUT)
-            # Kích hoạt Relay mở khóa (HIGH)
-            GPIO.output(UNLOCK_PIN, GPIO.HIGH)
-            print(f"[DOOR LOCK] GPIO {UNLOCK_PIN} set to HIGH (Door Unlocked).")
-        except Exception as e:
-            print(f"[DOOR LOCK] [ERROR] Lỗi điều khiển GPIO mở cửa: {e}")
-            has_gpio = False
-
-    # Giữ cửa mở trong 3 giây
-    time.sleep(3.0)
-    
-    if has_gpio:
-        try:
-            GPIO.output(UNLOCK_PIN, GPIO.LOW)
-            print(f"[DOOR LOCK] GPIO {UNLOCK_PIN} set to LOW (Door Locked).")
-        except Exception as e:
-            print(f"[DOOR LOCK] [ERROR] Lỗi khóa cửa GPIO: {e}")
-            
-    SystemStatus.door_unlock_active = False
-    SystemStatus.add_log("🔒 HỆ THỐNG: Cửa đã tự động khóa lại.", "muted")
-
-# =========================================================================
 # PHÂN HỆ CÒI BÁO ĐỘNG HỆ THỐNG (ALARM BUZZER VIA GPIO 24)
 # =========================================================================
 buzzer_thread_started = False
@@ -1485,6 +1538,13 @@ def _buzzer_control_loop():
                         if state and getattr(state, "intrusion_active", False):
                             is_intrusion_alarm = True
                             break
+                            
+            # Kiểm tra xem còi có đang bị tắt tạm thời từ Telegram/Admin hay không
+            if time.time() < getattr(SystemStatus, "buzzer_mute_until", 0.0):
+                is_fire = False
+                is_gas = False
+                is_intrusion_alarm = False
+                is_mock = False
             
             # 2. Xử lý nháy còi báo động tùy theo mức độ ưu tiên
             if is_fire:

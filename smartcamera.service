@@ -1,0 +1,20 @@
+[Unit]
+Description=MSE Smart Camera Edge System
+After=network.target
+
+[Service]
+Type=simple
+User=toannv
+WorkingDirectory=/home/toannv/Downloads/yolo
+Environment=OPENBLAS_CORETYPE=ARMV8
+Environment=PYTHONUNBUFFERED=1
+# Giải phóng cổng 8000 nếu đang bị chiếm dụng trước khi khởi chạy
+ExecStartPre=/bin/bash -c "/usr/bin/fuser -k 8000/tcp || true"
+# Đường dẫn khởi chạy python trong môi trường ảo venv
+ExecStart=/home/toannv/Downloads/yolo/venv/bin/python main.py
+# Cấu hình tự động khởi động lại sau 5 giây nếu bị crash
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

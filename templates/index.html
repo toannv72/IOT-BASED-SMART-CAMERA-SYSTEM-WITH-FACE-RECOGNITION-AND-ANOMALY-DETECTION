@@ -677,9 +677,6 @@
                             <button class="btn" id="btn-toggle-light"
                                 style="padding: 4px 8px; font-size: 11px; background: #4b5563; color: white; transition: all 0.2s ease;"
                                 onclick="toggleLightRemote()">🔌 Đèn: TẮT</button>
-                            <button class="btn"
-                                style="padding: 4px 8px; font-size: 11px; background: #10b981; color: white;"
-                                onclick="unlockDoorRemote()">🔓 Mở Khóa Cửa</button>
                             <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="clearLogs()">Xóa
                                 Nhật Ký</button>
                         </div>
@@ -2053,15 +2050,6 @@
             addLog("Đã xóa nhật ký.", 'muted');
         }
 
-        async function unlockDoorRemote() {
-            try {
-                const response = await fetch('/api/unlock_door', { method: 'POST' });
-                const data = await response.json();
-                addLog(`🔑 Lệnh điều khiển: ${data.message}`, 'info');
-            } catch (e) {
-                addLog("🚨 Lỗi khi gửi lệnh mở khóa cửa!", 'danger');
-            }
-        }
 
         let isLightActive = false;
 

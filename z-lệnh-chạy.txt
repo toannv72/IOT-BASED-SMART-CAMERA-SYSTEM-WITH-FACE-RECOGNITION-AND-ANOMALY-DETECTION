@@ -1,0 +1,110 @@
+========================================================================
+HƯỚNG DẪN CÀI ĐẶT VÀ CHẠY DỰ ÁN SMART CAMERA TRÊN RASPBERRY PI 4
+========================================================================
+
+Bước 1: Giải nén mã nguồn vào thư mục mong muốn trên Pi
+------------------------------------------------------------------------
+unzip SmartCamera_System.zip -d ~/Downloads/yolo
+cd ~/Downloads/yolo
+
+Bước 2: Tạo và kích hoạt môi trường ảo Python (Venv)
+------------------------------------------------------------------------
+# 1. Tạo môi trường ảo
+python3 -m venv venv
+
+# 2. Kích hoạt môi trường ảo
+source venv/bin/activate
+
+Bước 3: Cài đặt các thư viện cần thiết (Tránh lỗi tràn bộ nhớ tạm /tmp)
+------------------------------------------------------------------------
+# Tạo thư mục tạm trên ổ đĩa vật lý của Pi thay vì chạy trên RAM disk /tmp
+mkdir -p ~/Downloads/yolo/tmp
+
+# Cài đặt các thư viện từ requirements.txt bằng cách chuyển TMPDIR
+TMPDIR=~/Downloads/yolo/tmp pip install --no-cache-dir -r requirements.txt
+
+Bước 4: Ép cài đặt lại bản PyTorch tối ưu cho CPU (Khắc phục lỗi 'Illegal instruction')
+------------------------------------------------------------------------
+# Tải và cài đặt trực tiếp bản PyTorch chính thức dành riêng cho CPU ARM
+TMPDIR=~/Downloads/yolo/tmp pip install --no-cache-dir --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+Bước 5: Giải phóng cổng mạng 8000 nếu bị bận chạy ngầm
+------------------------------------------------------------------------
+sudo fuser -k 8000/tcp
+
+Bước 6: Sửa nhanh cấu hình camera về cổng 0 (nếu chỉ dùng 1 camera USB)
+------------------------------------------------------------------------
+sed -i 's/"source": "1"/"source": "0"/g' cameras_config.json
+
+Bước 7: Khởi chạy dự án với biến cấu hình tối ưu CPU ARMv8
+------------------------------------------------------------------------
+# Khai báo loại nhân CPU để OpenBLAS tối ưu và khởi chạy ứng dụng
+export OPENBLAS_CORETYPE=ARMV8
+python main.py
+
+========================================================================
+LỆNH CHẠY NHANH KHI ĐÃ CÀI ĐẶT XONG:
+========================================================================
+cd ~/Downloads/yolo
+source venv/bin/activate
+sudo fuser -k 8000/tcp
+export OPENBLAS_CORETYPE=ARMV8
+python main.py
+
+========================================================================
+DANH SÁCH LỆNH ĐIỀU KHIỂN TELEGRAM BOT 2 CHIỀU:
+========================================================================
+1. Điều khiển còi báo động vật lý (Active Buzzer):
+   - Tắt còi 30 phút: "/mute_buzzer_30" hoặc nhắn tin: "tat coi 30p", "tắt còi 30p"
+   - Tắt còi 1 tiếng: "/mute_buzzer_60" hoặc nhắn tin: "tat coi 1h", "tắt còi 1h"
+   - Bật lại còi ngay lập tức: "/unmute_buzzer" hoặc nhắn tin: "bat coi", "bật còi"
+
+2. Các điều khiển hệ thống khác:
+   - Bật đèn thông minh: "/light_on" hoặc nhắn tin: "bat den", "bật đèn"
+   - Tắt đèn thông minh: "/light_off" hoặc nhắn tin: "tat den", "tắt đèn"
+   - Quản lý bật/tắt (Arm/Disarm) cảnh báo từng camera: "/cameras" hoặc "cam"
+   - Tắt nhận thông báo Telegram cá nhân: "/mute" hoặc "tat bao dong"
+   - Bật lại nhận thông báo Telegram cá nhân: "/unmute" hoặc "bat bao dong"
+
+========================================================================
+HƯỚNG DẪN TRUY CẬP TỪ THIẾT BỊ KHÁC (ĐIỆN THOẠI/MÁY TÍNH KHÁC):
+========================================================================
+1. TRUY CẬP TRONG MẠNG WI-FI NỘI BỘ (LAN) - MIỄN PHÍ & KHÔNG TỐN TÀI NGUYÊN:
+   - Khi chạy lệnh 'python main.py', chương trình sẽ tự động hiển thị địa chỉ IP cục bộ của Pi (Ví dụ: http://192.168.1.15:8000).
+   - Bạn chỉ cần mở trình duyệt trên điện thoại/laptop đang kết nối cùng mạng Wi-Fi và truy cập đường link IP đó là được.
+
+2. TRUY CẬP TỪ XA QUA INTERNET (NGOÀI NHÀ) - SIÊU NHẸ (DƯỚI 1% CPU, 15MB RAM):
+   - Bước A: Đăng ký tài khoản miễn phí và tải ngrok tại: https://ngrok.com
+   - Bước B: Liên kết token ngrok trên Pi bằng lệnh:
+     ./ngrok config add-authtoken <YOUR_NGROK_TOKEN>
+   - Bước C: Tạo đường hầm public truy cập từ xa bằng lệnh:
+     ./ngrok http 8000
+   - Hệ thống sẽ trả về đường dẫn HTTPS ngẫu nhiên (ví dụ: https://xxxx.ngrok-free.app) giúp bạn truy cập camera từ bất kỳ đâu trên thế giới!
+
+========================================================================
+HƯỚNG DẪN CẤU HÌNH TỰ ĐỘNG CHẠY KHI MẤT ĐIỆN / KHỞI ĐỘNG LẠI PI:
+========================================================================
+Dự án đã tích hợp sẵn tệp cấu hình dịch vụ hệ thống 'smartcamera.service'. Để kích hoạt tự chạy sau khi khởi động Pi hoặc khi có điện lại:
+
+Bước 1: Sao chép tệp cấu hình vào hệ thống systemd của Pi:
+sudo cp /home/toannv/Downloads/yolo/smartcamera.service /etc/systemd/system/
+
+Bước 2: Cập nhật danh sách dịch vụ của hệ thống:
+sudo systemctl daemon-reload
+
+Bước 3: Cho phép dịch vụ tự động chạy khi khởi động hệ sinh thái Pi:
+sudo systemctl enable smartcamera.service
+
+Bước 4: Khởi chạy dịch vụ ngay lập tức (không cần đợi khởi động lại):
+sudo systemctl start smartcamera.service
+
+------------------------------------------------------------------------
+CÁC LỆNH QUẢN LÝ DỊCH VỤ TIỆN ÍCH:
+- Kiểm tra trạng thái đang chạy (xem log hoạt động):
+  sudo systemctl status smartcamera.service
+- Tạm dừng dịch vụ:
+  sudo systemctl stop smartcamera.service
+- Khởi động lại dịch vụ:
+  sudo systemctl restart smartcamera.service
+- Xem log chi tiết thời gian thực:
+  sudo journalctl -u smartcamera.service -f

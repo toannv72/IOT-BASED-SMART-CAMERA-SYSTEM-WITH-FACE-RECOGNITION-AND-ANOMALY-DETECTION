@@ -933,14 +933,6 @@ def test_gas_leak_api(active: bool, request: Request):
     SystemStatus.mock_gas_leak = active
     return {"message": f"Đã thiết lập trạng thái giả lập khí ga: {active}", "mock_gas_leak": active}
 
-@app.post("/api/unlock_door")
-def unlock_door_api(request: Request):
-    if not request.session.get("user_id"):
-        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
-    from app.processors import unlock_door
-    unlock_door()
-    return {"message": "Đã kích hoạt mở khóa cửa thành công!"}
-
 @app.post("/api/control_light")
 async def control_light_api(request: Request):
     if not request.session.get("user_id"):

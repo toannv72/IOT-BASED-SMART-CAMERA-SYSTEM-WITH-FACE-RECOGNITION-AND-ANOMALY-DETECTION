@@ -15,24 +15,24 @@
 \contentsline {section}{\numberline {3}Thiết kế và Triển khai}{10}{section.3}%
 \contentsline {subsection}{\numberline {3.1}Kiến trúc hệ thống tổng thể và Luồng dữ liệu}{10}{subsection.3.1}%
 \contentsline {subsection}{\numberline {3.2}Điều phối tiến trình, Lập lịch luồng và Quản lý phiên GPU}{10}{subsection.3.2}%
-\contentsline {subsubsection}{\numberline {3.2.1}Khả năng phục hồi hệ thống, khởi động lại và hàng đợi cảnh báo chống mất dữ liệu}{11}{subsubsection.3.2.1}%
+\contentsline {subsubsection}{\numberline {3.2.1}Khả năng phục hồi hệ thống, khởi động lại và hàng đợi cảnh báo chống mất dữ liệu}{12}{subsubsection.3.2.1}%
 \contentsline {subsection}{\numberline {3.3}Đường ống nhận diện khuôn mặt thích ứng góc quay nghiêng}{12}{subsection.3.3}%
 \contentsline {subsection}{\numberline {3.4}Phát hiện bất thường đa nguy cơ và Đệm video H.264}{12}{subsection.3.4}%
 \contentsline {subsection}{\numberline {3.5}Bộ điều phối bất đồng bộ và Điều khiển từ xa 2 chiều qua Telegram}{13}{subsection.3.5}%
 \contentsline {subsection}{\numberline {3.6}Bảng điều khiển Web \& Bảo mật phiên}{13}{subsection.3.6}%
-\contentsline {subsection}{\numberline {3.7}Phân tích độ phức tạp tính toán}{13}{subsection.3.7}%
+\contentsline {subsection}{\numberline {3.7}Phân tích độ phức tạp tính toán}{14}{subsection.3.7}%
 \contentsline {subsection}{\numberline {3.8}Thiết kế cơ sở dữ liệu và Lược đồ quan hệ}{14}{subsection.3.8}%
 \contentsline {subsection}{\numberline {3.9}Các yếu tố về An ninh và Quyền riêng tư}{15}{subsection.3.9}%
-\contentsline {subsection}{\numberline {3.10}Mô hình hóa Use Case và Triển khai Vật lý}{15}{subsection.3.10}%
-\contentsline {subsection}{\numberline {3.11}Các hạn chế hiện tại của hệ thống}{15}{subsection.3.11}%
+\contentsline {subsection}{\numberline {3.10}Mô hình hóa Use Case và Triển khai Vật lý}{16}{subsection.3.10}%
+\contentsline {subsection}{\numberline {3.11}Các hạn chế hiện tại của hệ thống}{16}{subsection.3.11}%
 \contentsline {section}{\numberline {4}Thực nghiệm và Thảo luận}{18}{section.4}%
 \contentsline {subsection}{\numberline {4.1}Thiết lập Phần cứng và Phần mềm}{18}{subsection.4.1}%
 \contentsline {subsection}{\numberline {4.2}Đặc tính bộ dữ liệu và Tiền xử lý}{18}{subsection.4.2}%
 \contentsline {subsection}{\numberline {4.3}Kết quả Thực nghiệm và Phân tích Hiệu năng}{19}{subsection.4.3}%
 \contentsline {subsubsection}{\numberline {4.3.1}Độ trễ hệ thống và Tốc độ khung hình}{19}{subsubsection.4.3.1}%
 \contentsline {subsubsection}{\numberline {4.3.2}Định mức đánh giá sơ bộ để kiểm chứng}{19}{subsubsection.4.3.2}%
-\contentsline {subsubsection}{\numberline {4.3.3}Phân tích mô hình cơ sở (Baselines) và Lựa chọn mô hình}{19}{subsubsection.4.3.3}%
-\contentsline {subsubsection}{\numberline {4.3.4}Chỉ số đánh giá và Phương pháp luận}{20}{subsubsection.4.3.4}%
+\contentsline {subsubsection}{\numberline {4.3.3}Phân tích mô hình cơ sở (Baselines) và Lựa chọn mô hình}{20}{subsubsection.4.3.3}%
+\contentsline {subsubsection}{\numberline {4.3.4}Chỉ số đánh giá và Phương pháp luận}{21}{subsubsection.4.3.4}%
 \contentsline {subsubsection}{\numberline {4.3.5}Đánh đổi ngưỡng xác thực khuôn mặt đa góc nhìn}{21}{subsubsection.4.3.5}%
 \contentsline {subsubsection}{\numberline {4.3.6}Phân tích độ trễ so với khả năng mở rộng kênh}{21}{subsubsection.4.3.6}%
 \contentsline {subsection}{\numberline {4.4}Thảo luận và Tóm tắt So sánh}{22}{subsection.4.4}%

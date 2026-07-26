@@ -1,4 +1,18 @@
 import os
+import sys
+
+# Khắc phục lỗi UnicodeEncodeError khi in tiếng Việt/ký tự lạ ra cửa sổ terminal Windows
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(errors='backslashreplace')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(errors='backslashreplace')
+    except Exception:
+        pass
+
 import json
 import hmac
 import hashlib

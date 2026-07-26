@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.15)  13 JUL 2026 08:54
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.15)  26 JUL 2026 10:20
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1400,45 +1400,16 @@ Package microtype Info: Loading generic protrusion settings for font family
  [8]
 [9{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-mathit.en
 c}] [10{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-math
-ex.enc}]
-Overfull \hbox (75.36581pt too wide) in paragraph at lines 427--435
- [][] 
- []
-
-[11]
+ex.enc}] [11]
 LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <12> not available
 (Font)              Font shape `T1/lmtt/b/n' tried instead on input line 443.
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <5> on input line 479.
- [12] [13] [14] [15]
-Overfull \hbox (186.60803pt too wide) in paragraph at lines 592--605
- [][] 
- []
-
-[16]
-Overfull \hbox (60.48134pt too wide) in paragraph at lines 628--637
- [][] 
- []
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
+ [12] [13] [14] [15] [16]
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 [17]
-Overfull \hbox (103.56062pt too wide) in paragraph at lines 699--708
- [][] 
- []
-
-
-Overfull \hbox (107.60518pt too wide) in paragraph at lines 717--725
- [][] 
- []
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
@@ -1458,11 +1429,11 @@ Package logreq Info: Writing requests to 'de_tai_thac_si.run.xml'.
 
  ) 
 Here is how much of TeX's memory you used:
- 36605 strings out of 467871
- 703269 string characters out of 5418376
- 1564047 words of memory out of 5000000
- 64597 multiletter control sequences out of 15000+600000
- 717547 words of font info for 199 fonts, out of 8000000 for 9000
+ 36599 strings out of 467871
+ 703166 string characters out of 5418376
+ 1564048 words of memory out of 5000000
+ 64591 multiletter control sequences out of 15000+600000
+ 717505 words of font info for 199 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  84i,10n,104p,1193b,1856s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmbx10.pf
@@ -1484,7 +1455,7 @@ rs/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmsy8.pfb><C:/User
 s/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtk10.pfb><C:/User
 s/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtt12.pfb><C:/User
 s/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtt8.pfb>
-Output written on de_tai_thac_si.pdf (23 pages, 562877 bytes).
+Output written on de_tai_thac_si.pdf (23 pages, 562700 bytes).
 PDF statistics:
  543 PDF objects out of 1000 (max. 8388607)
  108 named destinations out of 1000 (max. 500000)

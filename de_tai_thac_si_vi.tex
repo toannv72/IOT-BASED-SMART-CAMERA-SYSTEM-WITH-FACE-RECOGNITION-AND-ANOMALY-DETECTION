@@ -93,7 +93,7 @@
 \addcontentsline{toc}{section}{Tóm tắt đề tài}
 Trong quản lý an ninh đương đại, nhu cầu về các hệ thống giám sát thông minh, thời gian thực và đảm bảo quyền riêng tư đang tăng lên theo cấp số nhân. Các camera thương mại thông thường hiện nay thường phụ thuộc lớn vào tính toán dựa trên đám mây, dẫn đến độ trễ mạng đáng kể, tiêu hao băng thông lớn và gây ra những lo ngại nghiêm trọng về quyền riêng tư dữ liệu cá nhân. Đề xuất luận văn thạc sĩ này giới thiệu một khung kết nối cộng tác IoT-Edge-Cloud toàn diện, gọn nhẹ và chi phí thấp được thiết kế cho việc giám sát thông minh cục bộ trong thời gian thực.
 
-Khung kết nối này tích hợp ba khả năng chức năng cốt lõi được triển khai trên lớp biên (Edge) và Ứng dụng Web trung tâm: (1) mô-đun xác thực khuôn mặt trong thời gian thực sử dụng Mạng nơ-ron tích chập đa nhiệm (MTCNN) để căn chỉnh, FaceNet để tạo vector đặc trưng biểu diễn và phân loại bằng khoảng cách cosine; (2) mô-đun phát hiện xâm nhập vùng chỉ định (ROI) sử dụng YOLOv5; và (3) hệ thống tự động phát hiện ngã sử dụng trọng số YOLOv8-fall được huấn luyện tùy chỉnh.
+Khung kết nối này tích hợp ba khả năng chức năng cốt lõi được triển khai trên lớp biên (Edge) và Ứng dụng Web trung tâm: (1) mô-đun xác thực khuôn mặt trong thời gian thực sử dụng Mạng nơ-ron tích chập đa nhiệm (MTCNN) để căn chỉnh, FaceNet để tạo vector đặc trưng biểu diễn và phân loại bằng khoảng cách cosine; (2) mô-đun phát hiện xâm nhập vùng chỉ định (ROI) sử dụng YOLOv5n; và (3) hệ thống tự động phát hiện ngã sử dụng trọng số YOLOv8n-fall được huấn luyện tùy chỉnh.
 
 Để ngăn chặn tình trạng nghẽn mạng và giật lag luồng truyền video khi gửi cảnh báo trong thời gian thực, chúng tôi triển khai một bộ điều phối thông báo đa luồng bất đồng bộ kết nối trực tiếp với dịch vụ Telegram. Các thực nghiệm sơ bộ cho thấy hệ thống đạt độ chính xác cao trong xác thực khuôn mặt, phát hiện hiệu quả các nguy cơ xâm nhập và hoạt động ổn định ở mức $\ge$ 20 FPS trên GPU cạnh tăng tốc CUDA với độ trễ dưới 1,5 giây. Hệ thống đề xuất này thiết lập một kiến trúc mạnh mẽ, có tính mở rộng cao, phù hợp cho tự động hóa gia đình và văn phòng.
 
@@ -111,7 +111,7 @@ Khung kết nối này tích hợp ba khả năng chức năng cốt lõi đư�
 \section*{Danh mục từ viết tắt}
 \addcontentsline{toc}{section}{Danh mục từ viết tắt}
 
-\begin{longtable}{ll}
+\begin{longtable}{lp{11.5cm}}
 \toprule
 \textbf{Từ viết tắt} & \textbf{Định nghĩa (Tiếng Anh / Tiếng Việt)} \\
 \midrule
@@ -235,8 +235,7 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
         % --- EDGE LAYER ---
         \node[box] (camera) {Luồng Camera\\(RTSP/Webcam)};
         \node[box, below=1.0cm of camera] (gassensor) {Cảm biến khí ga MQ-2\\(Giao tiếp GPIO18)};
-        \node[box, below=1.0cm of gassensor] (doorlock) {Rơ-le Khóa cửa điện từ\\(Điều khiển GPIO23)};
-        \node[box, below=1.0cm of doorlock] (buzzer) {Còi báo động vật lý\\(Đầu ra GPIO24)};
+        \node[box, below=1.0cm of gassensor] (buzzer) {Còi báo động vật lý\\(Đầu ra GPIO24)};
         \node[box, right=1.2cm of camera] (roi) {YOLOv5 ROI\\(Phát hiện\\xâm nhập)};
         \node[box, below=0.5cm of roi] (facenet) {MTCNN + FaceNet\\(Xác thực\\khuôn mặt)};
         \node[box, below=0.5cm of facenet] (anomaly) {Bất thường\\đa nguy cơ\\(YOLOv8-fall/fire)};
@@ -245,14 +244,14 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
         
         % --- CONNECTIONS IN EDGE ---
         \draw[arrow] (camera) -- (roi);
-        \draw[arrow] (camera) |- (facenet);
-        \draw[arrow] (camera) |- (anomaly);
+        \draw[arrow] (camera.east) -- ++(0.6,0) |- (facenet.west);
+        \draw[arrow] (camera.east) -- ++(0.6,0) |- (anomaly.west);
         
         \draw[arrow] (roi) -| (buffer);
         \draw[arrow] (anomaly) -- (buffer);
         
         % Edge Border
-        \node[container, fit=(camera) (gassensor) (doorlock) (buzzer) (roi) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Lớp xử lý biên (Edge)}}] (edge_group) {};
+        \node[container, fit=(camera) (gassensor) (buzzer) (roi) (facenet) (anomaly) (buffer), label={[font=\footnotesize, text=blue]\textbf{Lớp xử lý biên (Edge)}}] (edge_group) {};
         
         % --- DISPATCHER & CLOUD/BACKEND ---
         \node[box, right=2.0cm of buffer] (dispatcher) {Bộ điều phối\\cảnh báo\\bất đồng bộ\\(Luồng Daemon)};
@@ -272,8 +271,7 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
         \draw[arrow] (buffer) -- (dispatcher);
         \draw[arrow] (facenet) -- (dispatcher);
         \draw[arrow] (gassensor) -- (dispatcher);
-        \draw[arrow, dashed, draw=red!70] (dispatcher) |- (doorlock);
-        \draw[arrow, dashed, draw=red!70] (dispatcher) |- (buzzer);
+        \draw[arrow, dashed, draw=red!70] (dispatcher.west) -- ++(-0.6,0) |- ([yshift=-0.8cm]buzzer.south) -- (buzzer.south);
         
         \draw[arrow] (dispatcher) -- (telegram);
         \draw[arrow] (dispatcher) -- (fastapi);
@@ -299,7 +297,7 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
         comp/.style={rectangle, draw=blue!70, fill=blue!5, thick, minimum width=2.5cm, minimum height=0.8cm, align=center, font=\scriptsize},
         queue/.style={draw=orange!80, fill=orange!5, thick, minimum width=2.2cm, minimum height=0.8cm, align=center, font=\scriptsize, shape=rectangle, rounded corners=3pt},
         gpu/.style={draw=purple!80, fill=purple!5, thick, minimum width=3.2cm, minimum height=1.0cm, align=center, font=\scriptsize, rounded corners=5pt},
-        thread/.style={dashed, draw=gray, fill=gray!5, inner sep=0.25cm, rounded corners=5pt}
+        thread/.style={dashed, draw=gray, inner sep=0.25cm, rounded corners=5pt}
     ]
         % Threads & Streams
         \node[comp] (cam1) {Luồng dữ liệu Cam 1\\(RTSP/Webcam)};
@@ -348,10 +346,11 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
 Các cơ chế giảm thiểu nghẽn cổ chai và điều phối tiến trình bao gồm:
 \begin{itemize}
     \item \textbf{Tách biệt luồng xử lý camera:} Mỗi luồng camera được gán một luồng daemon chạy ngầm riêng biệt của hệ điều hành. Điều này đảm bảo hiện tượng trễ mạng RTSP hoặc mất khung hình của một kênh sẽ không ảnh hưởng hoặc gây nghẽn cho các kênh xử lý khác.
-    \item \textbf{Thực thi tuần tự trong luồng:} Để tránh tranh chấp tài nguyên tính toán (GPU/CPU) giữa các mô hình, trong mỗi luồng camera, các tác vụ AI (YOLOv5 ROI, MTCNN, FaceNet, YOLOv8) được thực thi \textit{tuần tự} trên từng khung hình lấy ra từ bộ đệm vòng. Bối cảnh PyTorch thực hiện tuần tự hóa an toàn luồng (thread-safe serialization).
-    \item \textbf{Chia sẻ phiên GPU (Mô hình Singleton):} Nhằm tránh cấp phát bộ nhớ trùng lặp gây lỗi tràn bộ nhớ (Out-Of-Memory - OOM), hệ thống chỉ nạp duy nhất một thực thể (instance) toàn cục cho mỗi mô hình AI vào VRAM/RAM hệ thống. Các luồng camera khác nhau sẽ chia sẻ chung các thực thể mô hình này khi thực hiện suy luận.
-    \item \textbf{Độ ưu tiên động và khoảng chờ (Lazy Loading):} YOLOv5 ROI và YOLOv8 (Fall/Fire) hoạt động liên tục như các bộ lọc thô nhanh. Mô hình trích xuất embedding FaceNet phức tạp hơn chỉ được kích hoạt (lazy trigger) \textit{khi và chỉ khi} MTCNN xác định có khuôn mặt xuất hiện. Ngoài ra, các biến cooldown (như \texttt{face\_log\_cooldown}) tạm dừng nhận diện khuôn mặt trong một khoảng thời gian sau khi xác thực thành công, giúp tiết kiệm chu kỳ CPU/GPU đáng kể.
-    \item \textbf{Ổn định tốc độ khung hình (Frame Rate):} Một vòng lặp chờ động (sleep loop) được bổ sung để tránh thiết bị biên bị quá nhiệt. Dựa trên thời gian xử lý thực tế của khung hình, luồng worker tự động tính toán thời gian ngủ ($t_{delay} = \max(0.005, 0.04 - t_{elapsed})$) để giới hạn tốc độ xử lý ở mức tối đa 25 FPS, giảm thiểu điện năng tiêu thụ.
+    \item \textbf{Thực thi tuần tự trong luồng:} Để tránh tranh chấp tài nguyên tính toán (GPU/CPU) giữa các mô hình, trong mỗi luồng camera, các tác vụ AI (YOLOv5n ROI, MTCNN, FaceNet, YOLOv8n) được thực thi \textit{tuần tự} trên từng khung hình lấy ra từ bộ đệm vòng. Bối cảnh PyTorch thực hiện tuần tự hóa an toàn luồng (thread-safe serialization).
+    \item \textbf{Chia sẻ phiên GPU/CPU (Mô hình Singleton):} Nhằm tránh cấp phát bộ nhớ trùng lặp gây lỗi tràn bộ nhớ (Out-Of-Memory - OOM), hệ thống chỉ nạp duy nhất một thực thể (instance) toàn cục cho mỗi mô hình AI vào VRAM/RAM hệ thống. Các luồng camera khác nhau sẽ chia sẻ chung các thực thể mô hình này khi thực hiện suy luận.
+    \item \textbf{Nạp tải lười (Lazy Loading) và Tắt còi từ xa:} Các mô hình AI lớn không được nạp đồng loạt vào bộ nhớ khi khởi động mà chỉ được nạp lười (lazy loading) khi tính năng tương ứng lần đầu tiên được kích hoạt bởi camera. YOLOv5n ROI và YOLOv8n (Fall/Fire) hoạt động như các bộ lọc thô nhanh. Mô hình trích xuất embedding FaceNet phức tạp hơn chỉ được kích hoạt suy luận khi MTCNN xác định có khuôn mặt xuất hiện. Ngoài ra, các bộ lọc cooldown giúp tạm dừng nhận diện khuôn mặt sau khi xác thực thành công, hoặc tắt còi báo động vật lý tạm thời (30 phút hoặc 1 tiếng) trực tiếp từ xa qua Telegram, giảm tải điện năng và chống quá nhiệt.
+    \item \textbf{Ổn định và tiết kiệm tài nguyên (Frame Rate Throttling):} Một vòng lặp chờ động (sleep loop) được bổ sung để tránh thiết bị biên bị quá nhiệt. Dựa trên thiết bị xử lý, nếu chạy ở chế độ CPU (trên Raspberry Pi 4), tốc độ khung hình được giới hạn chủ động ở mức 10 FPS ($t_{delay} = \max(0.005, 0.10 - t_{elapsed})$) để tiết kiệm tối đa tài nguyên; nếu chạy trên GPU CUDA, giới hạn là 25 FPS ($t_{delay} = \max(0.005, 0.04 - t_{elapsed})$).
+    \item \textbf{Giảm tỷ lệ lấy mẫu đối với MTCNN (Downscaling \& Direct Extraction):} Để tối ưu hóa thời gian chạy mô hình MTCNN trên CPU yếu của Raspberry Pi 4, hình ảnh đầu vào được tự động thu nhỏ 2 lần (xuống $320 \times 180$) trước khi thực hiện bước phát hiện khuôn mặt (detect), tăng tốc độ dò tìm lên gấp 4 lần. Các tọa độ hộp phát hiện sau đó được nhân đôi để khớp với kích thước ảnh gốc $640 \times 360$, rồi trích xuất trực tiếp bằng phương thức \texttt{extract} của MTCNN mà không phải chạy lại toàn bộ mạng nơ-ron dò tìm lần thứ hai.
 \end{itemize}
 
 \subsubsection{Khả năng phục hồi hệ thống, khởi động lại và hàng đợi cảnh báo chống mất dữ liệu}
@@ -423,6 +422,7 @@ Triển khai đồng thời nhiều mô-đun học sâu và phát hiện trên t
     \centering
     \caption{Độ phức tạp tính toán của các mô-đun hệ thống đề xuất}
     \label{tab:complexity}
+    \resizebox{\textwidth}{!}{%
     \begin{tabular}{lll}
         \toprule
         \textbf{Mô-đun} & \textbf{Độ phức tạp thời gian} & \textbf{Yếu tố chính} \\
@@ -430,7 +430,8 @@ Triển khai đồng thời nhiều mô-đun học sâu và phát hiện trên t
         Phát hiện nguy cơ dựa trên YOLO & Tỷ lệ thuận với $W \times H$ & Chiều rộng $W$ và chiều cao $H$ khung hình \\
         Đối sánh đặc trưng khuôn mặt & $O(K)$ & Tổng số góc nhìn khuôn mặt $K$ trong SQLite \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 Như đã thể hiện trong Bảng 3.1, thời gian xử lý của mô-đun phát hiện đối tượng dựa trên YOLO tỷ lệ thuận trực tiếp với độ phân giải không gian $W \times H$ của khung hình đầu vào, đại diện cho độ phức tạp tính toán xấp xỉ của việc suy luận lưới CNN thay vì một hộp bao lý thuyết nghiêm ngặt.
@@ -507,27 +508,28 @@ An ninh và quyền riêng tư của người dùng được ưu tiên thiết k
         arrow/.style={-, thick, draw=black!70}
     ]
         % --- ACTORS ---
-        \node[actor={Quản trị viên hệ thống}] (admin) at (0, 1.5) {};
-        \node[actor={Nhân viên an ninh}] (staff) at (0, -1.5) {};
+        \node[actor={Quản trị viên hệ thống}] (admin) at (0, 0) {};
+        \node[actor={Nhân viên an ninh}] (staff) at (9.0, 0) {};
         
-        % --- USE CASES (COLUMN 1: SHARED / READ ONLY) ---
-        \node[usecase] (uc1) at (4.5, 2.5) {Xem trực tiếp\\luồng camera};
-        \node[usecase] (uc4) at (4.5, 0.2) {Xem nhật ký\\sự kiện hệ thống};
-        \node[usecase] (uc5) at (4.5, -2.1) {Nhận cảnh báo\\qua Telegram};
+        % --- USE CASES (COLUMN IN THE MIDDLE) ---
+        \node[usecase] (uc2) at (4.5, 3.5) {Đăng ký\\đặc trưng khuôn mặt};
+        \node[usecase] (uc3) at (4.5, 2.1) {Cấu hình vùng\\đa giác ROI};
+        \node[usecase] (uc6) at (4.5, 0.7) {Thay đổi\\cấu hình hệ thống};
         
-        % --- USE CASES (COLUMN 2: ADMIN ONLY / CONFIG) ---
-        \node[usecase] (uc2) at (8.0, 2.5) {Đăng ký\\đặc trưng khuôn mặt};
-        \node[usecase] (uc3) at (8.0, 0.2) {Cấu hình vùng\\đa giác ROI};
-        \node[usecase] (uc6) at (8.0, -2.1) {Thay đổi\\cấu hình hệ thống};
+        \node[usecase] (uc1) at (4.5, -0.7) {Xem trực tiếp\\luồng camera};
+        \node[usecase] (uc4) at (4.5, -2.1) {Xem nhật ký\\sự kiện hệ thống};
+        \node[usecase] (uc5) at (4.5, -3.5) {Nhận cảnh báo\\qua Telegram};
         
         % --- CONNECTIONS ---
-        \draw[arrow] (admin) -- (uc1);
+        % Admin connects to all use cases
         \draw[arrow] (admin) -- (uc2);
         \draw[arrow] (admin) -- (uc3);
+        \draw[arrow] (admin) -- (uc6);
+        \draw[arrow] (admin) -- (uc1);
         \draw[arrow] (admin) -- (uc4);
         \draw[arrow] (admin) -- (uc5);
-        \draw[arrow] (admin) -- (uc6);
         
+        % Staff connects to shared use cases
         \draw[arrow] (staff) -- (uc1);
         \draw[arrow] (staff) -- (uc4);
         \draw[arrow] (staff) -- (uc5);
@@ -588,6 +590,7 @@ Khung kết nối được phát triển trên môi trường máy trạm và tr
     \centering
     \caption{Cấu hình môi trường phần cứng và phần mềm}
     \label{tab:env_config}
+    \resizebox{\textwidth}{!}{%
     \begin{tabular}{lll}
         \toprule
         \textbf{Thành phần} & \textbf{Workstation (Phát triển)} & \textbf{Raspberry Pi 4 (Thiết bị biên)} \\
@@ -600,7 +603,8 @@ Khung kết nối được phát triển trên môi trường máy trạm và tr
         Python & Python 3.10.11 & Python 3.10+ \\
         Thư viện chính & OpenCV 4.8.1, FastAPI 0.109.0 & OpenCV 4.8.1, FastAPI 0.109.0 \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 Cấu hình phần cứng máy trạm đại diện cho một máy chủ có chi phí hiệu quả, trong khi nút biên Raspberry Pi 4 đại diện cho thiết bị nhúng thực tế công suất thấp, phù hợp để triển khai tại các hộ gia đình hoặc văn phòng vừa và nhỏ. GPU của máy trạm chứa các nhân Tensor CUDA, trong khi CPU của Raspberry Pi 4 tận dụng khóa đồng bộ hóa luồng \texttt{gpu\_lock} để thực thi an toàn các tác vụ deep learning mà không gây quá nhiệt hay xung đột bộ nhớ.
@@ -624,6 +628,7 @@ Chúng tôi so sánh tốc độ xử lý khung hình và độ trễ truyền d
     \centering
     \caption{Đánh giá hiệu năng của các bộ điều phối thông báo (Kết quả sơ bộ)}
     \label{tab:latency_results}
+    \resizebox{\textwidth}{!}{%
     \begin{tabular}{lcc}
         \toprule
         \textbf{Chỉ số} & \textbf{Điều phối đồng bộ} & \textbf{Điều phối bất đồng bộ (Đề xuất)} \\
@@ -632,7 +637,8 @@ Chúng tôi so sánh tốc độ xử lý khung hình và độ trễ truyền d
         Đóng băng luồng video & Có (1,2 -- 4,5 giây) & \textbf{Không (trễ 0 ms)} \\
         Độ trễ truyền cảnh báo & 2,4 giây & \textbf{1,8 giây} \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 Việc thực hiện các yêu cầu HTTP đồng bộ bên trong luồng xử lý khung hình làm giảm tốc độ camera xuống 4,2 FPS, gây ra hiện tượng gián đoạn nghiêm trọng. Việc sử dụng các luồng chạy nền (daemon threads) để mã hóa phương tiện truyền thông và truyền nhận Telegram giúp duy trì tốc độ ổn định ở mức 22,8 FPS.
@@ -644,6 +650,7 @@ Các mục tiêu kiểm chứng sơ bộ cho Nhận dạng khuôn mặt, Phát h
     \centering
     \caption{Mục tiêu độ chính xác xác thực khuôn mặt theo góc nhìn camera (Chỉ số dự kiến)}
     \label{tab:face_bench}
+    \resizebox{\textwidth}{!}{%
     \begin{tabular}{lc}
         \toprule
         \textbf{Góc nhìn} & \textbf{Độ chính xác xác thực (\%)} \\
@@ -653,13 +660,15 @@ Các mục tiêu kiểm chứng sơ bộ cho Nhận dạng khuôn mặt, Phát h
         Góc nghiêng phải (Nhìn rõ mũi/tai) & $\sim$83\% \\
         Góc quay nghiêng (Ngẩng lên/Cúi xuống) & $\sim$88\% \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 \begin{table}[h]
     \centering
     \caption{Chỉ số mô hình phát hiện bất thường đa nguy cơ mục tiêu (Chỉ số dự kiến)}
     \label{tab:anomaly_bench}
+    \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         \textbf{Lớp phát hiện} & \textbf{Độ chính xác (Precision)} & \textbf{Độ thu hồi (Recall)} & \textbf{mAP50 (\%)} \\
@@ -667,13 +676,15 @@ Các mục tiêu kiểm chứng sơ bộ cho Nhận dạng khuôn mặt, Phát h
         YOLOv8-fall (Trạng thái ngã) & 92,1\% & 90,4\% & 91,5\% \\
         YOLOv8n-fire (Khói/Lửa) & 94,3\% & 89,1\% & 92,2\% \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 \begin{table}[h]
     \centering
     \caption{Khả năng mở rộng tốc độ khung hình (FPS) khi xử lý đa camera}
     \label{tab:fps_bench}
+    \resizebox{\textwidth}{!}{%
     \begin{tabular}{lc}
         \toprule
         \textbf{Số kênh camera hoạt động} & \textbf{Tốc độ xử lý trung bình của nút biên} \\
@@ -682,7 +693,8 @@ Các mục tiêu kiểm chứng sơ bộ cho Nhận dạng khuôn mặt, Phát h
         2 Luồng camera & 22,8 FPS (Chia sẻ GPU CUDA) \\
         3 Luồng camera & 18,2 FPS (Giới hạn GPU VRAM) \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 \subsubsection{Phân tích mô hình cơ sở (Baselines) và Lựa chọn mô hình}
@@ -695,6 +707,7 @@ Mặc dù ArcFace đạt độ chính xác xác thực rất cao trên các bộ
     \centering
     \caption{So sánh các mô hình xác thực khuôn mặt trên phần cứng biên}
     \label{tab:face_comparison}
+    \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         \textbf{Cấu trúc mô hình} & \textbf{Dung lượng (MB)} & \textbf{Độ trễ suy luận (ms)} & \textbf{Độ chính xác xác thực (\%)} \\
@@ -703,7 +716,8 @@ Mặc dù ArcFace đạt độ chính xác xác thực rất cao trên các bộ
         MobileFaceNet & 5,2 MB & 28 ms & 91,2\% \\
         \textbf{FaceNet (Đề xuất)} & \textbf{23 MB} & \textbf{85 ms} & \textbf{98,2\%} \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 Thứ hai, mô hình phát hiện ngã dựa trên hộp bao (YOLOv8-fall) được đối sánh với mô hình ước lượng tư thế cơ thể (YOLOv8-pose) trích xuất 17 khớp xương chính để phân loại hành vi ngã, kết quả được trình bày trong Bảng \ref{tab:fall_comparison}.
@@ -713,6 +727,7 @@ Mạng ước lượng tư thế tuy rất mạnh mẽ trước các hiện tư�
     \centering
     \caption{So sánh các mô hình phát hiện hành vi ngã trên phần cứng biên}
     \label{tab:fall_comparison}
+    \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         \textbf{Loại mô hình} & \textbf{Số tham số (M)} & \textbf{Tốc độ xử lý (FPS)} & \textbf{Độ chính xác mAP50 (\%)} \\
@@ -720,7 +735,8 @@ Mạng ước lượng tư thế tuy rất mạnh mẽ trước các hiện tư�
         YOLOv8-pose (Ước lượng tư thế) & 11,6 M & 10 FPS & \textbf{93,5\%} \\
         \textbf{YOLOv8-fall (Đề xuất)} & \textbf{3,2 M} & \textbf{28,5 FPS} & \textbf{91,5\%} \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 Thứ ba, mô hình YOLOv8n-fire tùy chỉnh được so sánh với mạng MobileNet-SSD siêu nhẹ trong tác vụ phát hiện sớm khói và lửa, kết quả tóm tắt trong Bảng \ref{tab:fire_comparison}.
@@ -730,6 +746,7 @@ MobileNet-SSD hoạt động rất nhanh nhưng có độ chính xác thấp ($\
     \centering
     \caption{So sánh các mô hình phát hiện hỏa hoạn (khói và lửa)}
     \label{tab:fire_comparison}
+    \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         \textbf{Khung mô hình} & \textbf{Độ chính xác Precision (\%)} & \textbf{Độ nhạy Recall (\%)} & \textbf{Độ trễ suy luận (ms)} \\
@@ -738,7 +755,8 @@ MobileNet-SSD hoạt động rất nhanh nhưng có độ chính xác thấp ($\
         NanoDet & 81,2\% & 74,8\% & 22 ms \\
         \textbf{YOLOv8n-fire (Đề xuất)} & \textbf{94,3\%} & \textbf{89,1\%} & \textbf{35 ms} \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 \subsubsection{Chỉ số đánh giá và Phương pháp luận}
