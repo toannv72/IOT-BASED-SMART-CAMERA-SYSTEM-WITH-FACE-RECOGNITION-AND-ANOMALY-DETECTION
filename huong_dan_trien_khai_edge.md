@@ -43,6 +43,7 @@ Cài đặt PyTorch tối ưu cho kiến trúc ARM64:
 pip3 install --upgrade pip
 pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip3 install -r requirements.txt
+pip3 install RPi.GPIO
 ```
 
 #### Đối với NVIDIA Jetson (Tận dụng GPU CUDA):

@@ -27,7 +27,6 @@ def get_alert_keyboard(chat_id, camera_id=None, is_paused=False):
     Tạo cấu hình bàn phím Inline đồng nhất cho các cảnh báo gửi qua Telegram
     """
     from app.config import SystemStatus, settings
-    import time
     
     # Xác định trạng thái câm hiện tại cho riêng user này
     muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
@@ -56,9 +55,13 @@ def get_alert_keyboard(chat_id, camera_id=None, is_paused=False):
             row2.append({"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
     keyboard.append(row2)
     
-    # Dòng 3: Bật/Tắt đèn
+    # Dòng 3: Bật/Tắt đèn & Test phần cứng
     keyboard.append([
         {"text": "💡 Bật/Tắt Đèn", "callback_data": "toggle_light"}
+    ])
+    keyboard.append([
+        {"text": "🔊 Test Còi 3s", "callback_data": "test_buzzer_3s"},
+        {"text": "💡 Test Đèn 5s", "callback_data": "test_light_5s"}
     ])
     
     return {"inline_keyboard": keyboard}
@@ -329,7 +332,6 @@ def telegram_polling_loop():
                                 }, timeout=5)
                             elif txt in ("/mute_buzzer_30", "tat coi 30p", "tắt còi 30p", "tắt còi 30 phút"):
                                 from app.config import SystemStatus
-                                import time
                                 SystemStatus.buzzer_mute_until = time.time() + 30 * 60
                                 SystemStatus.add_log("Telegram Bot: Đã tắt còi báo động vật lý trong 30 phút.", "warning")
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -339,7 +341,6 @@ def telegram_polling_loop():
                                 }, timeout=5)
                             elif txt in ("/mute_buzzer_60", "tat coi 1h", "tắt còi 1h", "tắt còi 1 tiếng", "tắt còi 60 phút"):
                                 from app.config import SystemStatus
-                                import time
                                 SystemStatus.buzzer_mute_until = time.time() + 60 * 60
                                 SystemStatus.add_log("Telegram Bot: Đã tắt còi báo động vật lý trong 1 tiếng.", "warning")
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -355,6 +356,41 @@ def telegram_polling_loop():
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
                                     "text": "🔊 [ĐIỀU KHIỂN TỪ XA]\nĐã kích hoạt lại còi báo động vật lý thành công!"
+                                }, timeout=5)
+                            elif txt in ("/test_coi", "/test_còi", "test coi", "test còi"):
+                                from app.config import SystemStatus
+                                SystemStatus.mock_buzzer = True
+                                SystemStatus.add_log("Telegram Bot: Đang kiểm tra còi báo động (3 giây)...", "info")
+                                
+                                def off_worker():
+                                    time.sleep(3.0)
+                                    SystemStatus.mock_buzzer = False
+                                    SystemStatus.add_log("Telegram Bot: Kết thúc kiểm tra còi báo động.", "success")
+                                    
+                                threading.Thread(target=off_worker, daemon=True).start()
+                                
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "🔊 [KIỂM TRA PHẦN CỨNG]\nĐang kiểm tra còi báo động kêu trong 3 giây..."
+                                }, timeout=5)
+                            elif txt in ("/test_den", "/test_đèn", "test den", "test đèn"):
+                                from app.processors import set_light_state
+                                from app.config import SystemStatus
+                                set_light_state(True)
+                                SystemStatus.add_log("Telegram Bot: Đang kiểm tra đèn chiếu sáng (5 giây)...", "info")
+                                
+                                def off_worker_light():
+                                    time.sleep(5.0)
+                                    set_light_state(False)
+                                    SystemStatus.add_log("Telegram Bot: Kết thúc kiểm tra đèn chiếu sáng.", "success")
+                                    
+                                threading.Thread(target=off_worker_light, daemon=True).start()
+                                
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "💡 [KIỂM TRA PHẦN CỨNG]\nĐang kiểm tra đèn chiếu sáng bật trong 5 giây..."
                                 }, timeout=5)
                                 
                         # Xử lý sự kiện bấm nút inline
@@ -469,7 +505,6 @@ def telegram_polling_loop():
                             elif cb_data.startswith("mute_buzzer_"):
                                 minutes = int(cb_data.split("_")[-1])
                                 from app.config import SystemStatus
-                                import time
                                 SystemStatus.buzzer_mute_until = time.time() + minutes * 60
                                 SystemStatus.add_log(f"Telegram Bot: Đã tắt còi báo động vật lý trong {minutes} phút.", "warning")
                                 response_text = f"🔇 Đã tắt còi báo động vật lý trong {minutes} phút."
@@ -480,6 +515,35 @@ def telegram_polling_loop():
                                 SystemStatus.buzzer_mute_until = 0.0
                                 SystemStatus.add_log("Telegram Bot: Đã kích hoạt lại còi báo động vật lý.", "success")
                                 response_text = "🔊 Đã kích hoạt lại còi báo động vật lý."
+                                new_markup = get_alert_keyboard(chat_id, camera_id)
+                                
+                            elif cb_data == "test_buzzer_3s":
+                                from app.config import SystemStatus
+                                SystemStatus.mock_buzzer = True
+                                SystemStatus.add_log("Telegram Bot: Đang kiểm tra còi báo động (3 giây)...", "info")
+                                
+                                def off_worker():
+                                    time.sleep(3.0)
+                                    SystemStatus.mock_buzzer = False
+                                    SystemStatus.add_log("Telegram Bot: Kết thúc kiểm tra còi báo động.", "success")
+                                    
+                                threading.Thread(target=off_worker, daemon=True).start()
+                                response_text = "🔊 Đang test còi kêu trong 3 giây..."
+                                new_markup = get_alert_keyboard(chat_id, camera_id)
+                                
+                            elif cb_data == "test_light_5s":
+                                from app.processors import set_light_state
+                                from app.config import SystemStatus
+                                set_light_state(True)
+                                SystemStatus.add_log("Telegram Bot: Đang kiểm tra đèn chiếu sáng (5 giây)...", "info")
+                                
+                                def off_worker_light():
+                                    time.sleep(5.0)
+                                    set_light_state(False)
+                                    SystemStatus.add_log("Telegram Bot: Kết thúc kiểm tra đèn chiếu sáng.", "success")
+                                    
+                                threading.Thread(target=off_worker_light, daemon=True).start()
+                                response_text = "💡 Đang test bật đèn trong 5 giây..."
                                 new_markup = get_alert_keyboard(chat_id, camera_id)
                                 
                             # Phản hồi lại Telegram xác nhận bấm nút thành công

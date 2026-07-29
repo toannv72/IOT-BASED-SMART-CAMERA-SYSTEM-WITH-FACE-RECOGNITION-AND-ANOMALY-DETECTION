@@ -1,0 +1,15 @@
+[0] Config.pm:328> INFO - This is Biber 2.21
+[0] Config.pm:331> INFO - Logfile is 'draft2_thesis_vi.blg'
+[129] biber-MSWIN64:342> INFO - === 
+[186] Biber.pm:421> INFO - Reading 'draft2_thesis_vi.bcf'
+[305] Biber.pm:1002> INFO - Found 7 citekeys in bib section 0
+[318] Biber.pm:4487> INFO - Processing section 0
+[330] Biber.pm:4678> INFO - Looking for bibtex file 'references.bib' for section 0
+[409] bibtex.pm:1713> INFO - LaTeX decoding ...
+[422] bibtex.pm:1519> INFO - Found BibTeX data source 'references.bib'
+[483] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[483] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[483] Biber.pm:4307> INFO - Sorting list 'none/global//global/global/global' of type 'entry' with template 'none' and locale 'en-US'
+[483] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[493] bbl.pm:676> INFO - Writing 'draft2_thesis_vi.bbl' with encoding 'UTF-8'
+[499] bbl.pm:779> INFO - Output to draft2_thesis_vi.bbl

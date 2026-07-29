@@ -9,6 +9,17 @@ from PIL import Image
 import torch
 import supervision as sv
 
+# Cấu hình GPIO an toàn cho Raspberry Pi (hỗ trợ cross-platform)
+try:
+    import RPi.GPIO as GPIO
+    has_gpio = True
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BCM)
+    print("[PROCESSORS] RPi.GPIO loaded and BCM mode initialized successfully.")
+except ImportError:
+    has_gpio = False
+    print("[PROCESSORS] [WARNING] RPi.GPIO không khả dụng. Chạy chế độ giả lập.")
+
 # Import các biến cấu hình và mô hình AI từ các package
 import threading
 import app.config as config
@@ -24,13 +35,15 @@ if ai_device.type == 'cuda':
     FACE_INTERVAL = 3
     FALL_INTERVAL = 2
     FIRE_INTERVAL = 2
-    print("[PROCESSORS] CUDA detected: Set optimized default intervals (YOLO=1, Face=3, Fall=2, Fire=2)")
+    YOLO_IMGSZ = 640
+    print("[PROCESSORS] CUDA detected: Set optimized default intervals (YOLO=1, Face=3, Fall=2, Fire=2, YOLO_IMGSZ=640)")
 else:
     YOLO_INTERVAL = 2
     FACE_INTERVAL = 12
     FALL_INTERVAL = 6
     FIRE_INTERVAL = 8
-    print("[PROCESSORS] CPU mode: Set lightweight intervals (YOLO=2, Face=12, Fall=6, Fire=8)")
+    YOLO_IMGSZ = 320
+    print("[PROCESSORS] CPU mode: Set lightweight intervals (YOLO=2, Face=12, Fall=6, Fire=8, YOLO_IMGSZ=320)")
 
 # Khóa Lock dùng chung toàn cục để đồng bộ suy luận trên thiết bị biên CPU/GPU (Tránh xung đột/Nghẽn cổ chai)
 gpu_lock = threading.Lock()
@@ -683,7 +696,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 from app.ai import yolov8_model
                 with gpu_lock:
                     with torch.no_grad():
-                        results = yolov8_model.track(frame, persist=True, tracker="custom_bytetrack.yaml", conf=conf_thr, classes=[0], verbose=False, device=device)
+                        results = yolov8_model.track(frame, persist=True, tracker="custom_bytetrack.yaml", conf=conf_thr, classes=[0], verbose=False, device=device, imgsz=YOLO_IMGSZ)
                 detections = sv.Detections.from_ultralytics(results[0])
                 detections = detections[detections.class_id == 0]
                 state.last_detections = detections
@@ -1137,7 +1150,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 if yolov8_fall_model is not None:
                     with gpu_lock:
                         with torch.no_grad():
-                            results = yolov8_fall_model(frame, verbose=False, device=device)
+                            results = yolov8_fall_model(frame, verbose=False, device=device, imgsz=YOLO_IMGSZ)
                     detected_boxes = []
                     if len(results) > 0 and results[0].boxes is not None:
                         boxes = results[0].boxes
@@ -1155,7 +1168,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     # Thuật toán dự phòng dựa trên tư thế
                     with gpu_lock:
                         with torch.no_grad():
-                            results = yolov8_pose_model(frame, verbose=False, device=device)
+                            results = yolov8_pose_model(frame, verbose=False, device=device, imgsz=YOLO_IMGSZ)
                     detected_pose_falls = []
                     if len(results) > 0 and results[0].keypoints is not None:
                         keypoints_data = results[0].keypoints.data.cpu().numpy()
@@ -1249,7 +1262,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 if yolov8_fire_model is not None:
                     with gpu_lock:
                         with torch.no_grad():
-                            results = yolov8_fire_model(frame, verbose=False, device=device)
+                            results = yolov8_fire_model(frame, verbose=False, device=device, imgsz=YOLO_IMGSZ)
                     if len(results) > 0 and results[0].boxes is not None:
                         boxes = results[0].boxes
                         for box in boxes:
@@ -1431,29 +1444,23 @@ def start_gas_sensor_monitoring():
     print("[GAS SENSOR] Bắt đầu khởi chạy luồng nền giám sát cảm biến khí Ga.")
 
 def _gas_sensor_loop():
-    has_gpio = False
-    try:
-        import RPi.GPIO as GPIO
-        has_gpio = True
-    except ImportError:
-        print("[GAS SENSOR] [WARNING] RPi.GPIO không khả dụng (Chạy chế độ giả lập).")
-        
+    global has_gpio
+    local_has_gpio = has_gpio
     GAS_PIN = 18 # GPIO 18 (Pin 12)
     
-    if has_gpio:
+    if local_has_gpio:
         try:
-            GPIO.setmode(GPIO.BCM)
             # MQ-2 DO pin outputs LOW (0) when gas is detected, or HIGH (1) when clean.
             # We configure pull-up to keep it stable.
             GPIO.setup(GAS_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         except Exception as e:
             print(f"[GAS SENSOR] [ERROR] Không thể khởi tạo GPIO: {e}")
-            has_gpio = False
+            local_has_gpio = False
 
     cooldown = 0
     while True:
         try:
-            if has_gpio:
+            if local_has_gpio:
                 is_gas_detected = (GPIO.input(GAS_PIN) == GPIO.LOW)
             else:
                 # Đọc trạng thái giả lập từ SystemStatus
@@ -1499,25 +1506,17 @@ def start_buzzer_monitoring():
     print("[BUZZER] Bắt đầu khởi chạy luồng nền giám sát và nháy còi báo động.")
 
 def _buzzer_control_loop():
-    has_gpio = False
-    try:
-        import RPi.GPIO as GPIO
-        has_gpio = True
-    except ImportError:
-        pass
-        
+    global has_gpio
+    local_has_gpio = has_gpio
     BUZZER_PIN = 24 # GPIO 24 (Pin 18)
     
-    if has_gpio:
+    if local_has_gpio:
         try:
-            orig_mode = GPIO.getmode()
-            if orig_mode is None:
-                GPIO.setmode(GPIO.BCM)
             GPIO.setup(BUZZER_PIN, GPIO.OUT)
             GPIO.output(BUZZER_PIN, GPIO.LOW)
         except Exception as e:
             print(f"[BUZZER] [ERROR] Lỗi cấu hình GPIO còi: {e}")
-            has_gpio = False
+            local_has_gpio = False
 
     while True:
         try:
@@ -1550,43 +1549,43 @@ def _buzzer_control_loop():
             if is_fire:
                 SystemStatus.buzzer_active = True
                 # Báo cháy: Nháy cực nhanh (0.1s)
-                if has_gpio:
+                if local_has_gpio:
                     GPIO.output(BUZZER_PIN, GPIO.HIGH)
                 time.sleep(0.1)
-                if has_gpio:
+                if local_has_gpio:
                     GPIO.output(BUZZER_PIN, GPIO.LOW)
                 time.sleep(0.1)
             elif is_gas:
                 SystemStatus.buzzer_active = True
                 # Rò rỉ khí ga: Nháy vừa (0.3s)
-                if has_gpio:
+                if local_has_gpio:
                     GPIO.output(BUZZER_PIN, GPIO.HIGH)
                 time.sleep(0.3)
-                if has_gpio:
+                if local_has_gpio:
                     GPIO.output(BUZZER_PIN, GPIO.LOW)
                 time.sleep(0.3)
             elif is_intrusion_alarm:
                 SystemStatus.buzzer_active = True
                 # Báo động xâm nhập khóa nhà: Nháy chậm (0.8s)
-                if has_gpio:
+                if local_has_gpio:
                     GPIO.output(BUZZER_PIN, GPIO.HIGH)
                 time.sleep(0.8)
-                if has_gpio:
+                if local_has_gpio:
                     GPIO.output(BUZZER_PIN, GPIO.LOW)
                 time.sleep(0.8)
             elif is_mock:
                 SystemStatus.buzzer_active = True
                 # Giả lập: Nháy chu kỳ 0.5s
-                if has_gpio:
+                if local_has_gpio:
                     GPIO.output(BUZZER_PIN, GPIO.HIGH)
                 time.sleep(0.5)
-                if has_gpio:
+                if local_has_gpio:
                     GPIO.output(BUZZER_PIN, GPIO.LOW)
                 time.sleep(0.5)
             else:
                 if SystemStatus.buzzer_active:
                     SystemStatus.buzzer_active = False
-                if has_gpio:
+                if local_has_gpio:
                     GPIO.output(BUZZER_PIN, GPIO.LOW)
                 time.sleep(0.5)
                 
@@ -1604,20 +1603,11 @@ def set_light_state(state: bool):
     """Đặt trạng thái bật/tắt rơ-le đèn chiếu sáng (GPIO 22)"""
     SystemStatus.light_active = state
     
-    has_gpio = False
-    try:
-        import RPi.GPIO as GPIO
-        has_gpio = True
-    except ImportError:
-        pass
-        
+    global has_gpio
     LIGHT_PIN = 22 # GPIO 22 (Pin 15)
     
     if has_gpio:
         try:
-            orig_mode = GPIO.getmode()
-            if orig_mode is None:
-                GPIO.setmode(GPIO.BCM)
             GPIO.setup(LIGHT_PIN, GPIO.OUT)
             # Kích hoạt rơ-le đèn (HIGH = Bật, LOW = Tắt)
             GPIO.output(LIGHT_PIN, GPIO.HIGH if state else GPIO.LOW)

@@ -17,28 +17,30 @@
         ],
         "roi": [
             [
-                100,
-                100
+                11,
+                335
             ],
             [
-                540,
-                100
+                106,
+                192
             ],
             [
-                540,
-                300
+                246,
+                232
             ],
             [
-                100,
-                300
+                154,
+                335
             ]
         ],
         "schedule_enabled": false,
         "schedule_start": "23:00",
         "schedule_end": "06:00",
         "in_direction": "down",
-        "map_x": 19.62,
-        "map_y": 81.76,
-        "map_id": "khu_a_tang_1"
+        "map_x": 19.55,
+        "map_y": 82.83,
+        "map_id": "khu_a_tang_1",
+        "low_light_enhance": false,
+        "enhance_clip_limit": 2
     }
 ]

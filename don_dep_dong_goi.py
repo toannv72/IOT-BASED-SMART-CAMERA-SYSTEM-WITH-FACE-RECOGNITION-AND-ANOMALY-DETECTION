@@ -8,7 +8,7 @@ def package_project():
     zip_path = os.path.join(project_dir, "..", zip_name)
     
     print("==================================================")
-    # Excluded directories (Datasets, cache, venv, temporary folders)
+    # Excluded directories (Datasets, cache, venv, temporary folders, development folders)
     exclude_dirs = {
         ".git",
         "__pycache__",
@@ -24,7 +24,10 @@ def package_project():
         "dataset_fire",     # Loại bỏ bộ dữ liệu khói lửa gốc
         "videotest",        # Loại bỏ các video test phụ
         "kaggle_cache",     # Loại bỏ bộ nhớ đệm tải Kaggle
-        "input_videos"      # Loại bỏ thư mục chứa video đầu vào test
+        "input_videos",     # Loại bỏ thư mục chứa video đầu vào test
+        "backend",          # Thư mục phát triển cũ
+        "edge_device",      # Thư mục phát triển cũ
+        "MSE_Triển khai DATN_2025" # Thư mục tài liệu thô
     }
     
     # Excluded extensions
@@ -38,7 +41,50 @@ def package_project():
         ".bcf",
         ".blg",
         ".run.xml",
-        ".toc"
+        ".toc",
+        ".tex",
+        ".pdf",
+        ".docx",
+        ".pptx",
+        ".bib"
+    }
+
+    # Excluded specific files not needed for runtime execution
+    exclude_files = {
+        "Logo_Trường_Đại_học_FPT.png",
+        "confusion_matrix.png",
+        "results.png",
+        "val_batch0_pred.jpg",
+        "test_results_grid.jpg",
+        "yolov8n_fire.pt",       # Nặng 136MB (Đã có bản custom yolov8n_fire_custom.pt 6.2MB)
+        "yolov8s.pt",            # Nặng 22MB (Không dùng)
+        "yolov5s.pt",            # Nặng 14MB (Không dùng)
+        "yolo26n.pt",            # Không dùng
+        "video12.mp4",           # Video test nặng
+        "video123.mp4",          # Video test nặng
+        "video1.mp4",            # Video test nặng
+        "face_api.py",           # File test dev
+        "face_camera.py",        # File test dev
+        "preprocess_dataset.py", # Script tiền xử lý dữ liệu train
+        "recognize_image.py",    # Script test dev
+        "register_face.py",      # Script test dev
+        "test_fall_video.py",    # Script test dev
+        "test_video.py",        # Script test dev
+        "test_he_thong.py",      # Script test dev
+        "verify_fire_stream.py", # Script test dev
+        "video_event_handler.py",# Script test dev
+        "train_yolo.py",         # Script huấn luyện
+        "train_fire_yolo.py",    # Script huấn luyện
+        "generate_report.py",    # Script tạo báo cáo biểu đồ
+        "generate_test_grid.py", # Script test
+        "roi.json",
+        "roi_video.json",
+        "roi_video.mp4.json",
+        "roi_video1.mp4.json",
+        "cac_lenh.txt",
+        "quy_dinh.txt",
+        "hanhvibatthuong.txt",
+        "doc_api.md"
     }
 
     print(f"[PACKAGING] Starting package build for: {project_dir}")
@@ -59,6 +105,9 @@ def package_project():
                 continue
                 
             for file in files:
+                if file in exclude_files:
+                    continue
+                    
                 file_ext = os.path.splitext(file)[1].lower()
                 if file_ext in exclude_extensions:
                     continue

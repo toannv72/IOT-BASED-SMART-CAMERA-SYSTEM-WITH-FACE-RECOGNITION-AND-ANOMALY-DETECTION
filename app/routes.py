@@ -965,6 +965,43 @@ def test_buzzer_api(active: bool, request: Request):
     SystemStatus.mock_buzzer = active
     return {"message": f"Đã thiết lập trạng thái giả lập còi báo động: {active}", "mock_buzzer": active}
 
+@app.post("/api/test_hardware/buzzer")
+async def api_test_hardware_buzzer(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+    
+    import threading
+    SystemStatus.mock_buzzer = True
+    SystemStatus.add_log("Giao diện Web: Đang thực hiện kiểm tra còi báo động (3 giây)...", "info")
+    
+    def turn_off_buzzer():
+        time.sleep(3.0)
+        SystemStatus.mock_buzzer = False
+        SystemStatus.add_log("Giao diện Web: Kết thúc kiểm tra còi báo động.", "success")
+        
+    threading.Thread(target=turn_off_buzzer, daemon=True).start()
+    return {"message": "Đang kiểm tra còi báo động trong 3 giây...", "mock_buzzer": True}
+
+@app.post("/api/test_hardware/light")
+async def api_test_hardware_light(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+    
+    import threading
+    from app.processors import set_light_state
+    set_light_state(True)
+    SystemStatus.add_log("Giao diện Web: Đang thực hiện kiểm tra đèn chiếu sáng (5 giây)...", "info")
+    
+    def turn_off_light():
+        time.sleep(5.0)
+        set_light_state(False)
+        SystemStatus.add_log("Giao diện Web: Kết thúc kiểm tra đèn chiếu sáng.", "success")
+        
+    threading.Thread(target=turn_off_light, daemon=True).start()
+    return {"message": "Đang kiểm tra đèn chiếu sáng trong 5 giây...", "light_active": True}
+
 @app.get("/api/play_recording")
 def play_recording_stream(filepath: str, request: Request):
     if not request.session.get("user_id"):
