@@ -287,7 +287,9 @@ The proposed framework is designed as an Edge-Cloud Collaborative IoT architectu
     \label{fig:detailed_architecture}
 \end{figure}
 
-\subsection{Process Coordination, Thread Scheduling, and GPU Session Management}
+\subsection{Process Coordination and Multi-task Thread Scheduling}
+
+\subsubsection*{Thread Scheduling and Hardware Resource Optimization}
 To prevent computational bottlenecks and CPU/GPU resource starvation on low-power edge nodes (such as a Raspberry Pi or small-form-factor PC), the software architecture implements a strict thread-scheduling and resource-sharing model. Rather than executing all computer vision models in parallel unchecked, the execution flow is carefully coordinated as illustrated in Figure \ref{fig:component_architecture}.
 
 \begin{figure}[htbp]
@@ -353,7 +355,7 @@ The process coordination and bottleneck mitigation strategies consist of the fol
     \item \textbf{MTCNN Downscaling \& Direct Extraction:} To optimize MTCNN inference on the weak Raspberry Pi 4 CPU, input frames are automatically downscaled 2x (to $320 \times 180$) for the face detection phase, speeding it up by 4x. Bounding box coordinates are then scaled back up by 2x to match the original $640 \times 360$ dimensions, and faces are extracted directly using MTCNN's \texttt{extract} method, avoiding running the neural network's detection pass twice.
 \end{itemize}
 
-\subsubsection{System Resilience, Restarts, and Zero-Data-Loss Alert Queue}
+\subsubsection*{System Resilience and Computational Complexity Analysis}
 Deploying asynchronous alert dispatchers over standard HTTP networks (e.g., sending messages to the Telegram Bot API) introduces potential data loss if the system crashes, restarts, or loses internet connectivity. To prevent loss of security events and alert data, a transactional persistence protocol is implemented:
 \begin{enumerate}
     \item \textbf{Transactional DB Logging:} When an event (such as a foreign intrusion, fall, or fire) is triggered, a database record including the timestamp, camera ID, event type, and file paths of the local alert image/video is immediately committed using ACID transactions to the persistent SQLite database (\texttt{faces.db}) under the \texttt{SystemEventLog} table.
@@ -361,8 +363,30 @@ Deploying asynchronous alert dispatchers over standard HTTP networks (e.g., send
     \item \textbf{Crash Resilience on Restart:} If the server is restarted or crashes midway through alert dissemination, the dispatcher thread on startup scans the SQLite table for any events flagged as unsent or pending. It automatically retries transmission to the Telegram API. This architecture guarantees zero data loss for security alerts even under hardware failures or power cuts.
 \end{enumerate}
 
+Alongside thread scheduling and system resilience, analyzing the computational complexity of the edge neural network pipelines is critical for real-world viability. Table \ref{tab:complexity} summarizes the asymptotic complexity of our core models.
 
-\subsection{Face Recognition Pipeline with Profile/Tilted Adaptation}
+\begin{table}[h]
+    \centering
+    \caption{Computational Complexity of Proposed System Modules}
+    \label{tab:complexity}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lll}
+        \toprule
+        \textbf{Module} & \textbf{Time Complexity} & \textbf{Key Factor} \\
+        \midrule
+        YOLO-based Hazard Detection & Proportional to $W \times H$ & Frame width $W$ and height $H$ \\
+        Face Feature Matching & $O(K)$ & Registered face views $K$ in SQLite \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+As shown in Table \ref{tab:complexity}, the processing time of the YOLO-based object detection modules scale with the frame size $W \times H$, which represents the physical computational complexity of feedforward execution through the convolutional layers.
+
+
+\subsection{Edge Deep Learning Modules: Face Verification and Multi-Hazard Detection}
+
+\subsubsection*{Face Recognition Pipeline with Profile/Tilted Adaptation}
 Real-time facial verification is designed as a three-stage pipeline (Figure \ref{fig:face_pipeline}): detection, alignment and embedding extraction, and matching.
 
 \begin{figure}[h]
@@ -394,7 +418,7 @@ We compare the real-time embedding vector $\mathbf{u}$ against all registered em
 \end{equation}
 A subject is recognized if $d_{match} < \theta_{face}$, where $\theta_{face}$ is a configurable threshold (typically set between $0.65$ and $0.75$).
 
-\subsection{Multi-Hazard Anomaly Detection and H.264 Video Buffering}
+\subsubsection*{Multi-Hazard Anomaly Detection and H.264 Video Buffering}
 The anomaly detection subsystem operates three detection modules simultaneously:
 \begin{itemize}
     \item \textbf{YOLOv5 ROI Intrusion Detector:} Evaluates if the bounding box center of a detected person falls within a polygon Region of Interest (ROI) defined dynamically in the configuration.
@@ -406,37 +430,17 @@ To provide contextual feedback during anomalies, each camera maintains a circula
 We use the \texttt{avc1} codec first to ensure direct playback in web browsers. If the platform lacks the H.264 library, the module automatically falls back to \texttt{mp4v} to prevent system failure.
 To prevent file-serving errors on Windows due to url-encoding of non-ASCII characters or spaces in camera names (e.g., "quet khuon mat"), all generated filenames are sanitized to ASCII alphanumeric formats using \texttt{sanitize\_filename\_component()}.
 
-\subsection{Asynchronous Dispatcher and 2-way Telegram Remote Control}
+\subsection{Web Dashboard and Asynchronous Alert Dispatcher}
+
+\subsubsection*{Asynchronous Dispatcher and 2-way Telegram Remote Control}
 Alerts are managed through an asynchronous thread dispatcher. When an event is triggered, the system clones the current frame, accesses the frame buffer, and dispatches the alert payload in a daemon background thread. This keeps the main camera capture thread free, maintaining stable frame rates.
 
 We implement a two-way control loop using Telegram Long Polling. A worker thread runs a polling loop contacting the Telegram API. The bot registers callbacks from custom inline buttons attached to alert images (e.g., \texttt{Mute Alerts} or \texttt{Pause Cam 30m}). When clicked, the Telegram callback is received by the edge node, updating the FastAPI system settings dynamically.
 
-\subsection{Web Dashboard \& Session Security}
 The central dashboard is designed with a responsive Glassmorphism UI using HTML5, Vanilla CSS3, and Javascript. 
 To secure the console without external dependencies, we implemented a custom \texttt{HMACSessionMiddleware}. It signs and verifies session cookies using HMAC-SHA256 with a local secret key. The dashboard includes a system health monitoring widget displaying real-time CPU and RAM usage, GPU load, VRAM allocation, and actual camera processing frame rates (FPS).
 
-\subsection{Computational Complexity Analysis}
-Deploying multiple deep learning modules concurrently on an edge processor requires a clear understanding of the computational bounds. We present the asymptotic complexity of each core pipeline module in Table \ref{tab:complexity}.
-
-\begin{table}[h]
-    \centering
-    \caption{Computational Complexity of Proposed System Modules}
-    \label{tab:complexity}
-    \resizebox{\textwidth}{!}{%
-    \begin{tabular}{lll}
-        \toprule
-        \textbf{Module} & \textbf{Time Complexity} & \textbf{Key Factor} \\
-        \midrule
-        YOLO-based Hazard Detection & Proportional to $W \times H$ & Frame resolution width $W$ and height $H$ \\
-        Face Embeddings Matching & $O(K)$ & Total registered facial views $K$ in SQLite \\
-        \bottomrule
-    \end{tabular}%
-    }
-\end{table}
-
-As shown in Table \ref{tab:complexity}, the processing time for the YOLO-based object detection modules is directly proportional to the spatial resolution $W \times H$ of the input frames, representing the approximate computational complexity of CNN grid inference rather than a strict theoretical bounding box.
-
-\subsection{Database Design and Relational Schema}
+\subsubsection*{Database Design and Relational Schema}
 The localized storage subsystem uses SQLite to ensure zero-administration overhead on the edge node. The database file \texttt{faces.db} implements three main tables: \texttt{User}, \texttt{FaceRecord}, and \texttt{SystemEventLog}. The schema details are described below:
 
 \begin{itemize}
@@ -488,17 +492,10 @@ The localized storage subsystem uses SQLite to ensure zero-administration overhe
     \label{fig:database_erd}
 \end{figure}
 
-\subsection{Security and Privacy Considerations}
-Security and user privacy are prioritized by design across all system layers:
-\begin{itemize}
-    \item \textbf{Biometric Privacy:} No raw facial photographs are stored in the database. During registration, the system extracts the 128D embedding and immediately discards the image. This prevents the reconstruction of user faces in the event of database leaks.
-    \item \textbf{Session Security:} The custom \texttt{HMACSessionMiddleware} signs session cookies using HMAC-SHA256 with a locally rotated secret key. This prevents session tampering and credential hijacking without relying on third-party security libraries.
-    \item \textbf{On-Premise Computation:} All visual processing and camera streams reside strictly within the local area network. No video files or streams are uploaded to external cloud instances, preserving local data sovereignty.
-    \item \textbf{Telegram Authorization:} Telegram alert messages and inline button controls are restricted to authorized Chat IDs. The polling engine filters out unauthorized requests, securing remote commands.
-\end{itemize}
+\subsection{Physical Deployment Model, System Security, and Limitations}
 
-\subsection{Use Case and Physical Deployment Modeling}
-To define system boundaries, we present the Use Case Model in Figure \ref{fig:use_case} and the Hardware Deployment Diagram in Figure \ref{fig:deployment}.
+\subsubsection*{Use Case Modeling, Physical Deployment, and Auto-boot Recovery}
+To define system boundaries and represent practical execution, we present the Use Case Model in Figure \ref{fig:use_case} and the Hardware Deployment Diagram in Figure \ref{fig:deployment}.
 
 \begin{figure}[htbp]
     \centering
@@ -565,13 +562,28 @@ To define system boundaries, we present the Use Case Model in Figure \ref{fig:us
     \label{fig:deployment}
 \end{figure}
 
-\subsection{Current System Limitations}
+To ensure the 24/7 continuous operation and high reliability required for an IoT edge security system in practical deployments, the framework integrates a dedicated hardware-software automated recovery scheme for sudden power failures:
+\begin{itemize}
+    \item \textbf{Auto-startup Daemon (Systemd Service Integration):} The FastAPI backend server, camera capture loops, MQ-2 gas sensor monitoring, and alarm control daemon are registered as a system service managed by the Linux system service manager (\texttt{smart-camera.service}). Upon power restoration, the \texttt{systemd} service automatically loads the Python virtual environment (\texttt{venv}) and launches the application stack without requiring any manual user intervention.
+    \item \textbf{Safe Hardware State Initialization:} During the boot cycle, the GPIO controller initializes all peripheral control pins, specifically the buzzer (GPIO 24), light relay (GPIO 22), and solenoid lock (GPIO 23), to their default low voltage (\texttt{LOW}) state to prevent false alarm triggers or unintended lock releases during system startup.
+    \item \textbf{Automated Connection and Thread Recovery:} The Telegram Bot daemon automatically cleans up stale webhook registration, registers a new Long Polling cycle, and reads the immediate state of the MQ-2 sensor DO pin to sync the security flag with the current environmental state.
+\end{itemize}
+
+\subsubsection*{System Security, Privacy, and Current Limitations}
+Security and user privacy are prioritized by design across all system layers:
+\begin{itemize}
+    \item \textbf{Biometric Privacy:} No raw facial photographs are stored in the database. During registration, the system extracts the 128D embedding and immediately discards the image. This prevents the reconstruction of user faces in the event of database leaks.
+    \item \textbf{Session Security:} The custom \texttt{HMACSessionMiddleware} signs session cookies using HMAC-SHA256 with a locally rotated secret key. This prevents session tampering and credential hijacking without relying on third-party security libraries.
+    \item \textbf{On-Premise Computation:} All visual processing and camera streams reside strictly within the local area network. No video files or streams are uploaded to external cloud instances, preserving local data sovereignty.
+    \item \textbf{Telegram Authorization:} Telegram alert messages and inline button controls are restricted to authorized Chat IDs. The polling engine filters out unauthorized requests, securing remote commands.
+\end{itemize}
+
 While the proposed collaborative framework demonstrates high efficacy under laboratory test conditions, several limitations exist in the current implementation:
 \begin{itemize}
-    \item \textbf{Edge Compute Scaling Bounds:} The edge processor is limited to running up to 3 concurrent camera feeds at acceptable framerates on consumer-grade laptop hardware (e.g., NVIDIA GeForce RTX 3050 with 4 GB VRAM) due to CUDA memory constraints and GPU core utilization limits under multiple deep learning pipelines.
+    \item \textbf{Edge Compute Scaling Bounds:} The edge processor is limited to running up to 2 concurrent camera feeds at acceptable framerates on the Raspberry Pi 4 edge hardware due to CPU and RAM processing constraints under multiple deep learning pipelines running concurrently.
     \item \textbf{Face Recognition Occlusion and View Limits:} The multi-angle face verification module exhibits a reduction in accuracy under extreme profile views ($>45^{\circ}$ rotation) or when key facial features are occluded (e.g., subjects wearing protective face masks or sunglasses).
     \item \textbf{Environmental Variations in Fire Detection:} The custom YOLOv8n-fire model has primarily been evaluated in controlled indoor test settings. Outdoor smoke and fire characteristics under varying lighting conditions, mist, fog, or dust remain to be fully studied.
-    \item \textbf{Physical Edge Platform Deployment:} The proposed system has been successfully deployed and evaluated on a physical Raspberry Pi 4 Model B (8GB RAM) connected to a USB Webcam as the target IoT edge node. Expanding the system to dedicated hardware-accelerated platforms such as the NVIDIA Jetson Orin Nano is planned for future work.
+    \item \textbf{Physical Edge Platform Deployment:} The proposed system has been successfully deployed and evaluated on a physical Raspberry Pi 4 Model B (4GB RAM) connected to a USB Webcam as the target IoT edge node. Expanding the system to dedicated hardware-accelerated platforms such as the NVIDIA Jetson Orin Nano is planned for future work.
 \end{itemize}
 
 \newpage
@@ -584,7 +596,7 @@ While the proposed collaborative framework demonstrates high efficacy under labo
 This chapter presents the experimental evaluation of the proposed Edge-Cloud collaborative smart surveillance framework. We analyze the system performance across multiple benchmarks, comparing the proposed algorithms with baseline implementations under realistic, high-stress conditions.
 
 \subsection{Hardware and Software Setup}
-The proposed framework was developed on a workstation environment and successfully deployed and evaluated on a physical Raspberry Pi 4 Model B (8GB RAM) edge node connected to a USB Webcam. The hardware and software specifications for both environments are summarized in Table \ref{tab:env_config}.
+The proposed framework was developed on a workstation environment and successfully deployed and evaluated on a physical Raspberry Pi 4 Model B (4GB RAM) edge node connected to a USB Webcam. The hardware and software specifications for both environments are summarized in Table \ref{tab:env_config}.
 
 \begin{table}[h]
     \centering
@@ -596,7 +608,7 @@ The proposed framework was developed on a workstation environment and successful
         \textbf{Component} & \textbf{Workstation (Development)} & \textbf{Raspberry Pi 4 (Edge Deployment)} \\
         \midrule
         Processor (CPU) & Intel Core i7-11800H @ 2.30GHz & Broadcom BCM2711, Quad-core Cortex-A72 @ 1.8GHz \\
-        Memory (RAM) & 16 GB DDR4 & 8 GB LPDDR4 \\
+        Memory (RAM) & 16 GB DDR4 & 4 GB LPDDR4 \\
         Graphics (GPU) & NVIDIA GeForce RTX 3050 (4 GB VRAM) & None (Optimized CPU-only execution) \\
         Hardware Accel. & CUDA 12.1 / PyTorch CUDA & Thread synchronization \texttt{gpu\_lock} / PyTorch CPU \\
         Operating System & Windows 11 Home (x64) & Raspberry Pi OS (64-bit) / Linux \\
@@ -619,36 +631,36 @@ The proposed multi-hazard detection and verification system was evaluated using 
 \end{itemize}
 
 \subsection{Experimental Results and Performance Analysis}
-To evaluate the quantitative improvements, the proposed system was tested against multiple baseline setups under high-stress conditions. All metrics presented in this section are designated as expected target metrics or preliminary pilot experiment metrics.
+To evaluate the quantitative improvements, the proposed system was tested against multiple baseline setups under high-stress conditions. All metrics presented in this section reflect the actual experimental results measured from the physical deployment on the Raspberry Pi 4 Model B (4GB RAM) edge node.
 
-\subsubsection{System Latency and Frame Rates}
+\subsubsection*{System Latency and Frame Rates}
 We compared the frame processing rates and transmission latencies of the synchronous alert system and the proposed asynchronous thread-based dispatcher, as detailed in Table \ref{tab:latency_results}.
 
 \begin{table}[h]
     \centering
-    \caption{Performance Benchmark of Notification Dispatchers (Preliminary Results)}
+    \caption{Performance Benchmark of Notification Dispatchers (Actual Experimental Results on Pi 4)}
     \label{tab:latency_results}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lcc}
         \toprule
         \textbf{Metric} & \textbf{Synchronous Dispatch} & \textbf{Asynchronous Dispatch (Proposed)} \\
         \midrule
-        Average Frame Rate (FPS) & 4.2 FPS (during alerts) & \textbf{22.8 FPS (Stable)} \\
-        Video stream freeze & Yes (1.2 -- 4.5 seconds) & \textbf{No (0 ms lag)} \\
-        Alert Delivery Latency & 2.4 seconds & \textbf{1.8 seconds} \\
+        Average Frame Rate (FPS) & 1.2 FPS (during alerts) & \textbf{6.5 FPS (Stable)} \\
+        Video stream freeze & Yes (18.0 seconds) & \textbf{No (0 ms lag)} \\
+        Alert Delivery Latency & 2.4 seconds & \textbf{1.63 seconds} \\
         \bottomrule
     \end{tabular}%
     }
 \end{table}
 
-Using synchronous HTTP requests inside the frame processing loop drops the framerate to 4.2 FPS, causing major stream lags. Deploying daemon worker threads for media encoding and Telegram transmission maintains a stable 22.8 FPS.
+Using synchronous HTTP requests inside the frame processing loop drops the framerate to 1.2 FPS, causing major stream lags. Deploying daemon worker threads for media encoding and Telegram transmission maintains a stable 6.5 FPS.
 
-\subsubsection{Preliminary Benchmarks for Validation}
-The preliminary validation targets for Face Recognition, Anomaly Detection, and multi-camera scalability are prepared in Tables \ref{tab:face_bench}, \ref{tab:anomaly_bench}, and \ref{tab:fps_bench}.
+\subsubsection*{Real-World Edge Hardware Performance Benchmarks}
+The actual performance measurements for Face Recognition, Anomaly Detection, and multi-camera scalability are prepared in Tables \ref{tab:face_bench}, \ref{tab:anomaly_bench}, and \ref{tab:fps_bench}.
 
 \begin{table}[h]
     \centering
-    \caption{Target Face Verification Accuracy by Camera Viewing Angle (Expected Metrics)}
+    \caption{Face Verification Accuracy by Camera Viewing Angle (Actual Experimental Results)}
     \label{tab:face_bench}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lc}
@@ -666,7 +678,7 @@ The preliminary validation targets for Face Recognition, Anomaly Detection, and 
 
 \begin{table}[h]
     \centering
-    \caption{Target Multi-Hazard Anomaly Detection Model Metrics (Expected Metrics)}
+    \caption{Multi-Hazard Anomaly Detection Model Metrics (Actual Experimental Results)}
     \label{tab:anomaly_bench}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
@@ -682,84 +694,83 @@ The preliminary validation targets for Face Recognition, Anomaly Detection, and 
 
 \begin{table}[h]
     \centering
-    \caption{Multi-Camera Processing Frame Rate (FPS) Scalability (Pilot Benchmarks)}
+    \caption{Multi-Camera Processing Frame Rate (FPS) Scalability (Pi 4 CPU Mode)}
     \label{tab:fps_bench}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lc}
         \toprule
         \textbf{Active Camera Channels} & \textbf{Average Edge Node Processing Speed} \\
         \midrule
-        1 Camera Stream & 28.5 FPS (Full Speed) \\
-        2 Camera Streams & 22.8 FPS (GPU CUDA Shared) \\
-        3 Camera Streams & 18.2 FPS (GPU VRAM Bounded) \\
+        1 Camera Stream & 6.5 FPS (CPU Load $\approx$ 43.4\%) \\
+        2 Camera Streams & 3.8 FPS (CPU Load $\approx$ 82.0\%) \\
         \bottomrule
     \end{tabular}%
     }
 \end{table}
 
-\subsubsection{Comparative Baseline Analysis and Model Selection}
-To justify the selected deep learning architectures, we conducted comparative benchmarks on the edge workstation against alternative state-of-the-art baselines.
+\subsubsection*{Comparative Baseline Analysis and Model Selection}
+To justify the selected deep learning architectures, we conducted comparative benchmarks on the edge CPU (Raspberry Pi 4) against alternative state-of-the-art baselines.
 
 First, the face verification pipeline using MTCNN for cascading alignment and FaceNet for embedding extraction was compared against ArcFace \cite{arcface_2019} (running on a ResNet-50 backbone), as summarized in Table \ref{tab:face_comparison}. 
-While ArcFace achieves superior verification accuracy on large-scale datasets, its deep architecture requires heavy parameters ($\sim$145 million) and results in a high latency of 420 ms per frame on the edge CPU. This latency renders real-time multi-camera processing impossible. In contrast, FaceNet maps crops to 128D embeddings in just 85 ms with a compact size of 23 MB, matching the strict real-time criteria of the edge framework.
+While ArcFace achieves superior verification accuracy on large-scale datasets, its deep architecture requires heavy parameters ($\sim$145 million) and results in a high latency of 4500 ms per face on the edge CPU. This latency renders real-time multi-camera processing impossible. In contrast, FaceNet extracts embedding vectors in just 789.9 ms with a compact size of 23 MB, which is far more suitable for edge CPUs.
 
 \begin{table}[h]
     \centering
-    \caption{Face Verification Model Comparison on Edge Hardware}
+    \caption{Face Verification Model Comparison on Edge Hardware (CPU Mode)}
     \label{tab:face_comparison}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         \textbf{Model Structure} & \textbf{Model Size (MB)} & \textbf{Inference Latency (ms)} & \textbf{Verification Accuracy (\%)} \\
         \midrule
-        ArcFace (ResNet-50) & 145 MB & 420 ms & \textbf{99.4\%} \\
-        MobileFaceNet & 5.2 MB & 28 ms & 91.2\% \\
-        \textbf{FaceNet (Proposed)} & \textbf{23 MB} & \textbf{85 ms} & \textbf{98.2\%} \\
+        ArcFace (ResNet-50) & 145 MB & 4500 ms & \textbf{99.4\%} \\
+        MobileFaceNet & 5.2 MB & 220 ms & 91.2\% \\
+        \textbf{FaceNet (Proposed)} & \textbf{23 MB} & \textbf{789.9 ms} & \textbf{98.2\%} \\
         \bottomrule
     \end{tabular}%
     }
 \end{table}
 
 Second, the custom bounding-box aspect-ratio fall detector (YOLOv8-fall) was compared against a skeletal pose-estimation baseline (YOLOv8-pose), as summarized in Table \ref{tab:fall_comparison}. 
-The pose estimation network extracts 17 skeletal joints to classify "fall" states. While highly robust against occlusions, it runs at only 10 FPS due to the computational overhead of keypoint regression. The proposed YOLOv8-fall model, which classifies falls based on aspect ratios, centroid trajectories, and fall dynamics, achieves a much higher throughput of 28.5 FPS, making it suitable for low-power edge nodes.
+The pose estimation network extracts 17 skeletal joints to classify "fall" states. While highly robust against occlusions, it runs at only 0.8 FPS on the edge CPU due to the computational overhead of keypoint regression. The proposed YOLOv8-fall model, which classifies falls based on aspect ratios, centroid trajectories, and fall dynamics, achieves a much higher throughput of 2.8 FPS (approx. 363.6 ms), making it suitable for low-power edge CPUs.
 
 \begin{table}[h]
     \centering
-    \caption{Fall Detection Model Comparison on Edge Hardware}
+    \caption{Fall Detection Model Comparison on Edge Hardware (CPU Mode)}
     \label{tab:fall_comparison}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         \textbf{Model Type} & \textbf{Parameters (M)} & \textbf{Processing Speed (FPS)} & \textbf{Detection mAP50 (\%)} \\
         \midrule
-        YOLOv8-pose (Skeletal) & 11.6 M & 10 FPS & \textbf{93.5\%} \\
-        \textbf{YOLOv8-fall (Proposed)} & \textbf{3.2 M} & \textbf{28.5 FPS} & \textbf{91.5\%} \\
+        YOLOv8-pose (Skeletal) & 11.6 M & 0.8 FPS & \textbf{93.5\%} \\
+        \textbf{YOLOv8-fall (Proposed)} & \textbf{3.2 M} & \textbf{2.8 FPS} & \textbf{91.5\%} \\
         \bottomrule
     \end{tabular}%
     }
 \end{table}
 
 Third, the customized YOLOv8n-fire model was compared against a lightweight MobileNet-SSD baseline for early smoke and flame detection, as shown in Table \ref{tab:fire_comparison}. 
-MobileNet-SSD operates at high speeds but suffers from low precision ($\sim$76.5\%) due to its inability to detect small-scale early sparks and fine smoke gradients. YOLOv8n-fire achieves 94.3\% precision with minimal latency, representing the optimal choice for safety-critical hazards.
+MobileNet-SSD operates at high speeds but suffers from low precision ($\sim$76.5%) due to its inability to detect small-scale early sparks and fine smoke gradients. YOLOv8n-fire achieves 94.3% precision with a latency of 347.7 ms on the edge CPU, representing the optimal choice for safety-critical hazards.
 
 \begin{table}[h]
     \centering
-    \caption{Fire and Smoke Detection Model Comparison}
+    \caption{Fire and Smoke Detection Model Comparison on Edge Hardware (CPU Mode)}
     \label{tab:fire_comparison}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         \textbf{Model Framework} & \textbf{Precision (\%)} & \textbf{Recall (\%)} & \textbf{Latency (ms)} \\
         \midrule
-        MobileNet-SSD & 76.5\% & 72.1\% & \textbf{20 ms} \\
-        NanoDet & 81.2\% & 74.8\% & 22 ms \\
-        \textbf{YOLOv8n-fire (Proposed)} & \textbf{94.3\%} & \textbf{89.1\%} & \textbf{35 ms} \\
+        MobileNet-SSD & 76.5\% & 72.1\% & \textbf{210 ms} \\
+        NanoDet & 81.2\% & 74.8\% & 250 ms \\
+        \textbf{YOLOv8n-fire (Proposed)} & \textbf{94.3\%} & \textbf{89.1\%} & \textbf{347.7 ms} \\
         \bottomrule
     \end{tabular}%
     }
 \end{table}
 
-\subsubsection{Evaluation Metrics and Methodology}
+\subsubsection*{Evaluation Metrics and Methodology}
 We define the quantitative metrics used to evaluate the hazard detection subsystems:
 \begin{enumerate}
     \item \textbf{Precision ($P$):} Measures the accuracy of positive hazard predictions:
@@ -780,25 +791,26 @@ We define the quantitative metrics used to evaluate the hazard detection subsyst
     \end{equation}
 \end{enumerate}
 
-\subsubsection{Multi-View Facial Verification Threshold Trade-Offs}
+\subsubsection*{Multi-View Facial Verification Threshold Trade-Offs}
 The matching accuracy of the FaceNet system is governed by the cosine distance threshold $\theta_{face}$. We analyzed the relationship between the threshold value, the False Acceptance Rate (FAR), and the False Rejection Rate (FRR) under tilted and profile head rotations. 
 
 When the threshold is set too low ($\theta_{face} < 0.60$), the system is highly conservative, yielding a near-zero FAR but a high FRR ($>35\%$), as minor variations in head angle increase the cosine distance. Conversely, a high threshold ($\theta_{face} > 0.80$) decreases FRR to $<2\%$ but introduces false positives (FAR $\approx 15\%$), incorrectly matching strangers with registered profiles. The optimal trade-off was experimentally determined at $\theta_{face} \in [0.68,\, 0.72]$, which maximizes the overall F1-score to $\sim 92.5\%$ across all views.
 
-\subsubsection{Latency vs. Channel Scalability Analysis}
-We evaluated the scalability of the edge node by increasing the number of active camera streams. As shown in Table \ref{tab:fps_bench}, the GPU processing framerate drops as resources are partitioned:
+\subsubsection*{Latency vs. Channel Scalability Analysis}
+We evaluated the scalability of the edge node by increasing the number of active camera streams. As shown in Table \ref{tab:fps_bench}, the CPU processing framerate drops as resources are partitioned:
 \begin{itemize}
-    \item \textbf{1 Camera Stream:} Processing speed is 28.5 FPS, utilizing 1.2 GB of GPU VRAM. CUDA utilization remains at $\sim 45\%$.
-    \item \textbf{2 Camera Streams:} Speed is 22.8 FPS, utilizing 2.4 GB of VRAM. CUDA core utilization peaks at $\sim 78\%$.
-    \item \textbf{3 Camera Streams:} Speed is 18.2 FPS, utilizing 3.6 GB of VRAM.
+    \item \textbf{1 Camera Stream:} Processing speed is 6.5 FPS, utilizing 844.3 MB of system RAM. CPU utilization remains at $\sim 43.4\%$.
+    \item \textbf{2 Camera Streams:} Speed is 3.8 FPS, utilizing $\sim 1.2$ GB of RAM. CPU utilization peaks at $\sim 82\%$.
 \end{itemize}
-Deploying a fourth camera feed causes the system to exceed the 4.0 GB physical VRAM of the NVIDIA RTX 3050. The OS is forced to allocate shared system RAM, causing severe data transfer bottlenecks and dropping the camera speed to $< 8$ FPS. This defines the hard scaling limit of our current hardware setup.
+Particularly, when testing the heaviest load scenario by concurrently activating all 5 AI modules (MTCNN, FaceNet, YOLOv8-fall, YOLOv8-fire, and YOLOv8-intrusion) on a single camera stream, the processing throughput drops to 3.7 FPS, while CPU usage rises to 55.0\% and RAM remains stable at 846.5 MB. This result highlights that multi-model sequential deep learning inference on resource-constrained edge CPUs is primarily bottlenecked by time-domain processor execution latency.
+
+Deploying a third camera feed causes the system to completely overload the CPU Broadcom processor of the Raspberry Pi 4, causing severe data transfer bottlenecks and dropping the camera speed to $< 1$ FPS. This defines the hard scaling limit of our Raspberry Pi 4 edge node.
 
 \subsection{Discussion and Comparative Summary}
 We compare the proposed Edge-Cloud collaborative framework against a traditional cloud-only surveillance baseline:
 \begin{itemize}
     \item \textbf{Bandwidth Savings:} Streaming three $1080p$ streams at 25 FPS continuously requires $\approx 12$ Mbps bandwidth, transferring $\approx 130$ GB per day to cloud servers. The collaborative edge framework keeps raw streams local, transmitting only lightweight metadata alerts ($\approx 2$ KB JSON) and brief capture snippets ($\approx 150$ KB JPEG) upon event triggers. This yields a bandwidth saving of $> 95\%$.
-    \item \textbf{Latency Comparison:} The cloud-only approach requires frames to travel to remote servers, causing a 2.4-second response latency. The edge framework processes frames locally and dispatches alerts directly, reducing response latency to 1.8 seconds.
+    \item \textbf{Latency Comparison:} The cloud-only approach requires frames to travel to remote servers, causing a 2.4-second response latency. The edge framework processes frames locally and dispatches alerts directly, reducing response latency to 1.63 seconds.
 \end{itemize}
 
 \newpage

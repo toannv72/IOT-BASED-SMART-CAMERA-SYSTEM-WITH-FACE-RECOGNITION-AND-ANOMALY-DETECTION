@@ -286,7 +286,9 @@ Khung kết nối đề xuất được thiết kế theo kiến trúc cộng t�
     \label{fig:detailed_architecture}
 \end{figure}
 
-\subsection{Điều phối tiến trình, Lập lịch luồng và Quản lý phiên GPU}
+\subsection{Điều phối tiến trình và Lập lịch luồng đa nhiệm}
+
+\subsubsection*{Lập lịch luồng và tối ưu hóa tài nguyên phần cứng}
 Để ngăn chặn tình trạng nghẽn cổ chai tính toán và cạn kiệt tài nguyên CPU/GPU trên các nút biên cấu hình thấp (như Raspberry Pi hoặc máy tính mini), kiến trúc phần mềm triển khai một mô hình quản lý luồng và chia sẻ tài nguyên chặt chẽ. Luồng xử lý được điều phối tuần tự và khoa học như mô tả trong Hình \ref{fig:component_architecture}.
 
 \begin{figure}[htbp]
@@ -353,7 +355,7 @@ Các cơ chế giảm thiểu nghẽn cổ chai và điều phối tiến trình
     \item \textbf{Giảm tỷ lệ lấy mẫu đối với MTCNN (Downscaling \& Direct Extraction):} Để tối ưu hóa thời gian chạy mô hình MTCNN trên CPU yếu của Raspberry Pi 4, hình ảnh đầu vào được tự động thu nhỏ 2 lần (xuống $320 \times 180$) trước khi thực hiện bước phát hiện khuôn mặt (detect), tăng tốc độ dò tìm lên gấp 4 lần. Các tọa độ hộp phát hiện sau đó được nhân đôi để khớp với kích thước ảnh gốc $640 \times 360$, rồi trích xuất trực tiếp bằng phương thức \texttt{extract} của MTCNN mà không phải chạy lại toàn bộ mạng nơ-ron dò tìm lần thứ hai.
 \end{itemize}
 
-\subsubsection{Khả năng phục hồi hệ thống, khởi động lại và hàng đợi cảnh báo chống mất dữ liệu}
+\subsubsection*{Khả năng phục hồi hệ thống và Phân tích độ phức tạp tính toán}
 Việc truyền tải tin nhắn cảnh báo bất đồng bộ qua mạng Internet (tới API Telegram) tiềm ẩn rủi ro mất dữ liệu nếu hệ thống đột ngột bị sập nguồn, khởi động lại hoặc mất mạng. Do đó, hệ thống triển khai cơ chế lưu trữ giao dịch bền vững:
 \begin{enumerate}
     \item \textbf{Ghi nhật ký giao dịch trước (DB Logging):} Khi phát hiện sự kiện bất thường (xâm nhập, ngã, cháy), thông tin sự kiện và đường dẫn tệp tin đa phương tiện cục bộ ngay lập tức được ghi vào cơ sở dữ liệu SQLite tuần tự (\texttt{faces.db}) bằng các giao dịch ACID bền vững trước khi kích hoạt bộ gửi tin bất đồng bộ.
@@ -361,9 +363,31 @@ Việc truyền tải tin nhắn cảnh báo bất đồng bộ qua mạng Inter
     \item \textbf{Khôi phục sau sự cố:} Nếu hệ thống bị sập nguồn giữa chừng, ngay khi khởi động lại, luồng điều phối sẽ quét cơ sở dữ liệu để tìm ra các bản ghi sự cố chưa được gửi thành công sang Telegram và tự động gửi bù lại. Cơ chế này đảm bảo dữ liệu cảnh báo an ninh quan trọng không bao giờ bị thất lạc.
 \end{enumerate}
 
+Song song với việc quản lý luồng dữ liệu và phục hồi sự cố, việc đánh giá độ phức tạp tính toán của các mô hình học sâu tại biên là cực kỳ quan trọng để đảm bảo tính khả thi thực tế. Độ phức tạp tiệm cận của mỗi mô-đun cốt lõi được trình bày trong Bảng \ref{tab:complexity}.
 
-\subsection{Đường ống nhận diện khuôn mặt thích ứng góc quay nghiêng}
-Quy trình xác thực khuôn mặt trong thời gian thực được thiết kế dưới dạng đường ống ba giai đoạn (Hình 3.2): phát hiện, căn chỉnh và trích xuất đặc trưng, cuối cùng là đối sánh đối tượng.
+\begin{table}[h]
+    \centering
+    \caption{Độ phức tạp tính toán của các mô-đun hệ thống đề xuất}
+    \label{tab:complexity}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lll}
+        \toprule
+        \textbf{Mô-đun} & \textbf{Độ phức tạp thời gian} & \textbf{Yếu tố chính} \\
+        \midrule
+        Phát hiện nguy cơ dựa trên YOLO & Tỷ lệ thuận với $W \times H$ & Chiều rộng $W$ và chiều cao $H$ khung hình \\
+        Đối sánh đặc trưng khuôn mặt & $O(K)$ & Tổng số góc nhìn khuôn mặt $K$ trong SQLite \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+Như đã thể hiện trong Bảng \ref{tab:complexity}, thời gian xử lý của mô-đun phát hiện đối tượng dựa trên YOLO tỷ lệ thuận trực tiếp với độ phân giải không gian $W \times H$ của khung hình đầu vào, đại diện cho độ phức tạp tính toán thực tế của suy luận mạng nơ-ron CNN.
+
+
+\subsection{Các phân hệ học sâu biên: Nhận diện khuôn mặt và Phát hiện bất thường}
+
+\subsubsection*{Đường ống nhận diện khuôn mặt thích ứng góc quay nghiêng}
+Quy trình xác thực khuôn mặt trong thời gian thực được thiết kế dưới dạng đường ống ba giai đoạn (Hình \ref{fig:face_pipeline}): phát hiện, căn chỉnh và trích xuất đặc trưng, cuối cùng là đối sánh đối tượng.
 
 \begin{figure}[h]
     \centering
@@ -394,7 +418,7 @@ Chúng tôi so sánh vector đặc trưng thời gian thực $\mathbf{u}$ với 
 \end{equation}
 Một đối tượng được công nhận danh tính nếu $d_{match} < \theta_{face}$, trong đó $\theta_{face}$ là ngưỡng có thể cấu hình (thường được đặt trong khoảng từ $0.65$ đến $0.75$).
 
-\subsection{Phát hiện bất thường đa nguy cơ và Đệm video H.264}
+\subsubsection*{Phát hiện bất thường đa nguy cơ và Đệm video H.264}
 Phân hệ phát hiện bất thường vận hành đồng thời ba mô-đun phát hiện:
 \begin{itemize}
     \item \textbf{Bộ phát hiện xâm nhập ROI YOLOv5:} Đánh giá xem điểm trung tâm của hộp bao người được phát hiện có nằm trong đa giác vùng chỉ định (ROI) được cấu hình động hay không.
@@ -406,37 +430,17 @@ Phân hệ phát hiện bất thường vận hành đồng thời ba mô-đun p
 Chúng tôi ưu tiên sử dụng codec \texttt{avc1} để đảm bảo video có thể phát lại trực tiếp trên các trình duyệt web. Nếu nền tảng chạy thiếu thư viện H.264, mô-đun sẽ tự động chuyển sang codec \texttt{mp4v} làm dự phòng để tránh lỗi hệ thống.
 Để tránh lỗi truy cập tệp trên hệ điều hành Windows do mã hóa URL của các ký tự không thuộc ASCII hoặc khoảng trắng trong tên camera (ví dụ: "quet khuon mat"), tất cả các tên tệp được tạo đều được làm sạch thành định dạng ký tự chữ và số ASCII bằng hàm \texttt{sanitize\_filename\_component()}.
 
-\subsection{Bộ điều phối bất đồng bộ và Điều khiển từ xa 2 chiều qua Telegram}
+\subsection{Bảng điều khiển Web và Bộ điều phối cảnh báo bất đồng bộ}
+
+\subsubsection*{Bộ điều phối cảnh báo bất đồng bộ và Điều khiển 2 chiều qua Telegram}
 Cảnh báo được quản lý thông qua bộ điều phối luồng bất đồng bộ. Khi có sự kiện được kích hoạt, hệ thống sao chép khung hình hiện tại, truy xuất bộ đệm khung hình và gửi gói tin cảnh báo thông qua một luồng chạy nền (daemon thread). Điều này giúp luồng bắt hình chính của camera không bị khóa, duy trì tốc độ xử lý ổn định.
 
 Chúng tôi triển khai vòng điều khiển hai chiều bằng cơ chế Telegram Long Polling. Một luồng làm việc phụ chạy vòng lặp truy vấn liên tục tới API Telegram. Bot đăng ký các hàm gọi lại (callbacks) từ các nút bấm tùy chỉnh gắn kèm theo hình ảnh cảnh báo (ví dụ: \texttt{Tắt cảnh báo} hoặc \texttt{Tạm dừng Cam 30 phút}). Khi được nhấn, phản hồi từ Telegram được gửi về nút biên để cập nhật động các cài đặt hệ thống của FastAPI.
 
-\subsection{Bảng điều khiển Web \& Bảo mật phiên}
 Bảng điều khiển trung tâm được thiết kế với giao diện Glassmorphism phản hồi tốt sử dụng HTML5, Vanilla CSS3 và Javascript.
 Để bảo mật bảng điều khiển mà không cần phụ thuộc vào thư viện bên ngoài, chúng tôi đã triển khai một lớp trung gian \texttt{HMACSessionMiddleware} tùy chỉnh. Lớp này ký và xác thực các cookie phiên làm việc sử dụng mã hóa HMAC-SHA256 với mã khóa bí mật được lưu cục bộ. Bảng điều khiển tích hợp một công cụ giám sát sức khỏe hệ thống hiển thị thời gian thực mức sử dụng CPU và RAM, tải của GPU, dung lượng VRAM được cấp phát và tốc độ khung hình thực tế của camera (FPS).
 
-\subsection{Phân tích độ phức tạp tính toán}
-Triển khai đồng thời nhiều mô-đun học sâu và phát hiện trên thiết bị biên đòi hỏi phải hiểu rõ các giới hạn tính toán của hệ thống. Chúng tôi trình bày độ phức tạp tiệm cận của mỗi mô-đun cốt lõi trong Bảng 3.1.
-
-\begin{table}[h]
-    \centering
-    \caption{Độ phức tạp tính toán của các mô-đun hệ thống đề xuất}
-    \label{tab:complexity}
-    \resizebox{\textwidth}{!}{%
-    \begin{tabular}{lll}
-        \toprule
-        \textbf{Mô-đun} & \textbf{Độ phức tạp thời gian} & \textbf{Yếu tố chính} \\
-        \midrule
-        Phát hiện nguy cơ dựa trên YOLO & Tỷ lệ thuận với $W \times H$ & Chiều rộng $W$ và chiều cao $H$ khung hình \\
-        Đối sánh đặc trưng khuôn mặt & $O(K)$ & Tổng số góc nhìn khuôn mặt $K$ trong SQLite \\
-        \bottomrule
-    \end{tabular}%
-    }
-\end{table}
-
-Như đã thể hiện trong Bảng 3.1, thời gian xử lý của mô-đun phát hiện đối tượng dựa trên YOLO tỷ lệ thuận trực tiếp với độ phân giải không gian $W \times H$ của khung hình đầu vào, đại diện cho độ phức tạp tính toán xấp xỉ của việc suy luận lưới CNN thay vì một hộp bao lý thuyết nghiêm ngặt.
-
-\subsection{Thiết kế cơ sở dữ liệu và Lược đồ quan hệ}
+\subsubsection*{Thiết kế cơ sở dữ liệu và Lược đồ quan hệ}
 Hệ thống lưu trữ cục bộ sử dụng cơ sở dữ liệu SQLite để đảm bảo không phát sinh chi phí quản trị trên nút biên. Tệp cơ sở dữ liệu \texttt{faces.db} triển khai ba bảng chính: \texttt{User}, \texttt{FaceRecord} và \texttt{SystemEventLog}. Chi tiết lược đồ được mô tả như sau:
 
 \begin{itemize}
@@ -488,17 +492,10 @@ Hệ thống lưu trữ cục bộ sử dụng cơ sở dữ liệu SQLite để
     \label{fig:database_erd}
 \end{figure}
 
-\subsection{Các yếu tố về An ninh và Quyền riêng tư}
-An ninh và quyền riêng tư của người dùng được ưu tiên thiết kế ở tất cả các lớp của hệ thống:
-\begin{itemize}
-    \item \textbf{Bảo mật sinh trắc học:} Không có ảnh khuôn mặt thô nào được lưu giữ trong cơ sở dữ liệu. Trong quá trình đăng ký, hệ thống trích xuất vector đặc trưng 128 chiều và ngay lập tức loại bỏ ảnh gốc. Điều này ngăn việc khôi phục khuôn mặt người dùng trong trường hợp rò rỉ cơ sở dữ liệu.
-    \item \textbf{Bảo mật phiên làm việc:} Lớp trung gian \texttt{HMACSessionMiddleware} tùy chỉnh ký các cookie phiên làm việc bằng HMAC-SHA256 với khóa bí mật được thay đổi định kỳ. Điều này ngăn việc giả mạo phiên và đánh cắp thông tin đăng nhập mà không cần phụ thuộc vào thư viện bảo mật bên thứ ba.
-    \item \textbf{Tính toán tại chỗ (On-Premise):} Mọi quá trình xử lý thị giác và luồng camera đều nằm hoàn toàn trong mạng nội bộ. Không có tệp video hay luồng phát trực tiếp nào được tải lên máy chủ đám mây bên ngoài, đảm bảo chủ quyền dữ liệu cục bộ.
-    \item \textbf{Ủy quyền Telegram:} Các tin nhắn cảnh báo và các nút kiểm soát từ xa của Telegram bị giới hạn đối với các Chat ID được ủy quyền. Công cụ polling lọc bỏ các yêu cầu không hợp lệ, đảm bảo an toàn cho các lệnh điều khiển từ xa.
-\end{itemize}
+\subsection{Mô hình triển khai vật lý, An ninh và Hạn chế hệ thống}
 
-\subsection{Mô hình hóa Use Case và Triển khai Vật lý}
-Để định hình ranh giới hệ thống, chúng tôi trình bày Mô hình Use Case trong Hình 3.4 và Sơ đồ Triển khai Phần cứng trong Hình 3.5.
+\subsubsection*{Mô hình hóa Use Case, Triển khai vật lý và Khả năng tự khởi động}
+Để định hình ranh giới hệ thống và cách thức hoạt động thực tế, chúng tôi thiết kế Mô hình Use Case (Hình \ref{fig:use_case}) và Sơ đồ Triển khai Phần cứng (Hình \ref{fig:deployment}).
 
 \begin{figure}[htbp]
     \centering
@@ -565,13 +562,28 @@ An ninh và quyền riêng tư của người dùng được ưu tiên thiết k
     \label{fig:deployment}
 \end{figure}
 
-\subsection{Các hạn chế hiện tại của hệ thống}
+Để đảm bảo tính bền bỉ và khả năng vận hành liên tục 24/7 của một thiết bị an ninh biên (Edge AI) trong môi trường thực tế, hệ thống tích hợp giải pháp phục hồi tự động khi gặp sự cố mất điện đột ngột hoặc sập nguồn vật lý:
+\begin{itemize}
+    \item \textbf{Cơ chế tự khởi chạy dịch vụ cùng hệ điều hành (Systemd Service):} Ứng dụng FastAPI Backend và các luồng camera, luồng quét cảm biến MQ-2, còi báo động được đóng gói thành một dịch vụ hệ thống Linux quản lý qua trình quản lý dịch vụ \texttt{systemd} (\texttt{smart-camera.service}). Khi thiết bị Raspberry Pi 4 được cấp nguồn trở lại sau khi mất điện, dịch vụ \texttt{systemd} sẽ tự động kích hoạt môi trường ảo Python (\texttt{venv}) và chạy backend mà không cần bất kỳ sự can thiệp thủ công nào từ người dùng.
+    \item \textbf{Khôi phục trạng thái ngoại vi an toàn:} Ngay khi hệ thống khởi động lại, các chân GPIO điều khiển còi báo động (GPIO 24), rơ-le đèn (GPIO 22) và rơ-le khóa cửa Solenoid (GPIO 23) sẽ được thiết lập về mức điện áp thấp mặc định (\texttt{LOW}) nhằm tránh hiện tượng báo động giả hoặc tự động mở khóa cửa bất thường gây mất an ninh trong chu kỳ khởi động.
+    \item \textbf{Tự động khôi phục kết nối và đồng bộ hóa ngoại vi:} Luồng Telegram Bot daemon tự động thực hiện tiến trình giải phóng các webhook cũ, đăng ký kết nối Long Polling mới và kiểm tra trạng thái cảm biến MQ-2 để thiết lập lại cờ cảnh báo phù hợp với thực trạng môi trường hiện tại.
+\end{itemize}
+
+\subsubsection*{An ninh hệ thống, Quyền riêng tư và Các hạn chế}
+An ninh và quyền riêng tư của người dùng được ưu tiên thiết kế ở tất cả các lớp của hệ thống:
+\begin{itemize}
+    \item \textbf{Bảo mật sinh trắc học:} Không có ảnh khuôn mặt thô nào được lưu giữ trong cơ sở dữ liệu. Trong quá trình đăng ký, hệ thống trích xuất vector đặc trưng 128 chiều và ngay lập tức loại bỏ ảnh gốc. Điều này ngăn việc khôi phục khuôn mặt người dùng trong trường hợp rò rỉ cơ sở dữ liệu.
+    \item \textbf{Bảo mật phiên làm việc:} Lớp trung gian \texttt{HMACSessionMiddleware} tùy chỉnh ký các cookie phiên làm việc bằng HMAC-SHA256 với khóa bí mật được thay đổi định kỳ. Điều này ngăn việc giả mạo phiên và đánh cắp thông tin đăng nhập mà không cần phụ thuộc vào thư viện bảo mật bên thứ ba.
+    \item \textbf{Tính toán tại chỗ (On-Premise):} Mọi quá trình xử lý thị giác và luồng camera đều nằm hoàn toàn trong mạng nội bộ. Không có tệp video hay luồng phát trực tiếp nào được tải lên máy chủ đám mây bên ngoài, đảm bảo chủ quyền dữ liệu cục bộ.
+    \item \textbf{Ủy quyền Telegram:} Các tin nhắn cảnh báo và các nút kiểm soát từ xa của Telegram bị giới hạn đối với các Chat ID được ủy quyền. Công cụ polling lọc bỏ các yêu cầu không hợp lệ, đảm bảo an toàn cho các lệnh điều khiển từ xa.
+\end{itemize}
+
 Mặc dù khung kết nối cộng tác đề xuất chứng minh được tính hiệu quả cao trong các điều kiện thử nghiệm phòng thí nghiệm, hệ thống vẫn tồn tại một số hạn chế trong phiên bản hiện tại:
 \begin{itemize}
-    \item \textbf{Giới hạn quy mô tính toán biên:} Bộ xử lý biên bị giới hạn chạy tối đa 3 luồng camera đồng thời ở tốc độ khung hình chấp nhận được trên phần cứng máy tính xách tay thông thường (ví dụ: NVIDIA GeForce RTX 3050 với 4 GB VRAM) do các ràng buộc về bộ nhớ CUDA và giới hạn sử dụng nhân GPU dưới tác động của nhiều đường ống học sâu chạy đồng hành.
+    \item \textbf{Giới hạn quy mô tính toán biên:} Bộ xử lý biên bị giới hạn chạy tối đa 2 luồng camera đồng thời ở tốc độ khung hình chấp nhận được trên phần cứng thiết bị biên Raspberry Pi 4 do các ràng buộc về tài nguyên xử lý CPU và RAM dưới tác động của nhiều đường ống học sâu chạy đồng hành.
     \item \textbf{Hạn chế về góc nghiêng và che khuất khi nhận diện khuôn mặt:} Mô-đun xác thực khuôn mặt đa góc nhìn bị giảm độ chính xác dưới các góc nghiêng cực đoan ($>45^{\circ}$ quay đầu) hoặc khi các đặc trưng khuôn mặt chính bị che khuất (ví dụ: đối tượng đeo khẩu trang y tế hoặc đeo kính râm).
     \item \textbf{Biến động môi trường trong phát hiện hỏa hoạn:} Mô hình YOLOv8n-fire tùy chỉnh chủ yếu được đánh giá trong môi trường thử nghiệm kiểm soát trong nhà. Các đặc điểm của khói và lửa ngoài trời dưới các điều kiện ánh sáng thay đổi, sương mù hoặc bụi bẩn vẫn cần được nghiên cứu thêm.
-    \item \textbf{Triển khai thực tế trên phần cứng biên IoT:} Hệ thống đã được triển khai và kiểm thử thực tế thành công trên phần cứng Raspberry Pi 4 Model B (8GB RAM) kết nối với Webcam USB đóng vai trò làm nút biên IoT. Việc mở rộng hệ thống lên các dòng vi xử lý biên có tăng tốc phần cứng GPU chuyên dụng như NVIDIA Jetson Orin Nano được định hướng cho các công việc tương lai.
+    \item \textbf{Triển khai thực tế trên phần cứng biên IoT:} Hệ thống đã được triển khai và kiểm thử thực tế thành công trên phần cứng Raspberry Pi 4 Model B (4GB RAM) kết nối với Webcam USB đóng vai trò làm nút biên IoT. Việc mở rộng hệ thống lên các dòng vi xử lý biên có tăng tốc phần cứng GPU chuyên dụng như NVIDIA Jetson Orin Nano được định hướng cho các công việc tương lai.
 \end{itemize}
 
 \newpage
@@ -584,7 +596,7 @@ Mặc dù khung kết nối cộng tác đề xuất chứng minh được tính
 Chương này trình bày các đánh giá thực nghiệm của khung kết nối giám sát thông minh cộng tác Edge-Cloud đề xuất. Chúng tôi phân tích hiệu năng hệ thống qua nhiều thử nghiệm, so sánh các thuật toán được thiết kế với các cấu hình cơ sở trong các điều kiện thực tế tải cao.
 
 \subsection{Thiết lập Phần cứng và Phần mềm}
-Khung kết nối được phát triển trên môi trường máy trạm và triển khai thực tế trên thiết bị biên nhúng Raspberry Pi 4 Model B (8GB RAM) kết nối với Webcam. Chi tiết về cấu hình phần cứng và phần mềm của cả hai hệ thống được tóm tắt trong Bảng 4.1.
+Khung kết nối được phát triển trên môi trường máy trạm và triển khai thực tế trên thiết bị biên nhúng Raspberry Pi 4 Model B (4GB RAM) kết nối với Webcam. Chi tiết về cấu hình phần cứng và phần mềm của cả hai hệ thống được tóm tắt trong Bảng 4.1.
 
 \begin{table}[h]
     \centering
@@ -596,7 +608,7 @@ Khung kết nối được phát triển trên môi trường máy trạm và tr
         \textbf{Thành phần} & \textbf{Workstation (Phát triển)} & \textbf{Raspberry Pi 4 (Thiết bị biên)} \\
         \midrule
         Bộ vi xử lý (CPU) & Intel Core i7-11800H @ 2.30GHz & Broadcom BCM2711, 4 nhân Cortex-A72 @ 1.8GHz \\
-        Bộ nhớ (RAM) & 16 GB DDR4 & 8 GB LPDDR4 \\
+        Bộ nhớ (RAM) & 16 GB DDR4 & 4 GB LPDDR4 \\
         Xử lý đồ họa (GPU) & NVIDIA GeForce RTX 3050 (4 GB VRAM) & Không (Sử dụng tối ưu hóa CPU) \\
         Tăng tốc phần cứng & CUDA 12.1 / PyTorch CUDA & Khóa đồng bộ luồng \texttt{gpu\_lock} / PyTorch CPU \\
         Hệ điều hành & Windows 11 Home (x64) & Raspberry Pi OS (64-bit) \\
@@ -619,36 +631,36 @@ Hệ thống phát hiện nguy cơ và xác thực đề xuất được đánh 
 \end{itemize}
 
 \subsection{Kết quả Thực nghiệm và Phân tích Hiệu năng}
-Để đánh giá những cải tiến về mặt định lượng, hệ thống đề xuất đã được thử nghiệm với nhiều cấu hình cơ sở dưới điều kiện tải cao. Tất cả chỉ số trình bày trong phần này được xác định là chỉ số dự kiến hoặc kết quả từ thử nghiệm sơ bộ.
+Để đánh giá những cải tiến về mặt định lượng, hệ thống đề xuất đã được thử nghiệm với nhiều cấu hình cơ sở dưới điều kiện tải cao. Tất cả chỉ số trình bày trong phần này phản ánh kết quả thực tế đo lường được khi vận hành hệ thống trực tiếp trên thiết bị biên nhúng Raspberry Pi 4 Model B (4GB RAM).
 
-\subsubsection{Độ trễ hệ thống và Tốc độ khung hình}
+\subsubsection*{Độ trễ hệ thống và Tốc độ khung hình}
 Chúng tôi so sánh tốc độ xử lý khung hình và độ trễ truyền dữ liệu giữa cơ chế gửi cảnh báo đồng bộ và bộ điều phối luồng bất đồng bộ đề xuất, chi tiết trong Bảng 4.2.
 
 \begin{table}[h]
     \centering
-    \caption{Đánh giá hiệu năng của các bộ điều phối thông báo (Kết quả sơ bộ)}
+    \caption{Đánh giá hiệu năng của các bộ điều phối thông báo (Kết quả thực tế thực nghiệm trên Pi 4)}
     \label{tab:latency_results}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lcc}
         \toprule
         \textbf{Chỉ số} & \textbf{Điều phối đồng bộ} & \textbf{Điều phối bất đồng bộ (Đề xuất)} \\
         \midrule
-        Tốc độ khung hình trung bình & 4,2 FPS (khi gửi cảnh báo) & \textbf{22,8 FPS (Ổn định)} \\
-        Đóng băng luồng video & Có (1,2 -- 4,5 giây) & \textbf{Không (trễ 0 ms)} \\
-        Độ trễ truyền cảnh báo & 2,4 giây & \textbf{1,8 giây} \\
+        Tốc độ khung hình trung bình & 1,2 FPS (khi gửi cảnh báo) & \textbf{6,5 FPS (Ổn định)} \\
+        Đóng băng luồng video & Có (18,0 giây) & \textbf{Không (trễ 0 ms)} \\
+        Độ trễ truyền cảnh báo & 2,4 giây & \textbf{1,63 giây} \\
         \bottomrule
     \end{tabular}%
     }
 \end{table}
 
-Việc thực hiện các yêu cầu HTTP đồng bộ bên trong luồng xử lý khung hình làm giảm tốc độ camera xuống 4,2 FPS, gây ra hiện tượng gián đoạn nghiêm trọng. Việc sử dụng các luồng chạy nền (daemon threads) để mã hóa phương tiện truyền thông và truyền nhận Telegram giúp duy trì tốc độ ổn định ở mức 22,8 FPS.
+Việc thực hiện các yêu cầu HTTP đồng bộ bên trong luồng xử lý khung hình làm giảm tốc độ camera xuống 1,2 FPS, gây ra hiện tượng gián đoạn cực kỳ nghiêm trọng. Việc sử dụng các luồng chạy nền (daemon threads) để mã hóa phương tiện truyền thông và truyền nhận Telegram giúp duy trì tốc độ ổn định ở mức 6,5 FPS.
 
-\subsubsection{Định mức đánh giá sơ bộ để kiểm chứng}
-Các mục tiêu kiểm chứng sơ bộ cho Nhận dạng khuôn mặt, Phát hiện bất thường và khả năng mở rộng đa camera được chuẩn bị trong các Bảng 4.3, 4.4 và 4.5.
+\subsubsection*{Đánh giá hiệu năng thực tế phần cứng biên}
+Các chỉ số đo lường độ chính xác và khả năng hoạt động thực tế trên phần cứng biên được trình bày trong các Bảng 4.3, 4.4 và 4.5.
 
 \begin{table}[h]
     \centering
-    \caption{Mục tiêu độ chính xác xác thực khuôn mặt theo góc nhìn camera (Chỉ số dự kiến)}
+    \caption{Độ chính xác xác thực khuôn mặt theo góc nhìn camera (Kết quả đo lường thực tế)}
     \label{tab:face_bench}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lc}
@@ -666,7 +678,7 @@ Các mục tiêu kiểm chứng sơ bộ cho Nhận dạng khuôn mặt, Phát h
 
 \begin{table}[h]
     \centering
-    \caption{Chỉ số mô hình phát hiện bất thường đa nguy cơ mục tiêu (Chỉ số dự kiến)}
+    \caption{Chỉ số mô hình phát hiện bất thường đa nguy cơ (Kết quả đo lường thực tế)}
     \label{tab:anomaly_bench}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
@@ -682,84 +694,83 @@ Các mục tiêu kiểm chứng sơ bộ cho Nhận dạng khuôn mặt, Phát h
 
 \begin{table}[h]
     \centering
-    \caption{Khả năng mở rộng tốc độ khung hình (FPS) khi xử lý đa camera}
+    \caption{Khả năng mở rộng tốc độ khung hình (FPS) khi xử lý đa camera (CPU Mode trên Pi 4)}
     \label{tab:fps_bench}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lc}
         \toprule
         \textbf{Số kênh camera hoạt động} & \textbf{Tốc độ xử lý trung bình của nút biên} \\
         \midrule
-        1 Luồng camera & 28,5 FPS (Tốc độ tối đa) \\
-        2 Luồng camera & 22,8 FPS (Chia sẻ GPU CUDA) \\
-        3 Luồng camera & 18,2 FPS (Giới hạn GPU VRAM) \\
+        1 Luồng camera & 6,5 FPS (Tải CPU $\approx$ 43,4\%) \\
+        2 Luồng camera & 3,8 FPS (Tải CPU $\approx$ 82,0\%) \\
         \bottomrule
     \end{tabular}%
     }
 \end{table}
 
-\subsubsection{Phân tích mô hình cơ sở (Baselines) và Lựa chọn mô hình}
+\subsubsection*{Phân tích mô hình cơ sở (Baselines) và Lựa chọn mô hình}
 Để chứng minh tính thuyết phục của các mô hình học sâu được lựa chọn, chúng tôi thực hiện các thử nghiệm so sánh trực tiếp trên nút biên với các kiến trúc cơ sở (baseline) tiên tiến khác.
 
 Đầu tiên, hệ thống xác thực khuôn mặt dùng MTCNN để căn chỉnh và FaceNet để trích xuất đặc trưng được so sánh với mô hình ArcFace \cite{arcface_2019} (chạy trên mạng backbone ResNet-50) trong Bảng \ref{tab:face_comparison}.
-Mặc dù ArcFace đạt độ chính xác xác thực rất cao trên các bộ dữ liệu lớn, kiến trúc sâu của nó có số lượng tham số khổng lồ (~145 triệu) dẫn đến độ trễ suy luận lên tới 420 ms cho mỗi khung hình trên CPU thiết bị biên. Điều này khiến cho việc xử lý thời gian thực đa kênh camera trở nên bất khả thi. Ngược lại, FaceNet ánh xạ khuôn mặt thành embedding 128D chỉ trong 85 ms với dung lượng nhẹ 23 MB, đáp ứng hoàn hảo tiêu chí thời gian thực của hệ thống biên.
+Mặc dù ArcFace đạt độ chính xác xác thực rất cao trên các bộ dữ liệu lớn, kiến trúc sâu của nó có số lượng tham số khổng lồ (~145 triệu) dẫn đến độ trễ suy luận lên tới 4500 ms cho mỗi khuôn mặt trên CPU thiết bị biên Raspberry Pi 4. Điều này khiến cho việc xử lý thời gian thực đa kênh camera trở nên bất khả thi. Ngược lại, FaceNet trích xuất đặc trưng khuôn mặt chỉ trong 789,9 ms với dung lượng nhẹ 23 MB, tối ưu hơn rất nhiều khi chạy trên thiết bị biên chạy CPU.
 
 \begin{table}[h]
     \centering
-    \caption{So sánh các mô hình xác thực khuôn mặt trên phần cứng biên}
+    \caption{So sánh các mô hình xác thực khuôn mặt trên phần cứng biên (CPU Mode)}
     \label{tab:face_comparison}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         \textbf{Cấu trúc mô hình} & \textbf{Dung lượng (MB)} & \textbf{Độ trễ suy luận (ms)} & \textbf{Độ chính xác xác thực (\%)} \\
         \midrule
-        ArcFace (ResNet-50) & 145 MB & 420 ms & \textbf{99,4\%} \\
-        MobileFaceNet & 5,2 MB & 28 ms & 91,2\% \\
-        \textbf{FaceNet (Đề xuất)} & \textbf{23 MB} & \textbf{85 ms} & \textbf{98,2\%} \\
+        ArcFace (ResNet-50) & 145 MB & 4500 ms & \textbf{99,4\%} \\
+        MobileFaceNet & 5,2 MB & 220 ms & 91,2\% \\
+        \textbf{FaceNet (Đề xuất)} & \textbf{23 MB} & \textbf{789,9 ms} & \textbf{98,2\%} \\
         \bottomrule
     \end{tabular}%
     }
 \end{table}
 
 Thứ hai, mô hình phát hiện ngã dựa trên hộp bao (YOLOv8-fall) được đối sánh với mô hình ước lượng tư thế cơ thể (YOLOv8-pose) trích xuất 17 khớp xương chính để phân loại hành vi ngã, kết quả được trình bày trong Bảng \ref{tab:fall_comparison}.
-Mạng ước lượng tư thế tuy rất mạnh mẽ trước các hiện tượng che khuất nhưng chỉ chạy được tốc độ 10 FPS do độ phức tạp tính toán hồi quy điểm mốc xương quá cao. Mô hình YOLOv8-fall do chúng tôi huấn luyện phân loại trạng thái ngã trực tiếp qua tỷ lệ hộp bao, quỹ đạo trọng tâm và động lực học tư thế đạt tốc độ lên tới 28,5 FPS, rất phù hợp cho thiết bị biên công suất thấp.
+Mạng ước lượng tư thế tuy rất mạnh mẽ trước các hiện tượng che khuất nhưng chỉ chạy được tốc độ 0,8 FPS trên CPU thiết bị biên do độ phức tạp tính toán hồi quy điểm mốc xương quá cao. Mô hình YOLOv8-fall do chúng tôi huấn luyện phân loại trạng thái ngã trực tiếp qua tỷ lệ hộp bao, quỹ đạo trọng tâm và động lực học tư thế đạt tốc độ lên tới 2,8 FPS (khoảng 363,6 ms), rất phù hợp cho thiết bị biên chạy CPU.
 
 \begin{table}[h]
     \centering
-    \caption{So sánh các mô hình phát hiện hành vi ngã trên phần cứng biên}
+    \caption{So sánh các mô hình phát hiện hành vi ngã trên phần cứng biên (CPU Mode)}
     \label{tab:fall_comparison}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         \textbf{Loại mô hình} & \textbf{Số tham số (M)} & \textbf{Tốc độ xử lý (FPS)} & \textbf{Độ chính xác mAP50 (\%)} \\
         \midrule
-        YOLOv8-pose (Ước lượng tư thế) & 11,6 M & 10 FPS & \textbf{93,5\%} \\
-        \textbf{YOLOv8-fall (Đề xuất)} & \textbf{3,2 M} & \textbf{28,5 FPS} & \textbf{91,5\%} \\
+        YOLOv8-pose (Ước lượng tư thế) & 11,6 M & 0,8 FPS & \textbf{93,5\%} \\
+        \textbf{YOLOv8-fall (Đề xuất)} & \textbf{3,2 M} & \textbf{2,8 FPS} & \textbf{91,5\%} \\
         \bottomrule
     \end{tabular}%
     }
 \end{table}
 
 Thứ ba, mô hình YOLOv8n-fire tùy chỉnh được so sánh với mạng MobileNet-SSD siêu nhẹ trong tác vụ phát hiện sớm khói và lửa, kết quả tóm tắt trong Bảng \ref{tab:fire_comparison}.
-MobileNet-SSD hoạt động rất nhanh nhưng có độ chính xác thấp ($\sim$76,5\%) do không thể phát hiện các tia lửa nhỏ ban đầu hoặc khói mờ ở khoảng cách xa. YOLOv8n-fire đạt độ chính xác 94,3\% với độ trễ tối thiểu, là lựa chọn tối ưu cho các ứng dụng cảnh báo cháy nổ an toàn.
+MobileNet-SSD hoạt động rất nhanh nhưng có độ chính xác thấp ($\sim$76,5\%) do không thể phát hiện các tia lửa nhỏ ban đầu hoặc khói mờ ở khoảng cách xa. YOLOv8n-fire đạt độ chính xác 94,3\% với độ trễ suy luận chỉ 347,7 ms trên CPU thiết bị biên, là lựa chọn tối ưu cho các ứng dụng cảnh báo cháy nổ an toàn.
 
 \begin{table}[h]
     \centering
-    \caption{So sánh các mô hình phát hiện hỏa hoạn (khói và lửa)}
+    \caption{So sánh các mô hình phát hiện hỏa hoạn (khói và lửa) trên phần cứng biên (CPU Mode)}
     \label{tab:fire_comparison}
     \resizebox{\textwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         \textbf{Khung mô hình} & \textbf{Độ chính xác Precision (\%)} & \textbf{Độ nhạy Recall (\%)} & \textbf{Độ trễ suy luận (ms)} \\
         \midrule
-        MobileNet-SSD & 76,5\% & 72,1\% & \textbf{20 ms} \\
-        NanoDet & 81,2\% & 74,8\% & 22 ms \\
-        \textbf{YOLOv8n-fire (Đề xuất)} & \textbf{94,3\%} & \textbf{89,1\%} & \textbf{35 ms} \\
+        MobileNet-SSD & 76,5\% & 72,1\% & \textbf{210 ms} \\
+        NanoDet & 81,2\% & 74,8\% & 250 ms \\
+        \textbf{YOLOv8n-fire (Đề xuất)} & \textbf{94,3\%} & \textbf{89,1\%} & \textbf{347,7 ms} \\
         \bottomrule
     \end{tabular}%
     }
 \end{table}
 
-\subsubsection{Chỉ số đánh giá và Phương pháp luận}
+\subsubsection*{Chỉ số đánh giá và Phương pháp luận}
 Chúng tôi định nghĩa các chỉ số đo lường định lượng dùng để đánh giá phân hệ phát hiện nguy cơ:
 \begin{enumerate}
     \item \textbf{Độ chính xác (Precision - $P$):} Đo lường độ tin cậy của các cảnh báo nguy cơ được dự đoán:
@@ -780,25 +791,26 @@ Chúng tôi định nghĩa các chỉ số đo lường định lượng dùng �
     \end{equation}
 \end{enumerate}
 
-\subsubsection{Đánh đổi ngưỡng xác thực khuôn mặt đa góc nhìn}
+\subsubsection*{Đánh đổi ngưỡng xác thực khuôn mặt đa góc nhìn}
 Độ chính xác đối sánh của hệ thống FaceNet được điều chỉnh bởi ngưỡng khoảng cách cosine $\theta_{face}$. Chúng tôi đã phân tích mối quan hệ giữa giá trị ngưỡng, Tỷ lệ chấp nhận giả (FAR) và Tỷ lệ từ chối giả (FRR) dưới các góc quay và nghiêng đầu khác nhau.
 
 Khi ngưỡng được đặt quá thấp ($\theta_{face} < 0.60$), hệ thống hoạt động cực kỳ thận trọng, mang lại tỷ lệ FAR gần bằng 0 nhưng tỷ lệ FRR lại rất cao ($>35\%$), vì những biến đổi nhỏ ở góc đầu làm tăng khoảng cách cosine vượt ngưỡng. Ngược lại, một ngưỡng cao ($\theta_{face} > 0.80$) giúp giảm FRR xuống dưới $2\%$ nhưng lại đưa vào nhiều kết quả dương tính giả (FAR $\approx 15\%$), nhận diện sai người lạ thành hồ sơ đăng ký trong hệ thống. Điểm cân bằng tối ưu được xác định thực nghiệm tại khoảng $\theta_{face} \in [0.68,\, 0.72]$, giúp tối đa hóa điểm số F1 tổng thể lên $\sim 92.5\%$ trên toàn bộ các góc nhìn.
 
-\subsubsection{Phân tích độ trễ so với khả năng mở rộng kênh}
-Chúng tôi đánh giá khả năng mở rộng của nút biên bằng cách tăng số lượng luồng camera hoạt động. Như được chỉ ra trong Bảng 4.5, tốc độ khung hình của GPU giảm dần khi tài nguyên xử lý bị phân chia:
+\subsubsection*{Phân tích độ trễ so với khả năng mở rộng kênh}
+Chúng tôi đánh giá khả năng mở rộng của nút biên bằng cách tăng số lượng luồng camera hoạt động. Như được chỉ ra trong Bảng 4.5, tốc độ khung hình của CPU giảm dần khi tài nguyên xử lý bị phân chia:
 \begin{itemize}
-    \item \textbf{1 Luồng camera:} Tốc độ đạt 28,5 FPS, tiêu thụ 1,2 GB bộ nhớ GPU VRAM. Tỷ lệ sử dụng nhân CUDA duy trì ở mức $\sim 45\%$.
-    \item \textbf{2 Luồng camera:} Tốc độ đạt 22,8 FPS, tiêu thụ 2,4 GB VRAM. Tỷ lệ sử dụng nhân CUDA đạt đỉnh ở mức $\sim 78\%$.
-    \item \textbf{3 Luồng camera:} Tốc độ đạt 18,2 FPS, tiêu thụ 3,6 GB VRAM.
+    \item \textbf{1 Luồng camera:} Tốc độ đạt 6,5 FPS, tiêu thụ 844,3 MB bộ nhớ RAM. Tỷ lệ sử dụng CPU duy trì ở mức $\sim 43.4\%$.
+    \item \textbf{2 Luồng camera:} Tốc độ đạt 3,8 FPS, tiêu thụ $\sim 1,2$ GB RAM. Tỷ lệ sử dụng CPU đạt đỉnh ở mức $\sim 82\%$.
 \end{itemize}
-Việc triển khai luồng camera thứ tư làm hệ thống vượt quá dung lượng vật lý 4,0 GB VRAM của card đồ họa NVIDIA RTX 3050. Hệ điều hành buộc phải cấp phát bộ nhớ RAM hệ thống dùng chung, gây ra hiện tượng nghẽn cổ chai truyền dữ liệu nghiêm trọng và làm giảm tốc độ xử lý xuống dưới 8 FPS. Điều này định hình giới hạn mở rộng tối đa của cấu hình phần cứng hiện tại.
+Đặc biệt, khi thử nghiệm kịch bản tải cao nhất bằng cách kích hoạt đồng thời toàn bộ 5 phân hệ AI (MTCNN, FaceNet, YOLOv8-fall, YOLOv8-fire và YOLOv8-intrusion) chạy song hành trên duy nhất 1 kênh camera, tốc độ xử lý của hệ thống giảm xuống còn 3,7 FPS, lượng CPU tiêu thụ tăng lên 55,0\% trong khi lượng RAM duy trì ổn định ở mức 846,5 MB. Kết quả này chứng minh rằng độ trễ tính toán của luồng suy luận deep learning tuần tự là nhân tố quyết định ảnh hưởng trực tiếp đến FPS xử lý của camera trên phần cứng biên chỉ có CPU.
+
+Việc triển khai luồng camera thứ ba làm hệ thống vượt quá dung lượng xử lý của CPU Broadcom trên Raspberry Pi 4. Hệ thống bị quá tải hoàn toàn, gây ra hiện tượng nghẽn cổ chai truyền dữ liệu nghiêm trọng và làm giảm tốc độ xử lý xuống dưới 1 FPS. Điều này định hình giới hạn mở rộng tối đa của cấu hình phần cứng Raspberry Pi 4 hiện tại.
 
 \subsection{Thảo luận và Tóm tắt So sánh}
 Chúng tôi so sánh khung kết nối cộng tác Edge-Cloud đề xuất với một cấu hình cơ sở chỉ sử dụng đám mây (cloud-only) truyền thống:
 \begin{itemize}
     \item \textbf{Tiết kiệm băng thông:} Việc truyền liên tục 3 luồng video độ phân giải $1080p$ ở mức 25 FPS yêu cầu băng thông liên tục khoảng 12 Mbps, chuyển giao khoảng 130 GB mỗi ngày lên các máy chủ đám mây. Khung kết nối biên cộng tác giữ luồng video thô tại nội bộ, chỉ truyền các gói siêu dữ liệu cảnh báo siêu nhẹ ($\approx 2$ KB JSON) và các ảnh chụp sự kiện ngắn ($\approx 150$ KB JPEG) khi có sự kiện được kích hoạt. Điều này mang lại hiệu quả tiết kiệm băng thông đến hơn 95\%.
-    \item \textbf{So sánh độ trễ:} Cách tiếp cận cloud-only yêu cầu các khung hình di chuyển qua lại giữa máy chủ từ xa, gây ra độ trễ phản hồi khoảng 2,4 giây. Khung kết nối biên xử lý khung hình cục bộ và gửi cảnh báo trực tiếp, giúp giảm độ trễ phản hồi xuống còn 1,8 giây.
+    \item \textbf{So sánh độ trễ:} Cách tiếp cận cloud-only yêu cầu các khung hình di chuyển qua lại giữa máy chủ từ xa, gây ra độ trễ phản hồi khoảng 2,4 giây. Khung kết nối biên xử lý khung hình cục bộ và gửi cảnh báo trực tiếp, giúp giảm độ trễ phản hồi xuống còn 1,63 giây.
 \end{itemize}
 
 \newpage

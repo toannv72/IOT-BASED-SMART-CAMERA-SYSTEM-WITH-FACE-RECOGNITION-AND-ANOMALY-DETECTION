@@ -1,41 +1,28 @@
 \contentsline {section}{Tóm tắt đề tài}{1}{section*.1}%
-\contentsline {section}{Danh mục từ viết tắt}{4}{section*.3}%
-\contentsline {section}{\numberline {1}Giới thiệu chung}{5}{section.1}%
-\contentsline {subsection}{\numberline {1.1}Bối cảnh và Động lực đề tài}{5}{subsection.1.1}%
-\contentsline {subsection}{\numberline {1.2}Đặt vấn đề}{5}{subsection.1.2}%
-\contentsline {subsection}{\numberline {1.3}Mục tiêu của Luận văn}{6}{subsection.1.3}%
-\contentsline {subsection}{\numberline {1.4}Phạm vi dự án}{6}{subsection.1.4}%
-\contentsline {subsection}{\numberline {1.5}Bố cục luận văn}{6}{subsection.1.5}%
-\contentsline {section}{\numberline {2}Tổng quan tài liệu}{8}{section.2}%
-\contentsline {subsection}{\numberline {2.1}Kiến trúc IoT Edge-Cloud trong giám sát video}{8}{subsection.2.1}%
-\contentsline {subsection}{\numberline {2.2}Phát hiện đối tượng trong thời gian thực}{8}{subsection.2.2}%
-\contentsline {subsection}{\numberline {2.3}Xác thực khuôn mặt và Trích xuất đặc trưng}{8}{subsection.2.3}%
-\contentsline {subsection}{\numberline {2.4}Phát hiện bất thường hình ảnh: Ngã và Hỏa hoạn}{8}{subsection.2.4}%
-\contentsline {subsection}{\numberline {2.5}Tóm tắt tài liệu và Tổng hợp khoảng trống nghiên cứu}{8}{subsection.2.5}%
-\contentsline {section}{\numberline {3}Thiết kế và Triển khai}{10}{section.3}%
-\contentsline {subsection}{\numberline {3.1}Kiến trúc hệ thống tổng thể và Luồng dữ liệu}{10}{subsection.3.1}%
-\contentsline {subsection}{\numberline {3.2}Điều phối tiến trình, Lập lịch luồng và Quản lý phiên GPU}{10}{subsection.3.2}%
-\contentsline {subsubsection}{\numberline {3.2.1}Khả năng phục hồi hệ thống, khởi động lại và hàng đợi cảnh báo chống mất dữ liệu}{12}{subsubsection.3.2.1}%
-\contentsline {subsection}{\numberline {3.3}Đường ống nhận diện khuôn mặt thích ứng góc quay nghiêng}{12}{subsection.3.3}%
-\contentsline {subsection}{\numberline {3.4}Phát hiện bất thường đa nguy cơ và Đệm video H.264}{12}{subsection.3.4}%
-\contentsline {subsection}{\numberline {3.5}Bộ điều phối bất đồng bộ và Điều khiển từ xa 2 chiều qua Telegram}{13}{subsection.3.5}%
-\contentsline {subsection}{\numberline {3.6}Bảng điều khiển Web \& Bảo mật phiên}{13}{subsection.3.6}%
-\contentsline {subsection}{\numberline {3.7}Phân tích độ phức tạp tính toán}{14}{subsection.3.7}%
-\contentsline {subsection}{\numberline {3.8}Thiết kế cơ sở dữ liệu và Lược đồ quan hệ}{14}{subsection.3.8}%
-\contentsline {subsection}{\numberline {3.9}Các yếu tố về An ninh và Quyền riêng tư}{15}{subsection.3.9}%
-\contentsline {subsection}{\numberline {3.10}Mô hình hóa Use Case và Triển khai Vật lý}{16}{subsection.3.10}%
-\contentsline {subsection}{\numberline {3.11}Các hạn chế hiện tại của hệ thống}{16}{subsection.3.11}%
-\contentsline {section}{\numberline {4}Thực nghiệm và Thảo luận}{18}{section.4}%
-\contentsline {subsection}{\numberline {4.1}Thiết lập Phần cứng và Phần mềm}{18}{subsection.4.1}%
-\contentsline {subsection}{\numberline {4.2}Đặc tính bộ dữ liệu và Tiền xử lý}{18}{subsection.4.2}%
-\contentsline {subsection}{\numberline {4.3}Kết quả Thực nghiệm và Phân tích Hiệu năng}{19}{subsection.4.3}%
-\contentsline {subsubsection}{\numberline {4.3.1}Độ trễ hệ thống và Tốc độ khung hình}{19}{subsubsection.4.3.1}%
-\contentsline {subsubsection}{\numberline {4.3.2}Định mức đánh giá sơ bộ để kiểm chứng}{19}{subsubsection.4.3.2}%
-\contentsline {subsubsection}{\numberline {4.3.3}Phân tích mô hình cơ sở (Baselines) và Lựa chọn mô hình}{20}{subsubsection.4.3.3}%
-\contentsline {subsubsection}{\numberline {4.3.4}Chỉ số đánh giá và Phương pháp luận}{21}{subsubsection.4.3.4}%
-\contentsline {subsubsection}{\numberline {4.3.5}Đánh đổi ngưỡng xác thực khuôn mặt đa góc nhìn}{21}{subsubsection.4.3.5}%
-\contentsline {subsubsection}{\numberline {4.3.6}Phân tích độ trễ so với khả năng mở rộng kênh}{21}{subsubsection.4.3.6}%
-\contentsline {subsection}{\numberline {4.4}Thảo luận và Tóm tắt So sánh}{22}{subsection.4.4}%
-\contentsline {section}{\numberline {5}Kết luận và Hướng phát triển}{23}{section.5}%
-\contentsline {subsection}{\numberline {5.1}Tóm tắt các Đóng góp chính}{23}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Hướng nghiên cứu tiếp theo}{23}{subsection.5.2}%
+\contentsline {section}{Danh mục từ viết tắt}{3}{section*.3}%
+\contentsline {section}{\numberline {1}Giới thiệu chung}{4}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Bối cảnh và Động lực đề tài}{4}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Đặt vấn đề}{4}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Mục tiêu của Luận văn}{5}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}Phạm vi dự án}{5}{subsection.1.4}%
+\contentsline {subsection}{\numberline {1.5}Bố cục luận văn}{5}{subsection.1.5}%
+\contentsline {section}{\numberline {2}Tổng quan tài liệu}{7}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Kiến trúc IoT Edge-Cloud trong giám sát video}{7}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Phát hiện đối tượng trong thời gian thực}{7}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Xác thực khuôn mặt và Trích xuất đặc trưng}{7}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Phát hiện bất thường hình ảnh: Ngã và Hỏa hoạn}{7}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2.5}Tóm tắt tài liệu và Tổng hợp khoảng trống nghiên cứu}{7}{subsection.2.5}%
+\contentsline {section}{\numberline {3}Thiết kế và Triển khai}{9}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Kiến trúc hệ thống tổng thể và Luồng dữ liệu}{9}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Điều phối tiến trình và Lập lịch luồng đa nhiệm}{9}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Các phân hệ học sâu biên: Nhận diện khuôn mặt và Phát hiện bất thường}{11}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Bảng điều khiển Web và Bộ điều phối cảnh báo bất đồng bộ}{12}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Mô hình triển khai vật lý, An ninh và Hạn chế hệ thống}{14}{subsection.3.5}%
+\contentsline {section}{\numberline {4}Thực nghiệm và Thảo luận}{17}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Thiết lập Phần cứng và Phần mềm}{17}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Đặc tính bộ dữ liệu và Tiền xử lý}{17}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Kết quả Thực nghiệm và Phân tích Hiệu năng}{18}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Thảo luận và Tóm tắt So sánh}{21}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Kết luận và Hướng phát triển}{22}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Tóm tắt các Đóng góp chính}{22}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Hướng nghiên cứu tiếp theo}{22}{subsection.5.2}%

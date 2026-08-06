@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.15)  26 JUL 2026 10:20
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.15)  5 AUG 2026 23:03
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1313,7 +1313,7 @@ Package biblatex Info: ... file 'de_tai_thac_si.bbl' found.
 Package biblatex Info: Reference section=0 on input line 31.
 Package biblatex Info: Reference segment=0 on input line 31.
 Package hyperref Info: Option `pageanchor' set `false' on input line 32.
-<Logo_Trường_Đại_học_FPT.png, id=166, 882.29625pt x 444.91219pt>
+<Logo_Trường_Đại_học_FPT.png, id=114, 882.29625pt x 444.91219pt>
 File: Logo_Trường_Đại_học_FPT.png Graphic file (type png)
 <use Logo_Trường_Đại_học_FPT.png>
 Package pdftex.def Info: Logo_Trường_Đại_học_FPT.png  used on input lin
@@ -1402,14 +1402,20 @@ Package microtype Info: Loading generic protrusion settings for font family
 c}] [10{C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/lm/lm-math
 ex.enc}] [11]
 LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <12> not available
-(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 443.
+(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 447.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <5> on input line 479.
+(Font)              <5> on input line 483.
  [12] [13] [14] [15] [16]
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
 [17]
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
@@ -1423,17 +1429,17 @@ LaTeX2e <2025-11-01>
 L3 programming layer <2025-12-24>
  ***********
 Package rerunfilecheck Info: File `de_tai_thac_si.out' has not changed.
-(rerunfilecheck)             Checksum: 40809D82EDD53A4F0FA063A33A0C37B7;9640.
+(rerunfilecheck)             Checksum: 4C9900FFFE4BBB66730D3ACD72B24677;6119.
 Package logreq Info: Writing requests to 'de_tai_thac_si.run.xml'.
 \openout1 = `de_tai_thac_si.run.xml'.
 
  ) 
 Here is how much of TeX's memory you used:
- 36599 strings out of 467871
- 703166 string characters out of 5418376
- 1564048 words of memory out of 5000000
- 64591 multiletter control sequences out of 15000+600000
- 717505 words of font info for 199 fonts, out of 8000000 for 9000
+ 36589 strings out of 467871
+ 702875 string characters out of 5418376
+ 1564112 words of memory out of 5000000
+ 64578 multiletter control sequences out of 15000+600000
+ 717612 words of font info for 200 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  84i,10n,104p,1193b,1856s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Users/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmbx10.pf
@@ -1455,9 +1461,9 @@ rs/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmsy8.pfb><C:/User
 s/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtk10.pfb><C:/User
 s/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtt12.pfb><C:/User
 s/toans/AppData/Local/Programs/MiKTeX/fonts/type1/public/lm/lmtt8.pfb>
-Output written on de_tai_thac_si.pdf (23 pages, 562700 bytes).
+Output written on de_tai_thac_si.pdf (23 pages, 555842 bytes).
 PDF statistics:
- 543 PDF objects out of 1000 (max. 8388607)
- 108 named destinations out of 1000 (max. 500000)
- 53074 words of extra memory for PDF output out of 61914 (max. 10000000)
+ 494 PDF objects out of 1000 (max. 8388607)
+ 109 named destinations out of 1000 (max. 500000)
+ 52970 words of extra memory for PDF output out of 61914 (max. 10000000)
 

@@ -8,6 +8,7 @@ import collections
 from PIL import Image
 import torch
 import supervision as sv
+from app.telemetry import TelemetryTracker
 
 # Cấu hình GPIO an toàn cho Raspberry Pi (hỗ trợ cross-platform)
 try:
@@ -523,6 +524,9 @@ def start_all_camera_threads():
         start_gas_sensor_monitoring()
         # Khởi chạy luồng còi báo động hệ thống
         start_buzzer_monitoring()
+        # Khởi chạy luồng tự động ghi nhận kết quả đo lường thực tế
+        from app.telemetry import start_telemetry_monitoring
+        start_telemetry_monitoring()
         
         cameras = config.get_cameras_config()
         for cam in cameras:
@@ -694,9 +698,12 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 state.last_detections = None
             if state.frame_index % YOLO_INTERVAL == 0 or state.last_detections is None:
                 from app.ai import yolov8_model
+                t_yolo_start = time.time()
                 with gpu_lock:
                     with torch.no_grad():
                         results = yolov8_model.track(frame, persist=True, tracker="custom_bytetrack.yaml", conf=conf_thr, classes=[0], verbose=False, device=device, imgsz=YOLO_IMGSZ)
+                t_yolo_end = time.time()
+                TelemetryTracker.record_yolo_intrusion(t_yolo_end - t_yolo_start)
                 detections = sv.Detections.from_ultralytics(results[0])
                 detections = detections[detections.class_id == 0]
                 state.last_detections = detections
@@ -811,9 +818,13 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 # 1. Thu nhỏ ảnh đi 2 lần (320x180) để chạy detect MTCNN cực nhanh
                 small_frame = cv2.resize(frame, (320, 180))
                 img_pil_small = Image.fromarray(cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB))
+                t_det_start = time.time()
                 with gpu_lock:
                     with torch.no_grad():
                         boxes, _ = mtcnn_multi.detect(img_pil_small)
+                t_det_end = time.time()
+                TelemetryTracker.record_face_detection(t_det_end - t_det_start)
+                
                 if boxes is not None:
                     # 2. Nhân đôi tọa độ hộp phát hiện được để tương thích với ảnh gốc 640x360
                     boxes_orig = boxes * 2.0
@@ -826,9 +837,12 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     if faces is not None:
                         # Che khuất phần mặt dưới (45% từ dưới lên) để hỗ trợ nhận diện khẩu trang
                         faces[:, :, 88:, :] = 0.0
+                        t_rec_start = time.time()
                         with gpu_lock:
                             with torch.no_grad():
                                 embeddings = resnet(faces.to(device)).detach().cpu().numpy()
+                        t_rec_end = time.time()
+                        TelemetryTracker.record_face_recognition(t_rec_end - t_rec_start)
                         
                         state.last_face_boxes = boxes_orig
                         state.last_face_embeddings = embeddings
@@ -1148,9 +1162,12 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 
                 # Ưu tiên mô hình ngã chuyên biệt tự huấn luyện
                 if yolov8_fall_model is not None:
+                    t_fall_start = time.time()
                     with gpu_lock:
                         with torch.no_grad():
                             results = yolov8_fall_model(frame, verbose=False, device=device, imgsz=YOLO_IMGSZ)
+                    t_fall_end = time.time()
+                    TelemetryTracker.record_yolo_fall(t_fall_end - t_fall_start)
                     detected_boxes = []
                     if len(results) > 0 and results[0].boxes is not None:
                         boxes = results[0].boxes
@@ -1260,9 +1277,12 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 from app.ai import yolov8_fire_model
                 detected_fires = []
                 if yolov8_fire_model is not None:
+                    t_fire_start = time.time()
                     with gpu_lock:
                         with torch.no_grad():
                             results = yolov8_fire_model(frame, verbose=False, device=device, imgsz=YOLO_IMGSZ)
+                    t_fire_end = time.time()
+                    TelemetryTracker.record_yolo_fire(t_fire_end - t_fire_start)
                     if len(results) > 0 and results[0].boxes is not None:
                         boxes = results[0].boxes
                         for box in boxes:
@@ -1410,6 +1430,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         t_end = time.time()
         fps = 1.0 / (t_end - t_start + 1e-6)
         camera_fps[camera_id] = round(fps, 1)
+        TelemetryTracker.record_frame_time(camera_id, t_end - t_start)
 
         if stop_event is not None:
             if stop_event.is_set():

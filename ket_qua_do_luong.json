@@ -1,0 +1,22 @@
+{
+    "thoi_gian_cap_nhat": "2026-08-01 19:29:01",
+    "thoi_gian_da_chay_giay": 964.7,
+    "tai_nguyen_he_thong": {
+        "cpu_su_dung_phantram": 43.4,
+        "ram_su_dung_mb": 844.3
+    },
+    "hieu_nang_camera_fps": {
+        "quĂ©t khuĂ´n máº·t": 6.5
+    },
+    "do_tre_suy_luan_ai_ms": {
+        "phat_hien_khuon_mat_mtcnn_ms": 237.0,
+        "nhan_dien_dac_trung_facenet_ms": 789.87,
+        "phat_hien_chay_yolo_ms": 347.7,
+        "phat_hien_nga_yolo_ms": 363.64,
+        "phat_hien_xam_nhap_yolo_ms": 322.87
+    },
+    "do_tre_truyen_thong_canh_bao": {
+        "thoi_gian_gui_telegram_giay": 1.63,
+        "dong_bang_luong_video_max_ms": 18018.2
+    }
+}

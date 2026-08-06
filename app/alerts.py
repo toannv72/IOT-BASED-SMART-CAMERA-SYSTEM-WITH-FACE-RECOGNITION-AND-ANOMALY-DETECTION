@@ -7,6 +7,7 @@ import threading
 from datetime import datetime, timedelta
 from app.config import settings, SystemStatus
 from app.database import SessionLocal, SystemEventLog
+from app.telemetry import TelemetryTracker
 
 # Quản lý thời gian gửi cảnh báo trước đó để tính Cooldown tránh gửi lặp
 last_alert_times = {}
@@ -200,7 +201,10 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
                     "caption": message,
                     "reply_markup": json.dumps(reply_markup)
                 }
+                t_tg_start = time.time()
                 requests.post(url, data=payload, files=files, timeout=10)
+                t_tg_end = time.time()
+                TelemetryTracker.record_telegram_latency(t_tg_end - t_tg_start)
                 sent_count += 1
                 
             print(f"[TELEGRAM] Đã gửi hình ảnh cảnh báo kèm nút bấm tương tác đến {sent_count} người dùng (bỏ qua {len(chats) - sent_count} người đã tắt).")
