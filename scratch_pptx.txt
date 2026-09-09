@@ -1,0 +1,109 @@
+=== Slide 1 ===
+BÁO CÁO LUẬN VĂN THẠC SĨ / ĐỒ ÁN TỐT NGHIỆP
+HỆ THỐNG SMART CAMERA GIÁM SÁT ĐA NGUY CƠ BIÊN(EDGE AI)
+Học viên thực hiện: Nguyễn Văn ToànNgành: Kỹ thuật Điện tử - Viễn thôngThiết bị triển khai: Raspberry Pi 4 Model B (8GB RAM)
+
+=== Slide 2 ===
+GIỚI THIỆU
+Đặt vấn đề & Lý do chọn đề tài
+Thực trạng nguy cơ mất an toàn nội khu:
+• Nguy cơ từ con người: Trộm cắp, xâm nhập vùng cấm, tai nạn té ngã (người già, trẻ nhỏ).
+• Nguy cơ cháy nổ vật lý: Hỏa hoạn phát sinh bất ngờ, rò rỉ khí ga gây ngộ độc hoặc cháy nổ phòng bếp.
+• Cần cơ chế giám sát tổng hợp, đa chiều thay vì chỉ giám sát đơn lẻ.
+Hạn chế của hệ thống cũ & Giải pháp Edge AI:
+• Camera truyền thống: Chỉ ghi hình thụ động, thiếu cảnh báo chủ động hoặc xử lý Cloud tốn băng thông, trễ cao.
+• Giải pháp đề xuất (Edge AI): Đẩy toàn bộ quá trình suy luận mô hình AI xuống trực tiếp thiết bị biên (Raspberry Pi 4).
+• Lợi ích: Bảo mật dữ liệu hình ảnh, phản hồi tức thời dưới 1 giây, hoạt động độc lập không phụ thuộc kết nối Internet.
+
+=== Slide 3 ===
+MỤC TIÊU
+Mục tiêu & Nhiệm vụ nghiên cứu
+Hệ thống tích hợp đa nguy cơ hoàn chỉnh với 4 nhiệm vụ cốt lõi:
+1. Triển khai AI thị giác biên (Edge Computer Vision):
+    - Nhận diện khuôn mặt đeo khẩu trang (FaceNet + MTCNN) chỉ với 1 ảnh mẫu gốc.
+    - Phát hiện té ngã (YOLOv8-Pose/Fall) và Phát hiện đám cháy/khói (YOLOv8-Fire).
+2. Tích hợp cảm biến vật lý & Cơ cấu chấp hành qua chân GPIO:
+    - Đọc trạng thái cảm biến khí ga MQ-2 và điều khiển rơ-le khóa cửa điện từ Solenoid cùng còi báo động tại chỗ.
+3. Phát triển ứng dụng Web Dashboard & Telegram Bot 2 chiều:
+    - Xem live stream, cài đặt vùng an ninh, quản lý CSDL, mở cửa từ xa và nhận cảnh báo sự cố kèm ảnh chụp.
+
+=== Slide 4 ===
+KIẾN TRÚC
+Kiến trúc hệ thống tổng quan
+Sơ đồ luồng xử lý và dữ liệu:
+• Input (Ngõ vào):
+    - USB Webcam (Live Stream hình ảnh).
+    - Cảm biến khí ga MQ-2 (Chân GPIO 18).
+• Core (Trung tâm xử lý biên - Raspberry Pi 4):
+    - Khóa khóa đồng bộ (gpu_lock) đảm bảo suy luận tuần tự các mô hình AI.
+    - Hệ quản trị CSDL SQLite (Lưu trữ lịch sử sự kiện và tài khoản).
+• Output (Đầu ra & Điều khiển):
+    - Còi báo húActive Buzzer (Chân GPIO 24) cảnh báo tại chỗ theo tần số nguy cơ.
+    - Module Rơ-le kích khóa chốt Solenoid (Chân GPIO 23) mở khóa cửa 3 giây.
+    - Giao tiếp Daemon Bot Telegram 2 chiều (Long Polling) nhận lệnh và gửi cảnh báo.
+    - Web Dashboard (FastAPI + SSE) cập nhật thông tin và điều khiển trực quan.
+
+=== Slide 5 ===
+EDGE AI
+Phân hệ Trí tuệ nhân tạo & Tối ưu hóa Biên
+Giải pháp nhận dạng và các kỹ thuật tối ưu hóa phần cứng biên:
+1. Nhận diện khuôn mặt đeo khẩu trang (Masked Face Recognition):
+    - Sử dụng cặp mô hình MTCNN (Phát hiện khuôn mặt) + FaceNet (Trích xuất đặc trưng L2-Norm 512 chiều).
+    - Thuật toán bôi đen 45% phần dưới mặt (mũi xuống cằm) trên ảnh đăng ký gốc [face[:, 88:, :] = 0.0] và luồng stream live [faces[:, :, 88:, :] = 0.0] giúp nhận diện người đeo khẩu trang chỉ với 1 ảnh mẫu gốc không khẩu trang.
+2. Tối ưu lực tính toán trên CPU biên của Raspberry Pi 4:
+    - Tắt gradient tính toán [with torch.no_grad():] giúp tiết kiệm tối đa dung lượng bộ nhớ RAM.
+    - Khóa khóa lock toàn cục [gpu_lock = threading.Lock()] tuần tự hóa quá trình suy luận mô hình AI của các camera, loại bỏ hoàn toàn nguy cơ quá tải RAM/CPU gây crash tiến trình biên.
+
+=== Slide 6 ===
+KẾT QUẢ
+Kết quả triển khai hệ thống an ninh biên
+Các tính năng đã triển khai thành công:
+• Camera giám sát live stream 15 FPS mượt mà trên nền tảng Web.
+• Thiết lập vùng an ninh ảo (ROI) trực tiếp bằng chuột trên Dashboard.
+• Ghi hình liên tục (Full Recording) chất lượng cao bằng codec H.264 (avc1) tích hợp OpenH264, hỗ trợ thanh tua (seek) mượt mà.
+• Quản lý đăng ký/xóa thông tin nhận diện khuôn mặt trực quan.
+• Tương tác 2 chiều thông minh qua Telegram Bot:
+    - Tự động gửi cảnh báo sự cố kèm ảnh chụp và video ngắn khi phát hiện trộm, ngã hoặc cháy.
+    - Menu nút bấm tương tác Inline: Tắt còi, tạm ngưng cam, mở cửa từ xa.
+    - Lệnh văn bản: Bật/tắt chế độ khóa nhà an ninh cho từng camera riêng biệt qua lệnh /cameras hoặc /cam.
+
+=== Slide 7 ===
+PHẦN CỨNG
+Sơ đồ đấu nối dây thiết bị ngoại vi vật lý
+Kết nối chân GPIO Raspberry Pi 4:
+• Cảm biến Ga MQ-2: DO nối chân số 12 (GPIO 18), VCC nối chân 2, GND nối chân 9.
+• Module Rơ-le khóa Solenoid: IN nối chân số 16 (GPIO 23), VCC nối chân 4, GND nối chân 14.
+• Còi hú Active Buzzer: IN nối chân số 18 (GPIO 24), VCC nối chung chân 2, GND nối chung chân 14.
+• Quạt tản nhiệt CPU: Dây đỏ nối chân số 4, dây đen nối chân số 6.
+• Lưu ý kỹ thuật quan trọng:
+    - Đấu song song nguồn VCC và Ground (GND) qua mini Breadboard để tối ưu hàng chân cắm của Pi.
+    - Sử dụng nguồn 12V độc lập cho khóa chốt Solenoid để tránh sụt áp đột ngột trên bo mạch Pi khi đóng ngắt khóa.
+    - Quét địa chỉ IP của Pi thông qua phần mềm Advanced IP Scanner trong cùng mạng LAN.
+
+=== Slide 8 ===
+ĐÓNG GÓP
+Điểm mới & Đóng góp của đề tài
+Những điểm cải tiến cốt lõi so với các nghiên cứu trước đây:
+1. Giải pháp nhận diện người đeo khẩu trang tối giản:
+    - Chỉ cần đăng ký 1 ảnh mẫu không đeo khẩu trang duy nhất, hệ thống vẫn nhận dạng chính xác người đó khi đeo khẩu trang mà không cần huấn luyện lại hay thu thập tập dữ liệu lớn.
+2. Tích hợp đồng bộ AI Thị giác và Phần cứng IoT biên:
+    - Kết hợp chặt chẽ việc phát hiện nguy cơ bằng mô hình học sâu (YOLO/FaceNet) và giám sát khí ga vật lý, tự động kích hoạt còi báo động hú theo chu kỳ ưu tiên nguy hiểm cực kỳ linh hoạt.
+3. Tối ưu hóa Cross-platform & Chống rò rỉ bộ nhớ:
+    - Hỗ trợ chạy giả lập khi thiếu thư viện RPi.GPIO (trên Laptop Windows/Mac của nhà phát triển) và bắt ngoại lệ GeneratorExit để giải phóng tài nguyên VideoWriter sạch sẽ.
+
+=== Slide 9 ===
+KẾT LUẬN
+Kết luận & Hướng phát triển
+Kết luận đồ án:
+✓ Xây dựng thành công mô hình Smart Camera đa nguy cơ chạy thực tế ổn định trên Raspberry Pi 4.
+✓ Tích hợp cảm biến ga và khóa cửa an ninh hoạt động trơn tru với độ trễ phản hồi dưới 1 giây.
+✓ Hệ thống cảnh báo tự động qua Telegram và Web Dashboard đáp ứng tốt yêu cầu thực tế.
+Hướng phát triển tương lai:
+• Tối ưu hóa nén mô hình AI bằng công nghệ TensorRT, ONNX hoặc TensorFlow Lite để tăng tốc FPS lên trên 25 FPS.
+• Tích hợp thêm các chip tăng tốc AI chuyên dụng (Google Coral Edge TPU, Intel Movidius).
+• Mở rộng thêm nhiều tính năng an toàn như phát hiện đột nhập nâng cao, nhận diện hành vi bất thường khác.
+
+=== Slide 10 ===
+XIN CHÂN THÀNH CẢM ƠN!
+Kính mong nhận được ý kiến đóng góp của Hội đồng thầy cô giáo!
+
