@@ -14,7 +14,7 @@
         <div class="form-group" style="flex: 1; min-width: 150px; margin-bottom: 0;">
             <label class="form-label" style="font-size: 11px; margin-bottom: 6px; display: block; color: var(--text-muted);">Lọc theo Camera</label>
             <select id="filter-camera" class="form-input" onchange="filterRecordings()" style="background: rgba(0,0,0,0.3); color: var(--text-main); border: 1px solid rgba(255,255,255,0.15); height: 38px; border-radius: 8px;">
-                <option value="all">-- Tất cả Camera --</option>
+                <option value="all" style="color: #000000;">-- Tất cả Camera --</option>
             </select>
         </div>
         <div class="form-group" style="flex: 1; min-width: 180px; margin-bottom: 0;">
@@ -81,8 +81,8 @@
             const currentSelected = camSelect.value;
             const uniqueCams = [...new Set(recordings.map(r => r.camera_id))].filter(c => c && c !== 'unknown');
             
-            camSelect.innerHTML = '<option value="all">-- Tất cả Camera --</option>' + 
-                uniqueCams.map(cam => `<option value="${cam}">${cam}</option>`).join('');
+            camSelect.innerHTML = '<option value="all" style="color: #000000;">-- Tất cả Camera --</option>' + 
+                uniqueCams.map(cam => `<option value="${cam}" style="color: #000000;">${cam}</option>`).join('');
             
             if (uniqueCams.includes(currentSelected)) {
                 camSelect.value = currentSelected;
@@ -135,7 +135,7 @@
                     <a href="${rec.video_path}" download class="btn" style="padding: 4px 8px; font-size: 11px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; border-color: rgba(59, 130, 246, 0.3); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
                         <i class="fa-solid fa-download"></i> Tải về
                     </a>
-                    ${userRole === 'admin' ? `
+                    ${(userRole === 'admin' || userRole === 'superadmin') ? `
                         <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px; background: rgba(239, 68, 68, 0.2); color: #ef4444; border-color: rgba(239, 68, 68, 0.4); display: inline-flex; align-items: center; gap: 4px;" onclick="deleteRecording('${rec.filename}')">
                             <i class="fa-solid fa-trash"></i> Xóa
                         </button>

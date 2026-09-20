@@ -79,3 +79,32 @@ try:
 except Exception:
     pass
 
+def ensure_superadmin_exists():
+    """
+    Tự động khởi tạo tài khoản Super Admin tối cao nếu chưa tồn tại trong hệ thống.
+    """
+    import secrets
+    import hashlib
+    db = SessionLocal()
+    try:
+        super_user = db.query(User).filter((User.username == "superadmin") | (User.role == "superadmin")).first()
+        if not super_user:
+            salt = secrets.token_hex(8)
+            hash_val = hashlib.pbkdf2_hmac('sha256', 'superadmin'.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
+            pwd_hash = f"{salt}:{hash_val}"
+            super_user = User(username="superadmin", password_hash=pwd_hash, role="superadmin")
+            db.add(super_user)
+            db.commit()
+            print("[DATABASE] Đã khởi tạo tài khoản Super Admin mặc định (username: superadmin / pass: superadmin)")
+        else:
+            if super_user.role != "superadmin":
+                super_user.role = "superadmin"
+                db.commit()
+    except Exception as e:
+        print(f"[DATABASE] Lỗi khởi tạo Super Admin: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+ensure_superadmin_exists()
+

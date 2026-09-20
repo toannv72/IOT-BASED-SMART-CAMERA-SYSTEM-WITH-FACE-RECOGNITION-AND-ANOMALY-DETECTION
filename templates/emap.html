@@ -150,32 +150,69 @@
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
         <div>
             <h3 style="font-size: 18px; font-weight: 600;"><i class="fa-solid fa-map-location-dot"></i> Thiết Kế Mặt Bằng & Bố Trí Camera</h3>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Kéo thả biểu tượng Camera để cập nhật vị trí trực quan. Click để xem live stream nhanh.</p>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Kéo thả biểu tượng Camera để cập nhật vị trí trực quan. Có thể tải ảnh mặt bằng từ máy tính lên.</p>
         </div>
         
-        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
             <!-- Select Map Dropdown -->
             <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 13px; font-weight: 500; color: var(--text-muted);">Mặt bằng:</span>
-                <select id="current-map-select" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff; width: 180px; padding: 8px 12px; font-size: 13px;" onchange="switchMap(this.value)">
+                <select id="current-map-select" class="form-input" style="background: rgba(255,255,255,0.08); color: #ffffff; width: 170px; padding: 7px 10px; font-size: 13px;" onchange="switchMap(this.value)">
                     <!-- Dữ liệu nạp động -->
                 </select>
             </div>
 
+            <!-- Nút Tải ảnh trực tiếp từ máy tính cho mặt bằng hiện tại -->
+            <label class="btn btn-warning" style="margin-bottom: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: 12px;" title="Tải ảnh sơ đồ mặt bằng từ máy tính cho tầng này">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Tải Ảnh Mặt Bằng
+                <input type="file" id="direct-map-upload-input" accept="image/*" style="display: none;" onchange="uploadDirectMapFile(this)">
+            </label>
+
+            <!-- Căn chỉnh ảnh -->
+            <div style="display: flex; align-items: center; gap: 6px;" title="Căn chỉnh ảnh mặt bằng">
+                <span style="font-size: 12px; color: var(--text-muted); white-space: nowrap;"><i class="fa-solid fa-crop-simple"></i> Kiểu:</span>
+                <select id="img-fit-select" class="form-input" style="padding: 6px 8px; font-size: 12px; width: auto; color: #fff; background: rgba(255,255,255,0.08);" onchange="applyImageFit()">
+                    <option value="cover" style="color:#fff; background:#1e2535;">Cover (Phủ đầy)</option>
+                    <option value="contain" style="color:#fff; background:#1e2535;">Contain (Vừa khung)</option>
+                    <option value="fill" style="color:#fff; background:#1e2535;">Stretch (Kéo dài)</option>
+                    <option value="none" style="color:#fff; background:#1e2535;">Gốc (Không căn)</option>
+                </select>
+                <span style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Vị trí:</span>
+                <select id="img-pos-select" class="form-input" style="padding: 6px 8px; font-size: 12px; width: auto; color: #fff; background: rgba(255,255,255,0.08);" onchange="applyImageFit()">
+                    <option value="center" style="color:#fff; background:#1e2535;">Giữa</option>
+                    <option value="top" style="color:#fff; background:#1e2535;">Trên</option>
+                    <option value="bottom" style="color:#fff; background:#1e2535;">Dưới</option>
+                    <option value="left" style="color:#fff; background:#1e2535;">Trái</option>
+                    <option value="right" style="color:#fff; background:#1e2535;">Phải</option>
+                    <option value="top left" style="color:#fff; background:#1e2535;">Trên-Trái</option>
+                    <option value="top right" style="color:#fff; background:#1e2535;">Trên-Phải</option>
+                    <option value="bottom left" style="color:#fff; background:#1e2535;">Dưới-Trái</option>
+                    <option value="bottom right" style="color:#fff; background:#1e2535;">Dưới-Phải</option>
+                </select>
+            </div>
+
             <!-- Nút Quản lý bản đồ -->
-            <button class="btn btn-primary" onclick="openMapManagerModal()">
+            <button class="btn btn-primary" style="padding: 7px 12px; font-size: 12px;" onclick="openMapManagerModal()">
                 <i class="fa-solid fa-folder-open"></i> Quản Lý Bản Đồ
             </button>
             
             <!-- Nút Tải E-map -->
-            <button class="btn btn-success" onclick="downloadEmapLayout()">
-                <i class="fa-solid fa-download"></i> Tải Sơ Đồ E-map
+            <button class="btn btn-success" style="padding: 7px 12px; font-size: 12px;" onclick="downloadEmapLayout()">
+                <i class="fa-solid fa-download"></i> Tải Sơ Đồ
             </button>
         </div>
     </div>
 
-    <!-- Khung Bản Đồ -->
-    <div class="map-container" id="emap-area">
+    <!-- Khung Bản Đồ (Hỗ trợ kéo thả ảnh trực tiếp) -->
+    <div class="map-container" id="emap-area" ondragover="handleMapDragOver(event)" ondragleave="handleMapDragLeave(event)" ondrop="handleMapDrop(event)">
+        <!-- Overlay kéo thả ảnh -->
+        <div id="drag-drop-overlay" style="display: none; position: absolute; inset: 0; background: rgba(59, 130, 246, 0.4); border: 3px dashed #60a5fa; border-radius: 16px; z-index: 500; align-items: center; justify-content: center; backdrop-filter: blur(4px); pointer-events: none;">
+            <div style="text-align: center; color: #fff; font-size: 18px; font-weight: 600;">
+                <i class="fa-solid fa-cloud-arrow-up" style="font-size: 40px; margin-bottom: 12px; display: block;"></i>
+                Thả tệp ảnh vào đây để đổi sơ đồ mặt bằng ngay lập tức!
+            </div>
+        </div>
+
         <!-- Overlay nhãn sơ đồ mẫu mẫu -->
         <div id="map-blueprint-label" style="position: absolute; top: 20px; left: 20px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--primary); backdrop-filter: blur(4px); pointer-events: none; z-index: 10;">
             <i class="fa-solid fa-circle-info"></i> Sơ đồ mẫu: <span id="blueprint-map-name">Khu A - Tầng 1</span>
@@ -250,33 +287,45 @@
         <div style="width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
             <img id="preview-stream-img" style="width: 100%; height: 100%; object-fit: contain;" alt="Live stream preview">
         </div>
+    </div>
 </div>
 
 <!-- Modal Quản Lý Bản Đồ -->
 <div id="map-manager-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
-    <div class="glass-card" style="width: 100%; max-width: 600px; margin: 0 16px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 0;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0;">
-            <h3 style="font-size: 18px; font-weight: 600;"><i class="fa-solid fa-folder-open"></i> Quản Lý Danh Sách Bản Đồ</h3>
+    <div class="glass-card" style="width: 100%; max-width: 680px; margin: 0 16px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0;">
+            <h3 style="font-size: 18px; font-weight: 600;"><i class="fa-solid fa-folder-open"></i> Quản Lý Danh Sách Bản Đồ & Hình Ảnh</h3>
             <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);" onclick="closeMapManagerModal()">&times;</span>
         </div>
         
-        <!-- Form thêm bản đồ mới -->
-        <div style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); flex-shrink: 0; align-items: flex-end;">
-            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                <label class="form-label" style="font-size: 12px; color: var(--text-muted);">Tên mặt bằng mới (Ví dụ: Khu C - Tầng 1)</label>
-                <input type="text" id="new-map-name-input" class="form-input" style="padding: 8px 12px;" placeholder="Tên mặt bằng...">
+        <!-- Form thêm bản đồ mới kèm ảnh -->
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; background: rgba(255,255,255,0.02); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color); flex-shrink: 0;">
+            <div style="font-size: 13px; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-plus-circle"></i> Thêm Mặt Bằng Mới
             </div>
-            <button class="btn btn-success" style="padding: 10px 16px;" onclick="addNewMap()">
-                <i class="fa-solid fa-plus"></i> Thêm
-            </button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label class="form-label" style="font-size: 11px; color: var(--text-muted); margin: 0;">Tên mặt bằng *</label>
+                    <input type="text" id="new-map-name-input" class="form-input" style="padding: 7px 10px; font-size: 12px;" placeholder="VD: Tòa Nhà C - Tầng 1">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label class="form-label" style="font-size: 11px; color: var(--text-muted); margin: 0;">Ảnh từ máy tính (Tùy chọn)</label>
+                    <input type="file" id="new-map-file-input" accept="image/*" class="form-input" style="padding: 5px 8px; font-size: 11px;">
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+                <button class="btn btn-success" style="padding: 7px 16px; font-size: 12px; white-space: nowrap;" onclick="addNewMapWithImage()">
+                    <i class="fa-solid fa-plus"></i> Tạo Mặt Bằng
+                </button>
+            </div>
         </div>
 
         <!-- Danh sách bản đồ hiện có -->
-        <div style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;" id="map-manager-list">
+        <div style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;" id="map-manager-list">
             <!-- Render động bằng JS -->
         </div>
         
-        <div style="display: flex; justify-content: flex-end; margin-top: 20px; flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 15px;">
+        <div style="display: flex; justify-content: flex-end; margin-top: 16px; flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 12px;">
             <button class="btn" onclick="closeMapManagerModal()">Đóng</button>
         </div>
     </div>
@@ -324,7 +373,7 @@
             // Cập nhật dropdown chọn map
             const select = document.getElementById('current-map-select');
             if (select) {
-                select.innerHTML = mapsList.map(m => `<option value="${m.map_id}">${m.name}</option>`).join('');
+                select.innerHTML = mapsList.map(m => `<option value="${m.map_id}" style="color: #000000;">${m.name}</option>`).join('');
                 select.value = currentMapId;
             }
             
@@ -336,6 +385,9 @@
             
             // Hiển thị camera marker
             renderCameraMarkers();
+            
+            // Khôi phục căn chỉnh ảnh đã lưu
+            loadImageFitSettings(currentMapId);
         } catch(e) {
             console.error("Lỗi tải bản đồ:", e);
         }
@@ -350,8 +402,10 @@
         // Cập nhật tên sơ đồ
         document.getElementById('blueprint-map-name').innerText = mapName;
         
-        // Cache-busting
-        bgImg.src = `/static/emap_${mapId}.png?rand=` + Math.random();
+        // Cache-busting để luôn tải ảnh mới nhất
+        const basePath = (activeMap && activeMap.image_path) ? activeMap.image_path : `/static/emap_${mapId}.png`;
+        const connector = basePath.includes('?') ? '&' : '?';
+        bgImg.src = `${basePath}${connector}rand=${Date.now()}`;
         bgImg.style.display = "block";
         document.getElementById('fallback-blueprint').style.display = "none";
         if (blueprintLabel) blueprintLabel.style.display = "none";
@@ -376,6 +430,92 @@
         localStorage.setItem('currentMapId', mapId);
         loadMapBackground(mapId);
         renderCameraMarkers();
+        loadImageFitSettings(mapId);
+    }
+
+    // Xử lý kéo thả ảnh từ máy tính thả thẳng vào khung E-map
+    function handleMapDragOver(e) {
+        e.preventDefault();
+        const overlay = document.getElementById('drag-drop-overlay');
+        if (overlay) overlay.style.display = 'flex';
+    }
+
+    function handleMapDragLeave(e) {
+        e.preventDefault();
+        const overlay = document.getElementById('drag-drop-overlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    async function handleMapDrop(e) {
+        e.preventDefault();
+        const overlay = document.getElementById('drag-drop-overlay');
+        if (overlay) overlay.style.display = 'none';
+
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (!file.type.startsWith('image/')) {
+                return alert("Vui lòng chỉ thả tệp hình ảnh (PNG, JPG, WEBP)!");
+            }
+            await uploadFileForMapId(currentMapId, file);
+        }
+    }
+
+    // Tải ảnh trực tiếp từ nút trên thanh công cụ
+    async function uploadDirectMapFile(inputEl) {
+        if (!inputEl.files || inputEl.files.length === 0) return;
+        const file = inputEl.files[0];
+        await uploadFileForMapId(currentMapId, file);
+        inputEl.value = "";
+    }
+
+    async function uploadFileForMapId(mapId, file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        try {
+            const response = await fetch(`/api/emap/upload/${mapId}`, {
+                method: 'POST',
+                body: formData
+            });
+            const res = await response.json();
+            if (response.ok) {
+                alert(`Đã cập nhật ảnh sơ đồ cho mặt bằng thành công!`);
+                if (mapId === currentMapId) {
+                    loadMapBackground(mapId);
+                }
+                loadMaps();
+            } else {
+                alert("Lỗi tải ảnh: " + (res.detail || "Không rõ nguyên nhân"));
+            }
+        } catch(e) {
+            alert("Lỗi kết nối khi tải ảnh sơ đồ!");
+        }
+    }
+
+    // Áp dụng căn chỉnh ảnh mặt bằng
+    function applyImageFit() {
+        const bgImg = document.getElementById('map-background-img');
+        if (!bgImg) return;
+        const fitVal = document.getElementById('img-fit-select').value;
+        const posVal = document.getElementById('img-pos-select').value;
+        bgImg.style.objectFit = fitVal;
+        bgImg.style.objectPosition = posVal;
+        // Lưu vào localStorage theo từng mapId
+        localStorage.setItem(`imgFit_${currentMapId}`, fitVal);
+        localStorage.setItem(`imgPos_${currentMapId}`, posVal);
+    }
+
+    function loadImageFitSettings(mapId) {
+        const fitVal = localStorage.getItem(`imgFit_${mapId}`) || 'cover';
+        const posVal = localStorage.getItem(`imgPos_${mapId}`) || 'center';
+        const fitSel = document.getElementById('img-fit-select');
+        const posSel = document.getElementById('img-pos-select');
+        if (fitSel) fitSel.value = fitVal;
+        if (posSel) posSel.value = posVal;
+        const bgImg = document.getElementById('map-background-img');
+        if (bgImg) {
+            bgImg.style.objectFit = fitVal;
+            bgImg.style.objectPosition = posVal;
+        }
     }
 
     // Modal quản lý bản đồ
@@ -398,26 +538,32 @@
             item.style.display = "flex";
             item.style.justifyContent = "space-between";
             item.style.alignItems = "center";
-            item.style.padding = "12px";
-            item.style.background = "rgba(0,0,0,0.2)";
+            item.style.padding = "10px 14px";
+            item.style.background = "rgba(0,0,0,0.25)";
             item.style.borderRadius = "8px";
             item.style.border = "1px solid var(--border-color)";
+            item.style.gap = "12px";
+            
+            const thumbSrc = (m.image_path || `/static/emap_${m.map_id}.png`) + `?t=${Date.now()}`;
             
             item.innerHTML = `
-                <div>
-                    <strong style="color: #fff;">${m.name}</strong>
-                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">ID: ${m.map_id}</div>
+                <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+                    <img src="${thumbSrc}" style="width: 50px; height: 32px; object-fit: cover; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); background: #000;" onerror="this.src='/static/emap_khu_a_tang_1.png'">
+                    <div style="min-width: 0;">
+                        <strong style="color: #fff; font-size: 13px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${m.name}</strong>
+                        <div style="font-size: 10px; color: var(--text-muted);">ID: ${m.map_id}</div>
+                    </div>
                 </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <button class="btn" style="padding: 6px 12px; font-size: 12px; margin-bottom: 0;" onclick="renameMap('${m.map_id}', '${m.name}')">
-                        <i class="fa-solid fa-pen"></i> Đổi tên
+                <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+                    <button class="btn" style="padding: 5px 10px; font-size: 11px; margin-bottom: 0;" onclick="renameMap('${m.map_id}', '${m.name}')" title="Đổi tên mặt bằng">
+                        <i class="fa-solid fa-pen"></i> Tên
                     </button>
-                    <label class="btn" style="padding: 6px 12px; font-size: 12px; cursor: pointer; margin-bottom: 0;">
-                        <i class="fa-solid fa-upload"></i> Upload Ảnh
+                    <label class="btn btn-warning" style="padding: 5px 10px; font-size: 11px; cursor: pointer; margin-bottom: 0; display: inline-flex; align-items: center; gap: 4px;" title="Tải ảnh từ máy tính">
+                        <i class="fa-solid fa-upload"></i> Đổi Ảnh
                         <input type="file" accept="image/*" style="display: none;" onchange="uploadMapFileForMap('${m.map_id}', this)">
                     </label>
-                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="deleteMap('${m.map_id}')">
-                        <i class="fa-solid fa-trash"></i> Xóa
+                    <button class="btn btn-danger" style="padding: 5px 10px; font-size: 11px; margin-bottom: 0;" onclick="deleteMap('${m.map_id}')" title="Xóa mặt bằng">
+                        <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
             `;
@@ -425,27 +571,42 @@
         });
     }
 
-    async function addNewMap() {
-        const input = document.getElementById('new-map-name-input');
-        const name = input.value.trim();
+    async function addNewMapWithImage() {
+        const nameInput = document.getElementById('new-map-name-input');
+        const fileInput = document.getElementById('new-map-file-input');
+
+        const name = nameInput.value.trim();
         if (!name) return alert("Vui lòng nhập tên mặt bằng!");
-        
+
         try {
+            // 1. Tạo mặt bằng mới
             const response = await fetch('/api/maps', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: name })
             });
             const res = await response.json();
-            if (response.ok) {
-                alert("Đã thêm mặt bằng mới!");
-                input.value = '';
-                await loadMaps();
-            } else {
-                alert("Lỗi: " + res.detail);
+            if (!response.ok) {
+                return alert("Lỗi tạo mặt bằng: " + res.detail);
             }
+
+            const createdMap = res.map;
+            const newMapId = createdMap.map_id;
+
+            // 2. Nếu có chọn file ảnh, upload ảnh ngay
+            if (fileInput.files && fileInput.files.length > 0) {
+                const formData = new FormData();
+                formData.append("file", fileInput.files[0]);
+                await fetch(`/api/emap/upload/${newMapId}`, { method: 'POST', body: formData });
+            }
+
+            alert("Đã tạo mặt bằng mới thành công!");
+            nameInput.value = '';
+            fileInput.value = '';
+            currentMapId = newMapId;
+            await loadMaps();
         } catch(e) {
-            alert("Lỗi kết nối khi thêm mặt bằng!");
+            alert("Lỗi kết nối khi tạo mặt bằng!");
         }
     }
 
@@ -494,28 +655,10 @@
     }
 
     async function uploadMapFileForMap(mapId, fileInput) {
-        if (fileInput.files.length === 0) return;
-        
+        if (!fileInput.files || fileInput.files.length === 0) return;
         const file = fileInput.files[0];
-        const formData = new FormData();
-        formData.append("file", file);
-        
-        try {
-            const response = await fetch(`/api/emap/upload/${mapId}`, {
-                method: 'POST',
-                body: formData
-            });
-            if (response.ok) {
-                alert("Đã cập nhật ảnh mặt bằng mới thành công!");
-                if (mapId === currentMapId) {
-                    loadMapBackground(mapId);
-                }
-            } else {
-                alert("Lỗi tải ảnh lên máy chủ!");
-            }
-        } catch(e) {
-            alert("Lỗi kết nối!");
-        }
+        await uploadFileForMapId(mapId, file);
+        fileInput.value = "";
     }
 
     // Vẽ và hiển thị các camera markers

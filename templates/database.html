@@ -137,7 +137,7 @@
             faces.forEach(face => {
                 const tr = document.createElement('tr');
                 let actionsHtml = '';
-                if (userRole === 'admin') {
+                if (userRole === 'admin' || userRole === 'superadmin') {
                     actionsHtml = `
                         <td class="admin-only-cell" style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
                             <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="promptEditFaceName(${face.id}, '${face.name}')">
@@ -239,9 +239,9 @@
             try {
                 const response = await fetch('/api/cameras');
                 const cams = await response.json();
-                select.innerHTML = cams.map(cam => `<option value="${cam.camera_id}">${cam.camera_id}</option>`).join('');
+                select.innerHTML = cams.map(cam => `<option value="${cam.camera_id}" style="color: #000000;">${cam.camera_id}</option>`).join('');
                 if (cams.length === 0) {
-                    select.innerHTML = '<option value="">Không có camera nào khả dụng</option>';
+                    select.innerHTML = '<option value="" style="color: #000000;">Không có camera nào khả dụng</option>';
                 }
             } catch (e) {
                 select.innerHTML = '<option value="">Lỗi tải danh sách camera</option>';

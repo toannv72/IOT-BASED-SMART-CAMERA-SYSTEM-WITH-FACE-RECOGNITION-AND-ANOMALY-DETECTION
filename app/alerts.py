@@ -11,7 +11,27 @@ from app.telemetry import TelemetryTracker
 
 # Quản lý thời gian gửi cảnh báo trước đó để tính Cooldown tránh gửi lặp
 last_alert_times = {}
+incident_trackers = {}  # cooldown_key -> {"first_time": float, "last_alert_time": float, "alert_count": int}
 alert_lock = threading.Lock()
+
+def reset_alert_incident(alert_type, camera_id=None, face_name=None):
+    """
+    Giải tỏa sự cố cảnh báo ngay lập tức (De-escalation):
+    Xóa trạng thái incident và cooldown để khi hết bất thường hoặc nhận diện được người nhà thì ngừng spam,
+    đồng thời nếu sau này có sự cố mới thật sự thì cảnh báo đầu tiên sẽ được gửi ngay lập tức (0 giây trễ).
+    """
+    with alert_lock:
+        if camera_id is None:
+            keys_to_del = [k for k in list(incident_trackers.keys()) if k.startswith(f"{alert_type}_")]
+            for k in keys_to_del:
+                incident_trackers.pop(k, None)
+                last_alert_times.pop(k, None)
+        else:
+            cooldown_key = f"{alert_type}_{camera_id}"
+            if face_name:
+                cooldown_key = f"{alert_type}_{camera_id}_{face_name}"
+            incident_trackers.pop(cooldown_key, None)
+            last_alert_times.pop(cooldown_key, None)
 
 def sanitize_filename_component(text):
     # Vietnamese character mapping to ASCII
@@ -89,10 +109,57 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
         cooldown_key = f"{alert_type}_{camera_id}_{face_name}"
         
     with alert_lock:
-        last_time = last_alert_times.get(cooldown_key, 0)
-        if current_time - last_time < cooldown:
-            return
-        last_alert_times[cooldown_key] = current_time
+        # Nếu là thông báo nhận diện khuôn mặt người quen (Known Face):
+        # Áp dụng thời gian giãn cách (face_log_cooldown) do người dùng tùy chỉnh trong Cài đặt
+        if alert_type == "face" and face_name and face_name != "Unknown":
+            face_cooldown = max(float(settings.get("face_log_cooldown", 300)), 5.0)
+            last_time = last_alert_times.get(cooldown_key, 0)
+            if current_time - last_time < face_cooldown:
+                return
+            last_alert_times[cooldown_key] = current_time
+        else:
+            # Tự động dọn dẹp các incident đã kết thúc (không có cảnh báo mới trong 120 giây)
+            for k in list(incident_trackers.keys()):
+                if current_time - incident_trackers[k]["last_alert_time"] > 120.0:
+                    incident_trackers.pop(k, None)
+                    last_alert_times.pop(k, None)
+
+            incident = incident_trackers.get(cooldown_key)
+            if incident is None:
+                # Sự cố mới toanh (Xâm nhập / Người lạ): Gửi ngay lập tức (Lần 1 - Không trễ)
+                incident_trackers[cooldown_key] = {
+                    "first_time": current_time,
+                    "last_alert_time": current_time,
+                    "alert_count": 1
+                }
+                last_alert_times[cooldown_key] = current_time
+            else:
+                # Sự cố đang tiếp diễn kéo dài: Áp dụng Lũy tiến thời gian chờ (Exponential Backoff)
+                count = incident["alert_count"]
+                time_since_last = current_time - incident["last_alert_time"]
+                
+                # Cảnh báo cháy nổ hoặc khí ga: Giữ tần suất khẩn cấp 30s
+                if alert_type in ["fire", "gas"]:
+                    required_interval = max(cooldown, 30.0)
+                else:
+                    # Cảnh báo xâm nhập / người lạ:
+                    # Lần 1: Ngay lập tức
+                    # Lần 2: sau 60 giây (nếu đối tượng vẫn chưa rời đi)
+                    # Lần 3: sau 300 giây (5 phút)
+                    # Lần 4 trở đi: sau 900 giây (15 phút) để triệt tiêu hoàn toàn tình trạng spam rung điện thoại
+                    if count == 1:
+                        required_interval = max(cooldown, 60.0)
+                    elif count == 2:
+                        required_interval = 300.0
+                    else:
+                        required_interval = 900.0
+                        
+                if time_since_last < required_interval:
+                    return
+                    
+                incident["alert_count"] += 1
+                incident["last_alert_time"] = current_time
+                last_alert_times[cooldown_key] = current_time
         
     # Kích hoạt tự động bật đèn nếu phát hiện xâm nhập vùng cấm
     if alert_type == "intrusion":

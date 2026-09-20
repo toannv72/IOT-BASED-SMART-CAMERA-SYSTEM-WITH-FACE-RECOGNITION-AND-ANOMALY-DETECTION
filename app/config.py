@@ -47,7 +47,7 @@ DEFAULT_SETTINGS = {
     "cleanup_max_size_gb": 2.0,
     "cleanup_older_than_days": 7,
     "loitering_threshold": 10,
-    "face_log_cooldown": 30,
+    "face_log_cooldown": 300,
     "face_threshold": 0.80,
     "fire_conf_threshold": 0.55,
     "fire_frame_buffer": 25,

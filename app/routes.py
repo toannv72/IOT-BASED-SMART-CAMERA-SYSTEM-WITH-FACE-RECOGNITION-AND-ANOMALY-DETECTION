@@ -18,14 +18,14 @@ from app import app
 import app.config as config
 from app.config import SystemStatus
 from app.database import SessionLocal, User, FaceRecord, SystemEventLog
-from app.processors import camera_fps, gen_face_stream, gen_roi_stream, gen_fall_stream, ensure_camera_thread_running, stop_camera_thread
+from app.processors import camera_fps, gen_face_stream, gen_roi_stream, gen_fall_stream, ensure_camera_thread_running, stop_camera_thread, notify_camera_config_updated
 
-# Helper kiểm tra phân quyền quản trị (RBAC)
+# Helper kiểm tra phân quyền quản trị (RBAC) - CHỈ ADMIN MỚI ĐƯỢC PHÉP
 def check_admin(request: Request):
     if not request.session.get("user_id"):
         raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
-    if request.session.get("role") == "operator":
-        raise HTTPException(status_code=403, detail="Tài khoản Operator không có quyền thực hiện thao tác này!")
+    if request.session.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Chỉ có tài khoản Quản trị viên (Admin / Super Admin) mới có quyền thực hiện thao tác này!")
 
 # =========================================================================
 # MẬT KHẨU MÃ HÓA BẰNG PBKDF2 HASH (Không phụ thuộc thư viện ngoài bcrypt)
@@ -411,15 +411,78 @@ async def update_map_route(map_id: str, request: Request):
 async def upload_emap_map_background(map_id: str, request: Request, file: UploadFile = File(...)):
     check_admin(request)
     try:
+        from io import BytesIO
+        from PIL import Image
+
         file_bytes = await file.read()
         os.makedirs("static", exist_ok=True)
         custom_path = os.path.join("static", f"emap_{map_id}.png")
-        with open(custom_path, "wb") as f:
-            f.write(file_bytes)
+        
+        # Thử mở bằng PIL và lưu chuẩn hóa sang PNG
+        try:
+            img = Image.open(BytesIO(file_bytes))
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGBA")
+            else:
+                img = img.convert("RGB")
+            img.save(custom_path, format="PNG")
+        except Exception:
+            with open(custom_path, "wb") as f:
+                f.write(file_bytes)
+
+        # Cập nhật đường dẫn trong maps_config
+        maps = config.get_maps_config()
+        for m in maps:
+            if m["map_id"] == map_id:
+                m["image_path"] = f"/static/emap_{map_id}.png"
+                break
+        config.save_maps_config(maps)
+
         SystemStatus.add_log(f"Đã tải lên ảnh mặt bằng mới cho bản đồ '{map_id}'.", "success")
         return {"message": "Tải ảnh mặt bằng thành công!", "path": f"/static/emap_{map_id}.png"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi lưu ảnh mặt bằng: {e}")
+
+@app.post("/api/emap/url/{map_id}")
+async def set_emap_image_url(map_id: str, request: Request):
+    check_admin(request)
+    payload = await request.json()
+    image_url = payload.get("image_url", "").strip()
+    if not image_url:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập đường link ảnh hợp lệ!")
+        
+    try:
+        import urllib.request
+        from io import BytesIO
+        from PIL import Image
+        
+        req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = resp.read()
+            
+        os.makedirs("static", exist_ok=True)
+        custom_path = os.path.join("static", f"emap_{map_id}.png")
+        try:
+            img = Image.open(BytesIO(data))
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGBA")
+            else:
+                img = img.convert("RGB")
+            img.save(custom_path, format="PNG")
+        except Exception:
+            with open(custom_path, "wb") as f:
+                f.write(data)
+                
+        maps = config.get_maps_config()
+        for m in maps:
+            if m["map_id"] == map_id:
+                m["image_path"] = f"/static/emap_{map_id}.png"
+                break
+        config.save_maps_config(maps)
+        SystemStatus.add_log(f"Đã cập nhật ảnh mặt bằng cho '{map_id}' từ link bên ngoài.", "success")
+        return {"message": "Tải ảnh từ link bên ngoài thành công!", "path": f"/static/emap_{map_id}.png"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Không thể tải ảnh từ URL: {e}")
 
 # API Dữ liệu phân tích thống kê (Analytics API)
 @app.get("/api/analytics")
@@ -720,6 +783,9 @@ def get_users(request: Request):
 @app.post("/api/users")
 def create_user(request: Request, username: str = Form(...), password: str = Form(...), role: str = Form("operator")):
     check_admin(request)
+    current_role = request.session.get("role")
+    if role == "superadmin" and current_role != "superadmin":
+        raise HTTPException(status_code=403, detail="Chỉ có Super Admin mới có quyền tạo thêm tài khoản Super Admin!")
     db = SessionLocal()
     existing = db.query(User).filter(User.username == username).first()
     if existing:
@@ -740,6 +806,7 @@ def create_user(request: Request, username: str = Form(...), password: str = For
 @app.put("/api/users/{user_id}")
 async def update_user(user_id: int, request: Request):
     check_admin(request)
+    current_role = request.session.get("role")
     payload = await request.json()
     password = payload.get("password")
     role = payload.get("role")
@@ -750,10 +817,23 @@ async def update_user(user_id: int, request: Request):
     if not user:
         db.close()
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng này!")
+    
+    # Không cho phép admin thường sửa thông tin hoặc role của superadmin
+    if (user.role == "superadmin" or user.username == "superadmin") and current_role != "superadmin":
+        db.close()
+        raise HTTPException(status_code=403, detail="Chỉ có Super Admin mới có quyền sửa tài khoản Super Admin!")
+
+    if role:
+        if role == "superadmin" and current_role != "superadmin":
+            db.close()
+            raise HTTPException(status_code=403, detail="Chỉ có Super Admin mới có thể phân quyền Super Admin!")
+        if user.username == "superadmin" and role != "superadmin":
+            db.close()
+            raise HTTPException(status_code=400, detail="Không thể hạ quyền tài khoản Super Admin gốc!")
+        user.role = role
+
     if password:
         user.password_hash = hash_password(password)
-    if role:
-        user.role = role
     try:
         db.commit()
         db.close()
@@ -768,6 +848,7 @@ async def update_user(user_id: int, request: Request):
 def delete_user(user_id: int, request: Request):
     check_admin(request)
     current_user_id = request.session.get("user_id")
+    current_role = request.session.get("role")
     if current_user_id == user_id:
         raise HTTPException(status_code=400, detail="Bạn không thể tự xóa tài khoản của chính mình!")
     db = SessionLocal()
@@ -775,6 +856,17 @@ def delete_user(user_id: int, request: Request):
     if not user:
         db.close()
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng!")
+    
+    # TUYỆT ĐỐI KHÔNG THỂ XÓA TÀI KHOẢN SUPERADMIN
+    if user.role == "superadmin" or user.username == "superadmin":
+        db.close()
+        raise HTTPException(status_code=403, detail="Tài khoản Super Admin là quản trị tối cao của hệ thống, tuyệt đối KHÔNG THỂ XÓA!")
+
+    # Admin thường không được xóa tài khoản Admin khác
+    if user.role == "admin" and current_role != "superadmin":
+        db.close()
+        raise HTTPException(status_code=403, detail="Chỉ có Super Admin mới có quyền xóa tài khoản Administrator khác!")
+
     username = user.username
     try:
         db.delete(user)
@@ -796,6 +888,33 @@ def get_cameras(request: Request):
         raise HTTPException(status_code=401)
     return config.get_cameras_config()
 
+@app.get("/api/system/cameras/scan")
+def api_scan_system_cameras(request: Request):
+    """
+    Tự động dò tìm các thiết bị webcam và file video có sẵn trên máy tính,
+    kèm trạng thái đã được camera nào sử dụng để tránh xung đột thiết bị.
+    """
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401)
+    from app.camera_manager import scan_system_cameras
+    from app.processors import camera_states
+    cameras = config.get_cameras_config()
+    return scan_system_cameras(cameras, camera_states)
+
+@app.get("/api/system/cameras/preview")
+def api_preview_camera_source(source: str, request: Request):
+    """
+    Chụp thử 1 khung hình xem trước (preview thumbnail) cho một cổng webcam hoặc file video.
+    """
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401)
+    from app.camera_manager import get_camera_preview_image
+    from app.processors import camera_states
+    img_bytes = get_camera_preview_image(source, camera_states)
+    if not img_bytes:
+        raise HTTPException(status_code=400, detail="Không thể chụp ảnh xem trước từ nguồn này!")
+    return Response(content=img_bytes, media_type="image/jpeg")
+
 @app.post("/api/cameras")
 async def add_camera(request: Request):
     check_admin(request)
@@ -807,9 +926,9 @@ async def add_camera(request: Request):
     cameras = config.get_cameras_config()
     if any(c["camera_id"] == camera_id for c in cameras):
         raise HTTPException(status_code=400, detail="Camera ID này đã tồn tại!")
-    
+
     # Thiết lập giá trị mặc định cho camera mới
-    if "source" not in new_cam: new_cam["source"] = "video.mp4"
+    if "source" not in new_cam: new_cam["source"] = "0"
     if "features" not in new_cam: new_cam["features"] = ["intrusion_roi"]
     if "line" not in new_cam: new_cam["line"] = [[100, 180], [540, 180]]
     if "in_direction" not in new_cam: new_cam["in_direction"] = "down"
@@ -819,11 +938,23 @@ async def add_camera(request: Request):
     if "schedule_end" not in new_cam: new_cam["schedule_end"] = "06:00"
     if "map_id" not in new_cam: new_cam["map_id"] = "khu_a_tang_1"
     if "trigger_alarm" not in new_cam: new_cam["trigger_alarm"] = False
+    if "enabled" not in new_cam: new_cam["enabled"] = True
+
+    # Kiểm tra chống trùng nguồn webcam phần cứng
+    source = str(new_cam.get("source", "")).strip()
+    if source.isdigit():
+        for c in cameras:
+            if str(c.get("source", "")).strip() == source:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cổng webcam '{source}' đang được sử dụng bởi camera '{c['camera_id']}'. Vui lòng chọn cổng webcam khác để tránh chèn hình và xung đột thiết bị!"
+                )
 
     cameras.append(new_cam)
     config.save_full_cameras_config(cameras)
-    ensure_camera_thread_running(camera_id)
-    SystemStatus.add_log(f"Đã thêm camera mới: {camera_id}", "success")
+    if new_cam.get("enabled", True) is not False:
+        ensure_camera_thread_running(camera_id)
+    SystemStatus.add_log(f"Admin đã thêm camera mới: {camera_id}", "success")
     return {"message": "Đã thêm camera thành công!"}
 
 @app.put("/api/cameras/{camera_id}")
@@ -839,13 +970,71 @@ async def update_camera(camera_id: str, request: Request):
     if found_idx == -1:
         raise HTTPException(status_code=404, detail="Không tìm thấy camera!")
     
-    # Cập nhật thông số
+    old_cam = dict(cameras[found_idx])
+    old_source = str(old_cam.get("source", "")).strip()
+    old_enabled = old_cam.get("enabled", True) is not False
+
+    # Kiểm tra chống trùng nguồn webcam phần cứng với camera khác
+    new_source = str(updated_cam.get("source", "")).strip()
+    if new_source.isdigit():
+        for c in cameras:
+            if c["camera_id"] != camera_id and str(c.get("source", "")).strip() == new_source:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cổng webcam '{new_source}' đang được sử dụng bởi camera '{c['camera_id']}'. Vui lòng chọn cổng webcam khác để tránh chèn hình và xung đột thiết bị!"
+                )
+
+    # Cập nhật thông số vào danh sách và lưu file cấu hình
     cameras[found_idx].update(updated_cam)
     config.save_full_cameras_config(cameras)
-    stop_camera_thread(camera_id)
-    ensure_camera_thread_running(camera_id)
-    SystemStatus.add_log(f"Đã cập nhật camera: {camera_id}", "info")
+    
+    new_enabled = cameras[found_idx].get("enabled", True) is not False
+    source_changed = (new_source != old_source)
+    enabled_changed = (new_enabled != old_enabled)
+
+    if not new_enabled:
+        # Nếu bị tắt / tạm dừng: dừng luồng camera
+        stop_camera_thread(camera_id)
+    elif source_changed:
+        # CHỈ KHI NÀO ĐỔI NGUỒN CAMERA (SOURCE) MỚI CẦN RESTART THIẾT BỊ PHẦN CỨNG
+        stop_camera_thread(camera_id)
+        ensure_camera_thread_running(camera_id)
+    elif enabled_changed:
+        # Kích hoạt lại camera từ trạng thái tắt
+        ensure_camera_thread_running(camera_id)
+    else:
+        # Sửa các thông số bình thường (Tính năng AI, ROI, Line, Map, Lịch trình, Tăng cường sáng...):
+        # KHÔNG khởi động lại luồng để tránh đen màn hình hoặc giật stream, nạp nóng cấu hình tức thì
+        notify_camera_config_updated(camera_id)
+        ensure_camera_thread_running(camera_id)
+    
+    SystemStatus.add_log(f"Admin đã cập nhật camera: {camera_id}", "info")
     return {"message": "Đã cập nhật camera thành công!"}
+
+@app.put("/api/cameras/{camera_id}/toggle_enabled")
+def toggle_camera_enabled(camera_id: str, request: Request):
+    """
+    Chỉ Quản Trị Viên (Admin) mới có quyền Tạm Dừng hoặc Kích Hoạt hoạt động của Camera.
+    """
+    check_admin(request)
+    cameras = config.get_cameras_config()
+    found = next((c for c in cameras if c["camera_id"] == camera_id), None)
+    if not found:
+        raise HTTPException(status_code=404, detail="Không tìm thấy camera!")
+    
+    current_state = found.get("enabled", True) is not False
+    new_state = not current_state
+    found["enabled"] = new_state
+    config.save_full_cameras_config(cameras)
+    
+    if new_state:
+        ensure_camera_thread_running(camera_id)
+        SystemStatus.add_log(f"Admin đã kích hoạt lại camera: {camera_id}", "success")
+    else:
+        stop_camera_thread(camera_id)
+        SystemStatus.add_log(f"Admin đã tạm dừng hoạt động camera: {camera_id}", "warning")
+        
+    return {"message": "Đã cập nhật trạng thái camera thành công!", "enabled": new_state}
 
 @app.delete("/api/cameras/{camera_id}")
 def delete_camera(camera_id: str, request: Request):
@@ -856,7 +1045,7 @@ def delete_camera(camera_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Không tìm thấy camera!")
     config.save_full_cameras_config(filtered_cameras)
     stop_camera_thread(camera_id)
-    SystemStatus.add_log(f"Đã xóa camera: {camera_id}", "danger")
+    SystemStatus.add_log(f"Admin đã xóa camera: {camera_id}", "danger")
     return {"message": "Đã xóa camera thành công!"}
 
 # =========================================================================

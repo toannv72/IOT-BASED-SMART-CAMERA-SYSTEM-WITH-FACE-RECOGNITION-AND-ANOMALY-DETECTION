@@ -27,7 +27,7 @@ import app.config as config
 from app.config import SystemStatus
 from app.ai import device
 from app.ai import device as ai_device
-from app.alerts import send_telegram_alert
+from app.alerts import send_telegram_alert, reset_alert_incident
 from app.database import SessionLocal, FaceRecord
 
 # Tự động cấu hình khoảng giãn cách khung hình (frame skipping intervals) dựa trên thiết bị xử lý
@@ -444,11 +444,25 @@ class CameraState:
         self.track_face_status = {}         # tid -> name or "unknown"
         self.behavior_alert_cooldowns = {}  # tid -> last_alert_timestamp
         self.track_high_risk_start_times = {} # tid -> timestamp of when they first exceeded score 60
+        self.authorized_recent_tracks = {}   # tid -> {"name": str, "last_seen": float, "last_bbox": list, "last_center": tuple}
+        self.authorized_presence_until = 0.0 # timestamp duy trì bộ nhớ người nhà hiện diện trong phòng
+        self.authorized_names = set()        # tập hợp tên các người nhà đã được xác thực
+        self.last_face_notify_times = {}     # cooldown thông báo người nhà về
         self.intrusion_active = False
         self.fall_active = False
         self.fire_active = False
         self.fire_counter = 0
         self.last_jpeg_frame = None
+        self.reload_config_requested = False
+
+
+def notify_camera_config_updated(camera_id: str):
+    """
+    Kích hoạt cờ nạp lại cấu hình camera tức thì trong luồng đang chạy
+    mà không làm gián đoạn luồng stream hoặc khởi động lại thiết bị phần cứng.
+    """
+    if camera_id in camera_states:
+        camera_states[camera_id].reload_config_requested = True
 
 
 def is_time_in_schedule(start_str, end_str):
@@ -481,6 +495,11 @@ camera_stop_events = {}
 camera_threads_lock = threading.Lock()
 
 def ensure_camera_thread_running(camera_id: str):
+    cameras = config.get_cameras_config()
+    cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
+    if cfg and cfg.get("enabled", True) is False:
+        return
+
     with camera_threads_lock:
         if camera_id in camera_threads and camera_threads[camera_id].is_alive():
             return
@@ -512,11 +531,24 @@ def camera_thread_worker(camera_id: str, stop_event: threading.Event):
             camera_stop_events.pop(camera_id, None)
         print(f"[PROCESSORS] Background thread for camera '{camera_id}' terminated.")
 
+def make_paused_frame(camera_id: str) -> bytes:
+    blank = np.zeros((360, 640, 3), dtype=np.uint8)
+    cv2.putText(blank, "CAMERA DANG TAM DUNG", (130, 165), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)
+    cv2.putText(blank, f"ID: {camera_id} (Tam dung boi Admin)", (170, 205), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+    ret_enc, buf = cv2.imencode('.jpg', blank)
+    if ret_enc:
+        return buf.tobytes()
+    return b''
+
 def stop_camera_thread(camera_id: str):
     with camera_threads_lock:
         if camera_id in camera_stop_events:
             camera_stop_events[camera_id].set()
             print(f"[PROCESSORS] Stopping background thread for camera '{camera_id}'")
+    # Đặt ngay khung hình thông báo tạm dừng cho state và reset fps
+    if camera_id in camera_states:
+        camera_states[camera_id].last_jpeg_frame = make_paused_frame(camera_id)
+    camera_fps[camera_id] = 0.0
 
 def start_all_camera_threads():
     try:
@@ -530,8 +562,9 @@ def start_all_camera_threads():
         
         cameras = config.get_cameras_config()
         for cam in cameras:
-            camera_id = cam["camera_id"]
-            ensure_camera_thread_running(camera_id)
+            if cam.get("enabled", True) is not False:
+                camera_id = cam["camera_id"]
+                ensure_camera_thread_running(camera_id)
     except Exception as e:
         print(f"[PROCESSORS] Error starting all camera threads: {e}")
 
@@ -540,14 +573,28 @@ def gen_dynamic_stream(camera_id: str):
     Bộ sinh luồng xử lý ảnh camera động.
     Đọc khung hình đã được xử lý và mã hóa JPEG từ luồng chạy ngầm (background thread).
     """
-    ensure_camera_thread_running(camera_id)
-    
     if camera_id not in camera_states:
         camera_states[camera_id] = CameraState()
     state = camera_states[camera_id]
     
     consecutive_empty = 0
+    loop_count = 0
     while True:
+        loop_count += 1
+        # Cứ mỗi 15 chu kỳ (~0.6s) kiểm tra lại xem camera có bị Admin tạm dừng không
+        if loop_count % 15 == 1:
+            cameras = config.get_cameras_config()
+            cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
+            is_enabled = cfg.get("enabled", True) is not False if cfg else True
+            if not is_enabled:
+                paused_frame = make_paused_frame(camera_id)
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + paused_frame + b'\r\n')
+                time.sleep(0.5)
+                continue
+
+        ensure_camera_thread_running(camera_id)
+        
         if state.last_jpeg_frame is not None:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + state.last_jpeg_frame + b'\r\n')
@@ -579,11 +626,8 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
     if isinstance(source, str) and source.isdigit():
         source = int(source)
 
-    import sys
-    if isinstance(source, int) and sys.platform.startswith('win'):
-        cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
-    else:
-        cap = cv2.VideoCapture(source)
+    from app.camera_manager import open_safe_video_capture
+    cap = open_safe_video_capture(source)
     if not cap.isOpened():
         print(f"[PROCESSORS] [ERROR] Không thể mở camera source {source} cho camera {camera_id}")
         return
@@ -609,7 +653,11 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
     full_video_filename = None
 
     while True:
+        if stop_event is not None and stop_event.is_set():
+            print(f"[PROCESSORS] Luồng camera '{camera_id}' nhận tín hiệu dừng (stop_event). Thoát vòng lặp...")
+            break
         t_start = time.time()
+        current_time = t_start
         ret, frame = cap.read()
         if not ret:
             if isinstance(source, str) and os.path.exists(source):
@@ -626,6 +674,33 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         state.frame_index += 1
         frame = cv2.resize(frame, (640, 360))
 
+        # Nạp lại cấu hình nóng tức thì khi có yêu cầu hoặc định kỳ mỗi 30 khung hình
+        if getattr(state, "reload_config_requested", False) or (state.frame_index % 30 == 0):
+            state.reload_config_requested = False
+            cameras = config.get_cameras_config()
+            new_cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
+            if new_cfg:
+                if str(new_cfg.get("source", "")).strip() != str(cfg.get("source", "")).strip():
+                    print(f"[PROCESSORS] Camera '{camera_id}' source changed from '{cfg.get('source')}' to '{new_cfg.get('source')}'. Reopening...")
+                    cap.release()
+                    source = new_cfg["source"]
+                    if isinstance(source, str) and source.isdigit():
+                        source = int(source)
+                    from app.camera_manager import open_safe_video_capture
+                    cap = open_safe_video_capture(source)
+                cfg = new_cfg
+            
+            if "face_id" in cfg.get("features", []) or "abnormal_behavior" in cfg.get("features", []):
+                db = SessionLocal()
+                records = db.query(FaceRecord).all()
+                db.close()
+                names = [r.name for r in records]
+                db_embeddings = np.array([json.loads(r.embedding) for r in records]) if records else np.array([])
+                if len(db_embeddings) > 0:
+                    norms = np.linalg.norm(db_embeddings, axis=1, keepdims=True)
+                    norms[norms == 0] = 1.0
+                    db_embeddings = db_embeddings / norms
+
         if cfg.get("low_light_enhance", False):
             clip_limit = cfg.get("enhance_clip_limit", 2.0)
             try:
@@ -639,34 +714,6 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 print(f"[PROCESSORS] Lỗi CLAHE: {e}")
 
         state.last_frame = frame.copy()
-
-        if state.frame_index % 30 == 0:
-            cameras = config.get_cameras_config()
-            new_cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
-            if new_cfg:
-                if new_cfg.get("source") != cfg.get("source"):
-                    print(f"[PROCESSORS] Camera '{camera_id}' source changed from '{cfg.get('source')}' to '{new_cfg.get('source')}'. Reopening...")
-                    cap.release()
-                    source = new_cfg["source"]
-                    if isinstance(source, str) and source.isdigit():
-                        source = int(source)
-                    import sys
-                    if isinstance(source, int) and sys.platform.startswith('win'):
-                        cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
-                    else:
-                        cap = cv2.VideoCapture(source)
-                cfg = new_cfg
-            
-            if "face_id" in cfg.get("features", []) or "abnormal_behavior" in cfg.get("features", []):
-                db = SessionLocal()
-                records = db.query(FaceRecord).all()
-                db.close()
-                names = [r.name for r in records]
-                db_embeddings = np.array([json.loads(r.embedding) for r in records]) if records else np.array([])
-                if len(db_embeddings) > 0:
-                    norms = np.linalg.norm(db_embeddings, axis=1, keepdims=True)
-                    norms[norms == 0] = 1.0
-                    db_embeddings = db_embeddings / norms
 
         features = cfg.get("features", [])
         conf_thr = config.settings.get("conf_threshold", 0.25)
@@ -730,8 +777,10 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         ]
                         for cp in check_points:
                             if cv2.pointPolygonTest(pts, cp, False) >= 0:
-                                # BỎ QUA nếu người này là người nhà
-                                if state.track_face_status.get(tid) not in [None, "Unknown"]:
+                                # BỎ QUA nếu người này là người nhà hoặc đang trong thời gian người nhà hiện diện
+                                is_known_family = state.track_face_status.get(tid) not in [None, "Unknown"]
+                                is_family_occupancy = (current_time < state.authorized_presence_until) and (len(detections) == 1)
+                                if is_known_family or is_family_occupancy:
                                     continue
                                 person_in_roi = True
                                 is_this_roi_violated = True
@@ -745,6 +794,8 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         ]
                         for cp in check_points:
                             if cv2.pointPolygonTest(pts, cp, False) >= 0:
+                                if current_time < state.authorized_presence_until and len(detections) == 1:
+                                    continue
                                 person_in_roi = True
                                 is_this_roi_violated = True
                                 break
@@ -763,7 +814,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     elapsed = current_time - state.intrusion_entry_times[tid]
                     if elapsed > loitering_threshold:
                         loitering_detected = True
-                        cv2.putText(annotated_frame, f"LẢNG VẢNG ID #{tid}: {int(elapsed)}s", (10, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
+                        cv2.putText(annotated_frame, f"LANG VANG ID #{tid}: {int(elapsed)}s", (10, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
                         
                         if "abnormal_behavior" not in features:
                             if alerts_enabled and alert_allowed_by_schedule and not is_paused:
@@ -798,6 +849,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             else:
                 if "abnormal_behavior" not in features:
                     state.intrusion_active = False
+                    reset_alert_incident("intrusion", camera_id)
 
         if run_face:
             # Kiểm tra xem có cần quét khuôn mặt không (nếu tất cả mọi người đã được định danh thì bỏ qua)
@@ -900,6 +952,21 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         old_face = state.track_face_status.get(overlap_tid)
                         if old_face is None or old_face == "Unknown" or (best_match_name != "Unknown" and old_face != best_match_name):
                             state.track_face_status[overlap_tid] = best_match_name
+                            
+                    # Kích hoạt bộ nhớ người quen hiện diện và giải tỏa báo động tức thì (Instant De-escalation)
+                    if best_match_name != "Unknown":
+                        state.authorized_names.add(best_match_name)
+                        state.authorized_presence_until = max(state.authorized_presence_until, current_time + 60.0)
+                        reset_alert_incident("intrusion", camera_id)
+                        if overlap_tid is not None:
+                            state.authorized_recent_tracks[overlap_tid] = {
+                                "name": best_match_name,
+                                "last_seen": current_time,
+                                "last_bbox": [x_1, y_1, x_2, y_2],
+                                "last_center": ((x_1 + x_2) / 2.0, (y_1 + y_2) / 2.0)
+                            }
+                            state.track_high_risk_start_times.pop(overlap_tid, None)
+                            state.behavior_alert_cooldowns.pop(overlap_tid, None)
 
                     if "face_id" in features:
                         color = (0, 255, 0) if best_match_name != "Unknown" else (0, 0, 255)
@@ -912,17 +979,19 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                             state.last_face_log_times[best_match_name] = current_time
                             
                             if best_match_name == "Unknown":
-                                if "abnormal_behavior" not in features:
-                                    if alerts_enabled and alert_allowed_by_schedule and not is_paused:
-                                        SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện khuôn mặt lạ!", "danger")
-                                        send_telegram_alert(
-                                            message=f"⚠️ [{camera_id}] Phát hiện khuôn mặt lạ xuất hiện!",
-                                            frame=frame,
-                                            alert_type="face",
-                                            camera_id=camera_id,
-                                            frame_buffer=list(state.frame_buffer),
-                                            face_name="Unknown"
-                                        )
+                                # Chỉ cảnh báo nếu không có người nhà hiện diện trong khu vực (tránh báo ảo khi người nhà quay nghiêng mặt)
+                                if current_time >= state.authorized_presence_until:
+                                    if "abnormal_behavior" not in features:
+                                        if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                                            SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện khuôn mặt lạ!", "danger")
+                                            send_telegram_alert(
+                                                message=f"⚠️ [{camera_id}] Phát hiện khuôn mặt lạ xuất hiện!",
+                                                frame=frame,
+                                                alert_type="face",
+                                                camera_id=camera_id,
+                                                frame_buffer=list(state.frame_buffer),
+                                                face_name="Unknown"
+                                            )
                             else:
                                 if alerts_enabled and alert_allowed_by_schedule and not is_paused:
                                     SystemStatus.add_log(f"👤 {camera_id}: Nhận diện thành công khuôn mặt: {best_match_name}", "info")
@@ -971,12 +1040,42 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         if tid not in state.track_face_status:
                             state.track_face_status[tid] = None
                         
+                        # 1. Kế thừa định danh từ các track người nhà gần đây (Spatial Proximity Handover)
+                        # Khi người dùng quay lưng, đổi góc, hoặc ByteTrack bị nhảy ID
+                        inherited_name = None
+                        for old_tid, old_info in list(state.authorized_recent_tracks.items()):
+                            if current_time - old_info["last_seen"] < 6.0:
+                                dist = math.hypot(center[0] - old_info["last_center"][0], center[1] - old_info["last_center"][1])
+                                if dist < 90.0:
+                                    inherited_name = old_info["name"]
+                                    break
+                                    
+                        if inherited_name:
+                            state.track_face_status[tid] = inherited_name
+                            print(f"[IDENTITY MEMORY] Kế thừa danh tính '{inherited_name}' cho track mới #{tid} (dist={dist:.1f}px)")
+                        elif current_time < state.authorized_presence_until and len(detections) == 1 and state.authorized_names:
+                            auth_name = next(iter(state.authorized_names))
+                            state.track_face_status[tid] = auth_name
+                            print(f"[IDENTITY MEMORY] Tự động gán người nhà '{auth_name}' cho đối tượng duy nhất ID #{tid}")
+                        
                         # Kiểm tra bàn giao người nhà từ camera khác nếu đối tượng mới xuất hiện sát biên
                         if is_near_border(bbox):
                             handover_name = SystemStatus.find_matching_handover(camera_id, current_time)
                             if handover_name:
                                 state.track_face_status[tid] = handover_name
                                 print(f"[CROSS-CAM] Bàn giao thành công: Đối tượng ID #{tid} trên '{camera_id}' thừa hưởng trạng thái người nhà '{handover_name}'")
+                            
+                    # Cập nhật danh tính người nhà nếu track đã được xác nhận
+                    if state.track_face_status.get(tid) not in [None, "Unknown"]:
+                        fam_name = state.track_face_status[tid]
+                        state.authorized_recent_tracks[tid] = {
+                            "name": fam_name,
+                            "last_seen": current_time,
+                            "last_bbox": bbox,
+                            "last_center": center
+                        }
+                        state.authorized_presence_until = max(state.authorized_presence_until, current_time + 60.0)
+                        state.authorized_names.add(fam_name)
                             
                     state.track_histories[tid].append((current_time, bbox, center))
                     
@@ -998,6 +1097,11 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         state.behavior_alert_cooldowns.pop(tid, None)
                         state.track_high_risk_start_times.pop(tid, None)
                         
+                # Dọn dẹp bộ nhớ track người nhà cũ quá 10 giây
+                for ot in list(state.authorized_recent_tracks.keys()):
+                    if current_time - state.authorized_recent_tracks[ot]["last_seen"] > 10.0:
+                        state.authorized_recent_tracks.pop(ot, None)
+
                 # Đánh giá hành vi của từng đối tượng
                 for det_idx, tid in enumerate(detections.tracker_id):
                     bbox = detections.xyxy[det_idx]
@@ -1080,12 +1184,23 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     face_status = state.track_face_status.get(tid)
                     is_family_member = (face_status is not None) and (face_status != "Unknown")
                     
+                    # Nếu người này chưa thấy mặt nhưng đang trong thời gian người nhà hiện diện và chỉ có 1 người duy nhất
+                    if not is_family_member and current_time < state.authorized_presence_until and len(detections) == 1 and state.authorized_names:
+                        face_status = next(iter(state.authorized_names))
+                        state.track_face_status[tid] = face_status
+                        is_family_member = True
+                    
                     if is_family_member:
                         # Cập nhật bàn giao nếu là người nhà và đang ở sát biên
                         if is_near_border(bbox):
                             SystemStatus.add_handover(camera_id, face_status, current_time)
+                        state.authorized_names.add(face_status)
+                        state.authorized_presence_until = max(state.authorized_presence_until, current_time + 60.0)
                         score = 0
                         reasons = [f"Nguoi Nha ({face_status})"]
+                        state.track_high_risk_start_times.pop(tid, None)
+                        state.behavior_alert_cooldowns.pop(tid, None)
+                        reset_alert_incident("intrusion", camera_id)
                     else:
                         score += 15
                         reasons.append("Nguoi La")
@@ -1152,6 +1267,8 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 cv2.polylines(annotated_frame, [pts], True, (0, 255, 255), 1)
 
             state.intrusion_active = any_intrusion_active
+            if not any_intrusion_active:
+                reset_alert_incident("intrusion", camera_id)
 
         if run_fall:
             fall_in_frame = False
@@ -1254,7 +1371,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 state.fall_counter += 1
                 if state.fall_counter >= 12:
                     state.fall_active = True
-                    cv2.putText(annotated_frame, "PHÁT HIỆN NGÃ!", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    cv2.putText(annotated_frame, "CANH BAO: NGUOI NGA!", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
                     if alerts_enabled and alert_allowed_by_schedule and not is_paused:
                         SystemStatus.add_log(f"🚨 {camera_id}: Phát hiện người bị ngã!", "danger")
                         send_telegram_alert(
@@ -1318,7 +1435,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 state.fire_counter += 1
                 if state.fire_counter >= fire_frame_buf_thr:
                     state.fire_active = True
-                    cv2.putText(annotated_frame, "🚨 PHÁT HIỆN CHÁY NỔ!", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    cv2.putText(annotated_frame, "CANH BAO: CHAY NO!", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
                     if alerts_enabled and alert_allowed_by_schedule and not is_paused:
                         SystemStatus.add_log(f"🚨 {camera_id}: Phát hiện ngọn lửa hoặc khói bất thường!", "danger")
                         send_telegram_alert(
@@ -1338,9 +1455,11 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         SystemStatus.fall_active = any(s.fall_active for s in camera_states.values())
         SystemStatus.fire_active = any(s.fire_active for s in camera_states.values())
 
-        # Trạng thái lịch trình
+        # Trạng thái lịch trình (khi hết khung giờ cảnh báo)
         if not alert_allowed_by_schedule:
-            cv2.putText(annotated_frame, "Cảnh báo tắt (Theo Lịch Trình)", (10, 345), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+            cv2.rectangle(annotated_frame, (8, 330), (290, 354), (0, 0, 0), -1)
+            cv2.rectangle(annotated_frame, (8, 330), (290, 354), (0, 220, 255), 1)
+            cv2.putText(annotated_frame, "[LICH TRINH: TAT CANH BAO]", (14, 347), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 220, 255), 1)
 
         # Lưu khung hình kèm nét vẽ AI vào bộ đệm để ghi video sự cố
         state.frame_buffer.append(annotated_frame.copy())

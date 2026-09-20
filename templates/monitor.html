@@ -4,6 +4,57 @@
 {% block page_title %}Giám Sát Live{% endblock %}
 
 {% block content %}
+<!-- Thanh Bộ Lọc & Tìm Kiếm Camera Hiện Đại -->
+<div class="glass-card" style="margin-bottom: 16px; padding: 12px 18px; border: 1px solid rgba(255,255,255,0.08);">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        
+        <!-- Nhóm điều khiển Lọc: Tìm kiếm + Chọn nhiều tầng -->
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 320px;">
+            
+            <!-- 1. Ô tìm kiếm theo tên / ID camera -->
+            <div style="position: relative; width: 260px;">
+                <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 13px; pointer-events: none;"></i>
+                <input type="text" id="camera-search-input" class="form-input" placeholder="Tìm camera theo tên, ID..." oninput="onSearchInput(this.value)" style="padding-left: 34px; padding-right: 28px; height: 36px; font-size: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; width: 100%;">
+                <span id="camera-search-clear" onclick="clearSearchInput()" style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #94a3b8; font-size: 16px; font-weight: bold;">&times;</span>
+            </div>
+
+            <!-- 2. Dropdown Input chọn nhiều tầng (Multi-Select Floor Filter) -->
+            <div style="position: relative;" id="floor-dropdown-wrapper">
+                <button type="button" id="btn-floor-dropdown" onclick="toggleFloorDropdown(event)" class="form-input" style="height: 36px; min-width: 220px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; cursor: pointer; color: #fff;">
+                    <span id="floor-dropdown-label" style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <i class="fa-solid fa-layer-group" style="color: var(--primary);"></i>
+                        <span id="floor-dropdown-text">Tất cả các tầng</span>
+                    </span>
+                    <i class="fa-solid fa-chevron-down" id="floor-dropdown-arrow" style="font-size: 10px; color: var(--text-muted); margin-left: 8px; transition: transform 0.2s;"></i>
+                </button>
+
+                <!-- Menu Dropdown chọn tầng -->
+                <div id="floor-dropdown-menu" style="display: none; position: absolute; top: calc(100% + 6px); left: 0; min-width: 260px; max-height: 300px; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; box-shadow: 0 12px 28px rgba(0,0,0,0.7); z-index: 1050; padding: 6px 0; overflow-y: auto;">
+                    <!-- Nội dung checkbox render qua JS -->
+                </div>
+            </div>
+
+            <!-- 3. Nút đặt lại bộ lọc -->
+            <button id="btn-reset-filters" class="btn" onclick="resetAllFilters()" style="display: none; height: 36px; padding: 0 10px; font-size: 11px; background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); border-radius: 6px; cursor: pointer; align-items: center; gap: 5px;">
+                <i class="fa-solid fa-rotate-left"></i> Đặt lại
+            </button>
+        </div>
+
+        <!-- Bên phải: Thống kê số lượng camera -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span id="camera-filter-stat" style="font-size: 12px; color: var(--text-muted);">
+                <!-- Thống kê camera -->
+            </span>
+        </div>
+    </div>
+
+    <!-- Dòng hiển thị các Chip Tag các tầng đang được chọn -->
+    <div id="selected-floor-tags-container" style="display: none; margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.08); gap: 6px; flex-wrap: wrap; align-items: center;">
+        <span style="font-size: 11px; color: var(--text-muted); margin-right: 4px;">Tầng đang chọn:</span>
+        <div id="selected-floor-tags" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+    </div>
+</div>
+
 <!-- Lưới Camera Live -->
 <div class="camera-grid" id="camera-streams-grid">
     <!-- Sinh tự động qua JavaScript -->
@@ -65,12 +116,270 @@
     let drawMode = 'roi'; // 'line' hoặc 'roi'
     let currentDrawCamId = '';
     let roiClosed = false;
+    let showPausedCameras = false; // Mặc định ẩn camera đã tạm dừng khỏi lưới giám sát
+    let availableMaps = [];
+    
+    // Trạng thái tìm kiếm & lọc nhiều tầng
+    let searchQuery = '';
+    let selectedFloors = [];
+    try {
+        const saved = localStorage.getItem('monitor_selected_floors');
+        if (saved) selectedFloors = JSON.parse(saved);
+        if (!Array.isArray(selectedFloors)) selectedFloors = [];
+    } catch(e) {
+        selectedFloors = [];
+    }
+
+    async function loadMaps() {
+        try {
+            const res = await fetch('/api/maps');
+            availableMaps = await res.json();
+        } catch (e) {
+            console.error("Lỗi nạp danh sách tầng:", e);
+        }
+    }
 
     // Tự động gọi khi danh sách camera tải xong từ base.html
-    function onCamerasLoaded() {
+    async function onCamerasLoaded() {
+        await loadMaps();
+        renderFloorDropdownMenu();
+        renderSelectedFloorTags();
         renderCamerasGrid();
     }
 
+    // =========================================================================
+    // 🔍 1. TÌM KIẾM THEO TÊN / ID CAMERA
+    // =========================================================================
+    function onSearchInput(val) {
+        searchQuery = (val || '').trim().toLowerCase();
+        const clearBtn = document.getElementById('camera-search-clear');
+        if (clearBtn) {
+            clearBtn.style.display = searchQuery ? 'block' : 'none';
+        }
+        updateResetButtonVisibility();
+        renderCamerasGrid();
+    }
+
+    function clearSearchInput() {
+        const input = document.getElementById('camera-search-input');
+        if (input) input.value = '';
+        onSearchInput('');
+    }
+
+    // =========================================================================
+    // 🏢 2. BỘ CHỌN ĐA TẦNG (MULTI-SELECT FLOOR FILTER)
+    // =========================================================================
+    function toggleFloorDropdown(event) {
+        if (event) event.stopPropagation();
+        const menu = document.getElementById('floor-dropdown-menu');
+        const arrow = document.getElementById('floor-dropdown-arrow');
+        if (!menu) return;
+        const isOpen = menu.style.display === 'block';
+        menu.style.display = isOpen ? 'none' : 'block';
+        if (arrow) {
+            arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+    }
+
+    // Đóng dropdown khi click ra ngoài
+    document.addEventListener('click', (e) => {
+        const wrapper = document.getElementById('floor-dropdown-wrapper');
+        const menu = document.getElementById('floor-dropdown-menu');
+        const arrow = document.getElementById('floor-dropdown-arrow');
+        if (wrapper && !wrapper.contains(e.target) && menu && menu.style.display === 'block') {
+            menu.style.display = 'none';
+            if (arrow) arrow.style.transform = 'rotate(0deg)';
+        }
+    });
+
+    function renderFloorDropdownMenu() {
+        const menu = document.getElementById('floor-dropdown-menu');
+        if (!menu) return;
+
+        const isAllSelected = selectedFloors.length === 0;
+        let html = `
+            <div style="padding: 6px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 4px;">
+                <label style="font-size: 12px; font-weight: 600; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-bottom: 0;">
+                    <input type="checkbox" id="chk-floor-all" ${isAllSelected ? 'checked' : ''} onchange="toggleSelectAllFloors(this.checked)" style="transform: scale(1.1); cursor: pointer;">
+                    Tất cả các tầng
+                </label>
+                ${!isAllSelected ? `<span style="font-size: 11px; color: #f87171; cursor: pointer;" onclick="clearAllSelectedFloors()">Bỏ chọn hết</span>` : ''}
+            </div>
+            <div style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column;">
+        `;
+
+        availableMaps.forEach(m => {
+            const count = activeCameras.filter(c => c.map_id === m.map_id).length;
+            const isChecked = selectedFloors.includes(m.map_id);
+            html += `
+                <label style="display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; font-size: 12px; color: #e2e8f0; cursor: pointer; transition: background 0.15s; margin-bottom: 0;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='transparent'">
+                    <span style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <input type="checkbox" class="chk-floor-item" value="${m.map_id}" ${isChecked ? 'checked' : ''} onchange="onFloorCheckboxChange('${m.map_id}', this.checked)" style="transform: scale(1.1); cursor: pointer;">
+                        <span>${m.name}</span>
+                    </span>
+                    <span style="font-size: 11px; color: var(--text-muted); background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 10px; margin-left: 8px;">${count} cam</span>
+                </label>
+            `;
+        });
+
+        // Tùy chọn chưa gán tầng
+        const unassignedCount = activeCameras.filter(c => !c.map_id || !availableMaps.some(m => m.map_id === c.map_id)).length;
+        if (unassignedCount > 0) {
+            const isChecked = selectedFloors.includes('unassigned');
+            html += `
+                <label style="display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; font-size: 12px; color: #e2e8f0; cursor: pointer; transition: background 0.15s; margin-bottom: 0;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='transparent'">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" class="chk-floor-item" value="unassigned" ${isChecked ? 'checked' : ''} onchange="onFloorCheckboxChange('unassigned', this.checked)" style="transform: scale(1.1); cursor: pointer;">
+                        <span style="color: var(--text-muted); font-style: italic;">Chưa gán tầng</span>
+                    </span>
+                    <span style="font-size: 11px; color: var(--text-muted); background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 10px;">${unassignedCount} cam</span>
+                </label>
+            `;
+        }
+
+        html += `</div>`;
+        menu.innerHTML = html;
+        updateFloorDropdownButtonText();
+    }
+
+    function updateFloorDropdownButtonText() {
+        const textEl = document.getElementById('floor-dropdown-text');
+        if (!textEl) return;
+
+        if (selectedFloors.length === 0) {
+            textEl.innerText = `Tất cả các tầng (${activeCameras.length})`;
+        } else if (selectedFloors.length === 1) {
+            const targetId = selectedFloors[0];
+            const found = availableMaps.find(m => m.map_id === targetId);
+            textEl.innerText = found ? found.name : (targetId === 'unassigned' ? 'Chưa gán tầng' : targetId);
+        } else {
+            textEl.innerText = `Đã chọn ${selectedFloors.length} tầng`;
+        }
+    }
+
+    function onFloorCheckboxChange(mapId, isChecked) {
+        if (isChecked) {
+            if (!selectedFloors.includes(mapId)) {
+                selectedFloors.push(mapId);
+            }
+        } else {
+            selectedFloors = selectedFloors.filter(id => id !== mapId);
+        }
+        saveSelectedFloors();
+        renderFloorDropdownMenu();
+        renderSelectedFloorTags();
+        updateResetButtonVisibility();
+        renderCamerasGrid();
+    }
+
+    function toggleSelectAllFloors(isChecked) {
+        selectedFloors = [];
+        saveSelectedFloors();
+        renderFloorDropdownMenu();
+        renderSelectedFloorTags();
+        updateResetButtonVisibility();
+        renderCamerasGrid();
+    }
+
+    function clearAllSelectedFloors() {
+        selectedFloors = [];
+        saveSelectedFloors();
+        renderFloorDropdownMenu();
+        renderSelectedFloorTags();
+        updateResetButtonVisibility();
+        renderCamerasGrid();
+    }
+
+    function removeFloorFilterTag(mapId) {
+        selectedFloors = selectedFloors.filter(id => id !== mapId);
+        saveSelectedFloors();
+        renderFloorDropdownMenu();
+        renderSelectedFloorTags();
+        updateResetButtonVisibility();
+        renderCamerasGrid();
+    }
+
+    function saveSelectedFloors() {
+        try {
+            localStorage.setItem('monitor_selected_floors', JSON.stringify(selectedFloors));
+        } catch(e) {}
+    }
+
+    function renderSelectedFloorTags() {
+        const container = document.getElementById('selected-floor-tags-container');
+        const tagsBox = document.getElementById('selected-floor-tags');
+        if (!container || !tagsBox) return;
+
+        if (selectedFloors.length === 0) {
+            container.style.display = 'none';
+            tagsBox.innerHTML = '';
+            return;
+        }
+
+        container.style.display = 'flex';
+        let tagsHtml = '';
+        selectedFloors.forEach(mapId => {
+            const found = availableMaps.find(m => m.map_id === mapId);
+            const name = found ? found.name : (mapId === 'unassigned' ? 'Chưa gán tầng' : mapId);
+            tagsHtml += `
+                <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 8px; border-radius: 4px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.35); color: #93c5fd;">
+                    <i class="fa-solid fa-layer-group"></i> ${name}
+                    <span onclick="removeFloorFilterTag('${mapId}')" style="cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 2px; color: #f87171;" title="Bỏ chọn">&times;</span>
+                </span>
+            `;
+        });
+        tagsBox.innerHTML = tagsHtml;
+    }
+
+    function updateResetButtonVisibility() {
+        const resetBtn = document.getElementById('btn-reset-filters');
+        if (!resetBtn) return;
+        const isFiltering = searchQuery !== '' || selectedFloors.length > 0;
+        resetBtn.style.display = isFiltering ? 'inline-flex' : 'none';
+    }
+
+    function resetAllFilters() {
+        searchQuery = '';
+        const searchInput = document.getElementById('camera-search-input');
+        if (searchInput) searchInput.value = '';
+        const searchClear = document.getElementById('camera-search-clear');
+        if (searchClear) searchClear.style.display = 'none';
+
+        selectedFloors = [];
+        saveSelectedFloors();
+        renderFloorDropdownMenu();
+        renderSelectedFloorTags();
+        updateResetButtonVisibility();
+        renderCamerasGrid();
+    }
+
+    function toggleShowPausedCameras() {
+        showPausedCameras = !showPausedCameras;
+        renderCamerasGrid();
+    }
+
+    function isCurrentTimeInSchedule(startStr, endStr) {
+        if (!startStr || !endStr) return true;
+        try {
+            const now = new Date();
+            const currentMins = now.getHours() * 60 + now.getMinutes();
+            const [sH, sM] = startStr.split(':').map(Number);
+            const [eH, eM] = endStr.split(':').map(Number);
+            const startMins = sH * 60 + sM;
+            const endMins = eH * 60 + eM;
+            if (startMins <= endMins) {
+                return currentMins >= startMins && currentMins <= endMins;
+            } else {
+                return currentMins >= startMins || currentMins <= endMins;
+            }
+        } catch (e) {
+            return true;
+        }
+    }
+
+    // =========================================================================
+    // 🎥 3. RENDER LƯỚI CAMERA (ÁP DỤNG CẢ FILTER TẦNG & SEARCH TÊN)
+    // =========================================================================
     function renderCamerasGrid() {
         const grid = document.getElementById('camera-streams-grid');
         grid.innerHTML = ''; // Xóa sạch dữ liệu cũ
@@ -80,7 +389,78 @@
             return;
         }
 
-        activeCameras.forEach(cam => {
+        const pausedCameras = activeCameras.filter(c => c.enabled === false);
+        const activeList = activeCameras.filter(c => c.enabled !== false);
+        const baseCameras = showPausedCameras ? activeCameras : activeList;
+
+        // 1. Lọc theo danh sách tầng đã chọn (selectedFloors)
+        let filteredCameras = baseCameras;
+        if (selectedFloors.length > 0) {
+            filteredCameras = filteredCameras.filter(c => {
+                if (selectedFloors.includes(c.map_id)) return true;
+                if (selectedFloors.includes('unassigned') && (!c.map_id || !availableMaps.some(m => m.map_id === c.map_id))) return true;
+                return false;
+            });
+        }
+
+        // 2. Lọc theo từ khóa tìm kiếm (searchQuery)
+        if (searchQuery) {
+            filteredCameras = filteredCameras.filter(c => {
+                const idMatch = (c.camera_id || '').toLowerCase().includes(searchQuery);
+                const mapObj = availableMaps.find(m => m.map_id === c.map_id);
+                const mapName = mapObj ? mapObj.name.toLowerCase() : '';
+                const mapMatch = mapName.includes(searchQuery);
+                const sourceMatch = String(c.source || '').toLowerCase().includes(searchQuery);
+                return idMatch || mapMatch || sourceMatch;
+            });
+        }
+
+        // Cập nhật nhãn thống kê
+        const statEl = document.getElementById('camera-filter-stat');
+        if (statEl) {
+            statEl.innerHTML = `Hiển thị: <strong style="color: #60a5fa;">${filteredCameras.length}</strong> / <strong>${activeCameras.length}</strong> camera`;
+        }
+
+        // Hiển thị thanh thông báo nếu có camera bị tạm dừng
+        if (pausedCameras.length > 0) {
+            const noticeBar = document.createElement('div');
+            noticeBar.style.cssText = 'grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 8px 14px; margin-bottom: 6px;';
+            noticeBar.innerHTML = `
+                <span style="font-size: 12px; color: #fbbf24; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-circle-info"></i> Có <strong>${pausedCameras.length}</strong> camera đã tạm dừng trong Cài đặt (đã ẩn nút bật/tắt).
+                </span>
+                <button class="btn" onclick="toggleShowPausedCameras()" style="padding: 4px 10px; font-size: 11px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: 5px; cursor: pointer;">
+                    ${showPausedCameras ? '<i class="fa-solid fa-eye-slash"></i> Ẩn camera tạm dừng' : `<i class="fa-solid fa-eye"></i> Hiện ${pausedCameras.length} camera tạm dừng`}
+                </button>
+            `;
+            grid.appendChild(noticeBar);
+        }
+
+        if (filteredCameras.length === 0) {
+            const emptyCard = document.createElement('div');
+            emptyCard.className = 'glass-card';
+            emptyCard.style.cssText = 'grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted);';
+            emptyCard.innerHTML = `
+                <i class="fa-solid fa-filter-circle-xmark" style="font-size: 32px; color: #f59e0b; margin-bottom: 12px; display: block;"></i>
+                <div style="font-size: 14px; font-weight: 500; color: #e2e8f0; margin-bottom: 6px;">Không tìm thấy camera nào phù hợp với bộ lọc!</div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+                    ${searchQuery ? `Từ khóa: "<strong>${searchQuery}</strong>"` : ''} 
+                    ${selectedFloors.length > 0 ? `| ${selectedFloors.length} tầng được chọn` : ''}
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="resetAllFilters()" style="padding: 6px 16px; font-size: 12px;">
+                        <i class="fa-solid fa-rotate-left"></i> Xóa tất cả bộ lọc & tìm kiếm
+                    </button>
+                </div>
+            `;
+            grid.appendChild(emptyCard);
+            return;
+        }
+
+        filteredCameras.forEach(cam => {
+            const mapObj = availableMaps.find(m => m.map_id === cam.map_id);
+            const mapName = mapObj ? mapObj.name : 'Chưa gán';
+
             let featuresHtml = '';
             const features = cam.features || [];
 
@@ -96,30 +476,59 @@
             
             let schedHtml = `<span style="color: var(--text-muted);"><i class="fa-solid fa-globe"></i> Hoạt động 24/7</span>`;
             if (cam.schedule_enabled) {
-                schedHtml = `<span style="color: var(--warning); font-weight: 500;"><i class="fa-solid fa-clock"></i> Lịch: ${cam.schedule_start} - ${cam.schedule_end}</span>`;
+                const inSched = isCurrentTimeInSchedule(cam.schedule_start, cam.schedule_end);
+                schedHtml = inSched
+                    ? `<span style="color: #10b981; font-weight: 600;"><i class="fa-solid fa-clock"></i> Lịch: ${cam.schedule_start} - ${cam.schedule_end} (Đang bật)</span>`
+                    : `<span style="color: #f59e0b; font-weight: 600;"><i class="fa-solid fa-bell-slash"></i> Lịch: ${cam.schedule_start} - ${cam.schedule_end} (Hết giờ cảnh báo)</span>`;
             }
+
+            const isPaused = cam.enabled === false;
+            let statusBadgeHtml = isPaused 
+                ? `<span class="status-badge" id="badge-${cam.camera_id}" style="background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3);"><div class="status-dot" style="background: #f59e0b;"></div> Tạm dừng</span>`
+                : `<span class="status-badge" id="badge-${cam.camera_id}"><div class="status-dot"></div> Off</span>`;
 
             const card = document.createElement('div');
             card.className = 'glass-card camera-card';
-            card.innerHTML = `
-                <div class="camera-header">
-                    <span class="camera-title"><i class="fa-solid fa-video" style="color: var(--primary);"></i> ${cam.camera_id}</span>
-                    <span class="status-badge" id="badge-${cam.camera_id}"><div class="status-dot"></div> Off</span>
-                </div>
-                <div class="camera-stream-wrapper">
-                    <img id="stream-${cam.camera_id}" class="camera-stream" style="display: none;" alt="${cam.camera_id} Stream">
-                    <div id="placeholder-${cam.camera_id}" class="camera-placeholder">
-                        <i class="fa-solid fa-circle-play"></i>
-                        <span>Chưa bật camera</span>
+            if (isPaused) card.style.opacity = '0.85';
+
+            // Đối với camera đã tạm dừng: ẨN NÚT BẬT/TẮT HOÀN TOÀN
+            let controlsHtml = '';
+            if (isPaused) {
+                controlsHtml = `
+                    <div style="flex: 1; padding: 8px 12px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px; color: #fbbf24; font-size: 12px; font-weight: 500; text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        <i class="fa-solid fa-pause"></i> Đã tạm dừng hoạt động trong Cài đặt
                     </div>
-                </div>
-                <div class="stream-controls" style="display: flex; gap: 8px;">
+                `;
+            } else {
+                controlsHtml = `
                     <button class="btn btn-primary" onclick="toggleDynamicStream('${cam.camera_id}', '/video_feed/${cam.camera_id}')" style="flex: 1;">
                         <i class="fa-solid fa-power-off"></i> Bật/Tắt
                     </button>
                     <button class="btn" onclick="openDrawModal('${cam.camera_id}')" style="padding: 6px 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: #fff;">
                         <i class="fa-solid fa-pen-ruler" style="color: var(--warning);"></i> Vẽ Vạch/ROI
                     </button>
+                `;
+            }
+
+            card.innerHTML = `
+                <div class="camera-header">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span class="camera-title"><i class="fa-solid fa-video" style="color: ${isPaused ? '#f59e0b' : 'var(--primary)'};"></i> ${cam.camera_id}</span>
+                        <span style="font-size: 10px; padding: 2px 7px; border-radius: 4px; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.25); color: #93c5fd; display: inline-flex; align-items: center; gap: 4px;">
+                            <i class="fa-solid fa-layer-group"></i> ${mapName}
+                        </span>
+                    </div>
+                    ${statusBadgeHtml}
+                </div>
+                <div class="camera-stream-wrapper">
+                    <img id="stream-${cam.camera_id}" class="camera-stream" style="display: none;" alt="${cam.camera_id} Stream">
+                    <div id="placeholder-${cam.camera_id}" class="camera-placeholder">
+                        <i class="fa-solid ${isPaused ? 'fa-circle-pause' : 'fa-circle-play'}" style="${isPaused ? 'color: #f59e0b;' : ''}"></i>
+                        <span>${isPaused ? 'Camera đang tạm dừng trong Cài đặt' : 'Chưa bật camera'}</span>
+                    </div>
+                </div>
+                <div class="stream-controls" style="display: flex; gap: 8px;">
+                    ${controlsHtml}
                 </div>
                 <div style="font-size: 11px; padding: 10px 12px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.15);">
                     <div>${featuresHtml}</div>
@@ -131,8 +540,8 @@
             `;
             grid.appendChild(card);
             
-            // Khôi phục trạng thái stream nếu có
-            if (streamStates[cam.camera_id]) {
+            // Khôi phục trạng thái stream nếu có (chỉ dành cho camera đang hoạt động)
+            if (!isPaused && streamStates[cam.camera_id]) {
                 const img = document.getElementById(`stream-${cam.camera_id}`);
                 const placeholder = document.getElementById(`placeholder-${cam.camera_id}`);
                 const sBadge = document.getElementById(`badge-${cam.camera_id}`);
@@ -140,11 +549,20 @@
                 img.style.display = "block";
                 placeholder.style.display = "none";
                 sBadge.innerHTML = '<div class="status-dot" style="background-color: var(--success); box-shadow: 0 0 8px var(--success-glow);"></div> Running';
+            } else if (isPaused && streamStates[cam.camera_id]) {
+                // Tự động giải phóng trạng thái bật nếu camera đã bị tạm dừng
+                delete streamStates[cam.camera_id];
+                saveStreamStates();
             }
         });
     }
 
     function toggleDynamicStream(cameraId, endpoint) {
+        const cam = activeCameras.find(c => c.camera_id === cameraId);
+        if (cam && cam.enabled === false) {
+            return alert("Camera này đang bị tạm dừng trong Cài đặt, không thể bật luồng!");
+        }
+
         const img = document.getElementById(`stream-${cameraId}`);
         const placeholder = document.getElementById(`placeholder-${cameraId}`);
         const sBadge = document.getElementById(`badge-${cameraId}`);

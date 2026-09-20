@@ -63,10 +63,10 @@
             <div style="margin-top: 12px;">
                 <label class="form-label" style="font-size: 11px;">Điều kiện tự động bật đèn</label>
                 <select id="setting-light-trigger-mode" class="form-input" style="width: 100%; cursor: pointer;" onchange="onLightTriggerModeChange()">
-                    <option value="always">Luôn tự động bật khi có đột nhập</option>
-                    <option value="schedule">Chỉ tự động bật trong khung giờ cấu hình</option>
-                    <option value="dark">Chỉ tự động bật khi trời tối (phân tích camera)</option>
-                    <option value="both">Kết hợp cả hai (Trời tối TRONG khung giờ cấu hình)</option>
+                    <option value="always" style="color: #000000;">Luôn tự động bật khi có đột nhập</option>
+                    <option value="schedule" style="color: #000000;">Chỉ tự động bật trong khung giờ cấu hình</option>
+                    <option value="dark" style="color: #000000;">Chỉ tự động bật khi trời tối (phân tích camera)</option>
+                    <option value="both" style="color: #000000;">Kết hợp cả hai (Trời tối TRONG khung giờ cấu hình)</option>
                 </select>
             </div>
 
@@ -247,9 +247,33 @@
             <label class="form-label">Ngưỡng Phát Hiện Lảng Vảng (Giây)</label>
             <input type="number" id="setting-loitering-threshold" class="form-input" min="3">
         </div>
-        <div class="form-group">
-            <label class="form-label">Cooldown Log Trùng Khuôn Mặt (Giây)</label>
-            <input type="number" id="setting-face-cooldown" class="form-input" min="5">
+        <div class="form-group" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+                <label class="form-label" style="font-weight: 600; color: #fff; margin-bottom: 0; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-user-clock" style="color: var(--primary);"></i>
+                    <span>Thời Gian Giãn Cách Báo Lại Khuôn Mặt / Người Quen</span>
+                </label>
+                <span id="face-cooldown-preview" style="font-size: 12px; font-weight: 600; color: var(--primary); background: rgba(59, 130, 246, 0.15); padding: 2px 8px; border-radius: 6px;">(Tương đương: 5 phút)</span>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin: 0 0 10px 0; line-height: 1.4;">
+                Khoảng thời gian hệ thống mới gửi lại thông báo cho cùng một người quen. Giúp bạn không bị rung chuông liên tục khi ngồi làm việc trước camera.
+            </p>
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <div style="position: relative; flex: 1;">
+                    <input type="number" id="setting-face-cooldown" class="form-input" min="5" step="5" style="width: 100%; padding-right: 50px;" oninput="updateFaceCooldownPreview(this.value)">
+                    <span style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text-muted); pointer-events: none;">Giây</span>
+                </div>
+            </div>
+            <!-- Các nút chọn nhanh -->
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                <button type="button" class="btn btn-face-preset" data-sec="30" onclick="setFaceCooldownPreset(30)" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: pointer;">30 Giây</button>
+                <button type="button" class="btn btn-face-preset" data-sec="60" onclick="setFaceCooldownPreset(60)" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: pointer;">1 Phút</button>
+                <button type="button" class="btn btn-face-preset" data-sec="300" onclick="setFaceCooldownPreset(300)" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: pointer;">5 Phút (Chuẩn)</button>
+                <button type="button" class="btn btn-face-preset" data-sec="900" onclick="setFaceCooldownPreset(900)" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: pointer;">15 Phút</button>
+                <button type="button" class="btn btn-face-preset" data-sec="1800" onclick="setFaceCooldownPreset(1800)" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: pointer;">30 Phút</button>
+                <button type="button" class="btn btn-face-preset" data-sec="3600" onclick="setFaceCooldownPreset(3600)" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: pointer;">1 Giờ</button>
+                <button type="button" class="btn btn-face-preset" data-sec="14400" onclick="setFaceCooldownPreset(14400)" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: pointer;">4 Giờ</button>
+            </div>
         </div>
         <div class="form-group">
             <label class="form-label">Ngưỡng Tin Cậy Nhận Diện Cháy Nổ (Confidence)</label>
@@ -282,7 +306,7 @@
                 <button class="btn" style="padding: 8px 16px; font-weight: 500;" onclick="openMapManagerModal()">
                     <i class="fa-solid fa-folder-open"></i> Quản Lý Bản Đồ
                 </button>
-                <button class="btn btn-primary" onclick="openAddCameraModal()">
+                <button class="btn btn-primary" id="btn-add-camera" onclick="openAddCameraModal()">
                     <i class="fa-solid fa-plus"></i> Thêm Camera Mới
                 </button>
             </div>
@@ -295,12 +319,13 @@
                         <th>Nguồn Video</th>
                         <th>Tính Năng AI</th>
                         <th>Lịch Trình</th>
+                        <th>Trạng Thái</th>
                         <th style="text-align: right;">Thao Tác</th>
                     </tr>
                 </thead>
                 <tbody id="cameras-config-tbody">
                     <tr>
-                        <td colspan="5" style="text-align: center; color: var(--text-muted);">Đang nạp cấu hình
+                        <td colspan="6" style="text-align: center; color: var(--text-muted);">Đang nạp cấu hình
                             camera...</td>
                     </tr>
                 </tbody>
@@ -311,85 +336,146 @@
 
 <!-- Modal Thêm/Sửa Camera -->
 <div id="camera-modal"
-    style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
-    <div class="glass-card" style="width: 100%; max-width: 500px; margin: 0 16px; margin-bottom: 0;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 id="camera-modal-title" style="font-size: 18px; font-weight: 600;">Thêm Camera Mới</h3>
-            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted);"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.65); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(6px); padding: 16px; box-sizing: border-box; overflow-y: auto;">
+    <div class="glass-card" style="width: 100%; max-width: 540px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; margin: auto; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.15);">
+        
+        <!-- Modal Header (Cố định ở đầu) -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">
+            <h3 id="camera-modal-title" style="font-size: 18px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px; color: #fff;">
+                <i class="fa-solid fa-video" style="color: var(--primary);"></i>
+                <span>Thêm Camera Mới</span>
+            </h3>
+            <span style="font-size: 24px; cursor: pointer; color: var(--text-muted); line-height: 1; padding: 4px;"
                 onclick="closeCameraModal()">&times;</span>
         </div>
         <input type="hidden" id="camera-modal-action" value="add">
 
-        <div class="form-group">
-            <label class="form-label">Camera ID (Duy nhất, viết liền không dấu)</label>
-            <input type="text" id="cam-id-input" class="form-input" placeholder="Ví dụ: Cam_San_Sau">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Nguồn Stream (Index webcam, file video hoặc link RTSP)</label>
-            <input type="text" id="cam-source-input" class="form-input"
-                placeholder="Ví dụ: 0 hoặc video.mp4 hoặc rtsp://...">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Mặt bằng E-map (Khu vực - Tầng)</label>
-            <select id="cam-map-input" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
-                <!-- Dữ liệu được nạp động từ API /api/maps -->
-            </select>
-        </div>
+        <!-- Modal Body (Cuộn mượt mà khi nội dung dài) -->
+        <div class="modal-scroll-body" style="overflow-y: auto; flex: 1; padding-right: 8px; display: flex; flex-direction: column; gap: 14px;">
+            <div class="form-group">
+                <label class="form-label">Camera ID (Duy nhất, viết liền không dấu)</label>
+                <input type="text" id="cam-id-input" class="form-input" placeholder="Ví dụ: Cam_San_Sau">
+            </div>
 
-        <div class="form-group">
-            <label class="form-label">Kích Hoạt Tính Năng AI</label>
-            <div
-                style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+            <div class="form-group" style="padding: 10px 14px; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+                <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; margin-bottom: 0;">
+                    <div>
+                        <span style="font-size: 13px; font-weight: 600; display: block; color: #fff;">Trạng Thái Hoạt Động</span>
+                        <span style="font-size: 11px; color: var(--text-muted);">Bật để camera chạy và phân tích AI, tắt để tạm dừng thiết bị</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="cam-enabled-input" checked onchange="updateCamEnabledLabel(this.checked)" style="transform: scale(1.3); cursor: pointer;">
+                        <span id="cam-enabled-label" style="font-size: 12px; font-weight: 600; color: #10b981;">Đang hoạt động</span>
+                    </div>
+                </label>
+            </div>
 
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-                    <input type="checkbox" id="cam-feat-roi"> Phát hiện xâm nhập ROI
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label class="form-label" style="margin-bottom: 0;">Nguồn Camera (Cổng Webcam, Video hoặc RTSP)</label>
+                    <button type="button" onclick="scanAvailableCameras(document.getElementById('cam-source-input').value, true)" style="padding: 2px 8px; font-size: 11px; border-radius: 4px; display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #e2e8f0; cursor: pointer;">
+                        🔄 Quét cổng camera
+                    </button>
+                </div>
+
+                <!-- Dropdown chọn nguồn camera -->
+                <div style="display: flex; gap: 8px;">
+                    <select id="cam-source-select" class="form-input" onchange="onCameraSourceSelectChange()" style="flex: 1; background: #1e293b; color: #fff; font-size: 13px;">
+                        <option value="">-- Đang quét thiết bị camera... --</option>
+                    </select>
+                    <button type="button" id="btn-preview-cam" onclick="toggleCameraPreview()" style="padding: 0 12px; font-size: 12px; border-radius: 6px; white-space: nowrap; display: flex; align-items: center; gap: 4px; background: #3b82f6; color: #fff; border: none; cursor: pointer;">
+                        👁️ Xem thử
+                    </button>
+                </div>
+
+                <!-- Hộp cảnh báo khi cổng camera đã có camera khác sử dụng -->
+                <div id="cam-source-warning" style="display: none; margin-top: 6px; padding: 6px 10px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; color: #fca5a5; font-size: 12px; align-items: center; gap: 6px;">
+                    <span>⚠️</span>
+                    <span id="cam-source-warning-text">Cổng camera này đang được sử dụng bởi camera khác!</span>
+                </div>
+
+                <!-- Ô nhập tùy chỉnh nếu chọn RTSP / link IP / file khác -->
+                <div id="cam-source-custom-container" style="display: none; margin-top: 8px;">
+                    <label style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px; display: block;">Nhập đường dẫn tùy chỉnh (RTSP link, URL hoặc tệp video):</label>
+                    <input type="text" id="cam-source-input" class="form-input" placeholder="Ví dụ: 0 hoặc video.mp4 hoặc rtsp://...">
+                </div>
+
+                <!-- Khung xem trước hình ảnh camera (Live Preview Snapshot) -->
+                <div id="cam-preview-container" style="display: none; margin-top: 10px; background: #0f172a; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 8px; text-align: center;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 12px; color: #94a3b8;">
+                        <span id="cam-preview-title" style="font-weight: 500; color: #38bdf8;">Ảnh xem trước</span>
+                        <span style="cursor: pointer; color: #ef4444; font-size: 12px;" onclick="toggleCameraPreview(false)">&times; Đóng xem trước</span>
+                    </div>
+                    <div style="position: relative; width: 100%; height: 180px; background: #020617; border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                        <img id="cam-preview-img" src="" alt="Camera Preview" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;">
+                        <div id="cam-preview-loading" style="color: var(--text-muted); font-size: 12px;">Đang chụp thử khung hình từ camera...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Mặt bằng E-map (Khu vực - Tầng)</label>
+                <select id="cam-map-input" class="form-input" style="background: rgba(255,255,255,0.03); color: #fff;">
+                    <!-- Dữ liệu được nạp động từ API /api/maps -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Kích Hoạt Tính Năng AI</label>
+                <div
+                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" id="cam-feat-roi"> Phát hiện xâm nhập ROI
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" id="cam-feat-face"> So khớp khuôn mặt
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" id="cam-feat-fall"> Phát hiện người ngã
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" id="cam-feat-behavior"> Hành vi bất thường
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" id="cam-feat-fire"> Phát hiện cháy nổ
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group" style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <label
+                    style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; margin-bottom: 8px;">
+                    <input type="checkbox" id="cam-lowlight-enhance"> Tăng cường ánh sáng yếu (Low-Light CLAHE)
                 </label>
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-                    <input type="checkbox" id="cam-feat-face"> So khớp khuôn mặt
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 12px; color: var(--text-muted);">Ngưỡng Clip Limit:</span>
+                    <input type="number" id="cam-lowlight-clip" class="form-input" style="padding: 4px 8px; width: 80px;"
+                        step="0.5" value="2.0">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="cam-sched-enabled" onchange="toggleSchedInputs(this.checked)"> Kích hoạt giờ
+                    hoạt động cảnh báo
                 </label>
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-                    <input type="checkbox" id="cam-feat-fall"> Phát hiện người ngã
-                </label>
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-                    <input type="checkbox" id="cam-feat-behavior"> Hành vi bất thường
-                </label>
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-                    <input type="checkbox" id="cam-feat-fire"> Phát hiện cháy nổ
-                </label>
+            </div>
+
+            <div id="cam-sched-times" style="display: flex; gap: 12px; margin-bottom: 10px; transition: opacity 0.3s;">
+                <div style="flex: 1;">
+                    <label class="form-label">Bắt đầu</label>
+                    <input type="time" id="cam-sched-start" class="form-input" value="23:00">
+                </div>
+                <div style="flex: 1;">
+                    <label class="form-label">Kết thúc</label>
+                    <input type="time" id="cam-sched-end" class="form-input" value="06:00">
+                </div>
             </div>
         </div>
 
-        <div class="form-group" style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-            <label
-                style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; margin-bottom: 8px;">
-                <input type="checkbox" id="cam-lowlight-enhance"> Tăng cường ánh sáng yếu (Low-Light CLAHE)
-            </label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 12px; color: var(--text-muted);">Ngưỡng Clip Limit:</span>
-                <input type="number" id="cam-lowlight-clip" class="form-input" style="padding: 4px 8px; width: 80px;"
-                    step="0.5" value="2.0">
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                <input type="checkbox" id="cam-sched-enabled" onchange="toggleSchedInputs(this.checked)"> Kích hoạt giờ
-                hoạt động cảnh báo
-            </label>
-        </div>
-
-        <div id="cam-sched-times" style="display: flex; gap: 12px; margin-bottom: 20px; transition: opacity 0.3s;">
-            <div style="flex: 1;">
-                <label class="form-label">Bắt đầu</label>
-                <input type="time" id="cam-sched-start" class="form-input" value="23:00">
-            </div>
-            <div style="flex: 1;">
-                <label class="form-label">Kết thúc</label>
-                <input type="time" id="cam-sched-end" class="form-input" value="06:00">
-            </div>
-        </div>
-
-        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <!-- Modal Footer (Cố định ở đáy, luôn nhìn thấy nút Lưu) -->
+        <div style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 14px; margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; background: inherit;">
             <button class="btn" onclick="closeCameraModal()">Hủy</button>
             <button class="btn btn-success" onclick="saveCameraConfig()">Lưu Thay Đổi</button>
         </div>
@@ -410,17 +496,27 @@
         </div>
 
         <!-- Form thêm bản đồ mới -->
-        <div
-            style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); flex-shrink: 0; align-items: flex-end;">
-            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                <label class="form-label" style="font-size: 12px; color: var(--text-muted);">Tên mặt bằng mới (Ví dụ:
-                    Khu C - Tầng 1)</label>
-                <input type="text" id="new-map-name-input" class="form-input" style="padding: 8px 12px;"
-                    placeholder="Tên mặt bằng...">
+        <!-- Form thêm bản đồ mới kèm ảnh -->
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; background: rgba(255,255,255,0.02); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color); flex-shrink: 0;">
+            <div style="font-size: 13px; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-plus-circle"></i> Thêm Mặt Bằng Mới (Kèm Tùy Chọn Ảnh Ngoài)
             </div>
-            <button class="btn btn-success" style="padding: 10px 16px;" onclick="addNewMap()">
-                <i class="fa-solid fa-plus"></i> Thêm
-            </button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label class="form-label" style="font-size: 11px; color: var(--text-muted); margin: 0;">Tên mặt bằng *</label>
+                    <input type="text" id="new-map-name-input" class="form-input" style="padding: 7px 10px; font-size: 12px;" placeholder="VD: Tòa Nhà C - Tầng 1">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label class="form-label" style="font-size: 11px; color: var(--text-muted); margin: 0;">Ảnh từ máy tính (Tùy chọn)</label>
+                    <input type="file" id="new-map-file-input" accept="image/*" class="form-input" style="padding: 5px 8px; font-size: 11px;">
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" id="new-map-url-input" class="form-input" style="padding: 7px 10px; font-size: 12px; flex: 1;" placeholder="Hoặc dán URL ảnh từ internet / bên ngoài...">
+                <button class="btn btn-success" style="padding: 7px 16px; font-size: 12px; white-space: nowrap;" onclick="addNewMapWithImage()">
+                    <i class="fa-solid fa-plus"></i> Tạo Mặt Bằng
+                </button>
+            </div>
         </div>
 
         <!-- Danh sách bản đồ hiện có -->
@@ -468,7 +564,7 @@
             // Populate dropdown in Modal
             const select = document.getElementById('cam-map-input');
             if (select) {
-                select.innerHTML = availableMaps.map(m => `<option value="${m.map_id}">${m.name}</option>`).join('');
+                select.innerHTML = availableMaps.map(m => `<option value="${m.map_id}" style="color: #000000;">${m.name}</option>`).join('');
             }
         } catch (e) {
             console.error("Lỗi tải danh sách mặt bằng:", e);
@@ -492,7 +588,9 @@
             document.getElementById('setting-tts-enabled').value = settings.tts_enabled ? "true" : "false";
             document.getElementById('setting-tts-voice').value = settings.tts_voice || "vi-VN";
             document.getElementById('setting-loitering-threshold').value = settings.loitering_threshold !== undefined ? settings.loitering_threshold : 10;
-            document.getElementById('setting-face-cooldown').value = settings.face_log_cooldown !== undefined ? settings.face_log_cooldown : 30;
+            const faceCd = settings.face_log_cooldown !== undefined ? settings.face_log_cooldown : 300;
+            document.getElementById('setting-face-cooldown').value = faceCd;
+            updateFaceCooldownPreview(faceCd);
             document.getElementById('setting-fire-conf').value = settings.fire_conf_threshold !== undefined ? settings.fire_conf_threshold : 0.55;
             document.getElementById('setting-fire-buffer').value = settings.fire_frame_buffer !== undefined ? settings.fire_frame_buffer : 25;
             document.getElementById('setting-light-auto-off').value = settings.light_auto_off_seconds !== undefined ? settings.light_auto_off_seconds : 30;
@@ -509,6 +607,42 @@
             onLightTriggerModeChange();
         } catch (e) {
             console.error("Lỗi khi nạp cấu hình hệ thống:", e);
+        }
+    }
+
+    function updateFaceCooldownPreview(val) {
+        const seconds = parseInt(val) || 0;
+        const previewEl = document.getElementById('face-cooldown-preview');
+        if (previewEl) {
+            if (seconds < 60) {
+                previewEl.textContent = `(Tương đương: ${seconds} giây)`;
+            } else if (seconds < 3600) {
+                const m = Math.floor(seconds / 60);
+                const s = seconds % 60;
+                previewEl.textContent = s > 0 ? `(Tương đương: ${m} phút ${s}s)` : `(Tương đương: ${m} phút)`;
+            } else {
+                const h = (seconds / 3600).toFixed(1).replace('.0', '');
+                previewEl.textContent = `(Tương đương: ${h} giờ)`;
+            }
+        }
+        document.querySelectorAll('.btn-face-preset').forEach(btn => {
+            if (parseInt(btn.getAttribute('data-sec')) === seconds) {
+                btn.style.backgroundColor = 'var(--primary)';
+                btn.style.color = '#fff';
+                btn.style.borderColor = 'var(--primary)';
+            } else {
+                btn.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                btn.style.color = 'var(--text-muted)';
+                btn.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+            }
+        });
+    }
+
+    function setFaceCooldownPreset(sec) {
+        const input = document.getElementById('setting-face-cooldown');
+        if (input) {
+            input.value = sec;
+            updateFaceCooldownPreview(sec);
         }
     }
 
@@ -585,6 +719,13 @@
     async function loadCamerasConfig() {
         const tbody = document.getElementById('cameras-config-tbody');
         tbody.innerHTML = '';
+
+        // Đảm bảo nút Thêm Camera chỉ hiển thị cho admin hoặc superadmin
+        const addCamBtn = document.getElementById('btn-add-camera');
+        if (addCamBtn) {
+            addCamBtn.style.display = (userRole === 'admin' || userRole === 'superadmin') ? 'inline-flex' : 'none';
+        }
+
         activeCameras.forEach(cam => {
             let feats = [];
             if (cam.features.includes('intrusion_roi')) feats.push('ROI cấm');
@@ -593,15 +734,26 @@
             if (cam.features.includes('abnormal_behavior')) feats.push('Hành vi');
             if (cam.features.includes('fire_detection')) feats.push('Cháy nổ');
 
-            let schedText = '24/7';
+            let schedText = '<span style="color: var(--text-muted); font-size: 11px;"><i class="fa-solid fa-globe"></i> 24/7</span>';
             if (cam.schedule_enabled) {
-                schedText = `Bật (${cam.schedule_start} - ${cam.schedule_end})`;
+                const inSched = isCurrentTimeInSchedule(cam.schedule_start, cam.schedule_end);
+                schedText = inSched
+                    ? `<span style="color: #10b981; font-weight: 600; font-size: 11px;"><i class="fa-solid fa-clock"></i> ${cam.schedule_start} - ${cam.schedule_end} <span style="font-size: 10px; background: rgba(16,185,129,0.15); padding: 1px 5px; border-radius: 4px;">Đang bật</span></span>`
+                    : `<span style="color: #f59e0b; font-weight: 600; font-size: 11px;"><i class="fa-solid fa-clock"></i> ${cam.schedule_start} - ${cam.schedule_end} <span style="font-size: 10px; background: rgba(245,158,11,0.15); padding: 1px 5px; border-radius: 4px;">Hết giờ</span></span>`;
             }
 
             const mapObj = availableMaps.find(m => m.map_id === cam.map_id);
             const mapName = mapObj ? mapObj.name : 'Chưa gán';
 
+            const isEnabled = cam.enabled !== false;
+            const statusBadge = isEnabled
+                ? `<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #10b981; font-weight: 600; background: rgba(16,185,129,0.12); padding: 3px 8px; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);"><span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981;"></span>Đang chạy</span>`
+                : `<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #f59e0b; font-weight: 600; background: rgba(245,158,11,0.12); padding: 3px 8px; border-radius: 12px; border: 1px solid rgba(245,158,11,0.3);"><span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b;"></span>Tạm dừng</span>`;
+
             const tr = document.createElement('tr');
+            if (!isEnabled) {
+                tr.style.opacity = '0.75';
+            }
             tr.innerHTML = `
                 <td>
                     <strong>${cam.camera_id}</strong>
@@ -612,8 +764,12 @@
                 <td style="font-family: monospace; font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${cam.source}</td>
                 <td><span style="font-size: 11px;">${feats.join(', ') || 'Không có'}</span></td>
                 <td><span style="font-size: 11px; font-weight: 500;">${schedText}</span></td>
+                <td>${statusBadge}</td>
                 <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
-                    ${userRole === 'admin' ? `
+                    ${(userRole === 'admin' || userRole === 'superadmin') ? `
+                        <button class="btn ${isEnabled ? 'btn-warning' : 'btn-success'}" style="padding: 4px 8px; font-size: 11px;" onclick="toggleCameraState('${cam.camera_id}')" title="${isEnabled ? 'Tạm dừng camera' : 'Kích hoạt lại camera'}">
+                            <i class="fa-solid ${isEnabled ? 'fa-pause' : 'fa-play'}"></i> ${isEnabled ? 'Tạm dừng' : 'Bật lại'}
+                        </button>
                         <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="openEditCameraModal('${cam.camera_id}')">
                              <i class="fa-solid fa-pen"></i> Sửa
                         </button>
@@ -627,18 +783,237 @@
         });
     }
 
+    function isCurrentTimeInSchedule(startStr, endStr) {
+        if (!startStr || !endStr) return true;
+        try {
+            const now = new Date();
+            const currentMins = now.getHours() * 60 + now.getMinutes();
+            const [sH, sM] = startStr.split(':').map(Number);
+            const [eH, eM] = endStr.split(':').map(Number);
+            const startMins = sH * 60 + sM;
+            const endMins = eH * 60 + eM;
+            if (startMins <= endMins) {
+                return currentMins >= startMins && currentMins <= endMins;
+            } else {
+                return currentMins >= startMins || currentMins <= endMins;
+            }
+        } catch (e) {
+            return true;
+        }
+    }
+
+    function updateCamEnabledLabel(checked) {
+        const lbl = document.getElementById('cam-enabled-label');
+        if (lbl) {
+            lbl.innerText = checked ? "Đang hoạt động" : "Tạm dừng";
+            lbl.style.color = checked ? "#10b981" : "#f59e0b";
+        }
+    }
+
     function toggleSchedInputs(checked) {
         document.getElementById('cam-sched-times').style.opacity = checked ? "1" : "0.4";
         document.getElementById('cam-sched-times').style.pointerEvents = checked ? "auto" : "none";
     }
 
+    let cachedAvailableCameras = null;
+
+    function renderCameraSourceOptions(data, targetSrc) {
+        const select = document.getElementById('cam-source-select');
+        select.innerHTML = '';
+        
+        // 1. Nhóm Webcam cắm máy
+        const webcams = data.webcams || [];
+        if (webcams.length > 0) {
+            const optGroupWebcam = document.createElement('optgroup');
+            optGroupWebcam.label = "🎥 Webcam / Camera phần cứng cắm máy";
+            optGroupWebcam.style.color = "#000000";
+            webcams.forEach(w => {
+                const opt = document.createElement('option');
+                opt.value = w.source;
+                opt.style.color = "#000000";
+                const inUse = (w.in_use_by && w.in_use_by.length > 0) ? ` (⚠️ Đang dùng: ${w.in_use_by.join(', ')})` : ' (✅ Khả dụng)';
+                opt.innerText = `${w.name} [${w.resolution}]${inUse}`;
+                optGroupWebcam.appendChild(opt);
+            });
+            select.appendChild(optGroupWebcam);
+        }
+        
+        // 2. Nhóm Video tệp cục bộ
+        const videos = data.local_videos || [];
+        if (videos.length > 0) {
+            const optGroupVideo = document.createElement('optgroup');
+            optGroupVideo.label = "📁 Tệp Video cục bộ có sẵn";
+            optGroupVideo.style.color = "#000000";
+            videos.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v.source;
+                opt.style.color = "#000000";
+                const inUse = (v.in_use_by && v.in_use_by.length > 0) ? ` (Đang dùng: ${v.in_use_by.join(', ')})` : '';
+                opt.innerText = `${v.name}${inUse}`;
+                optGroupVideo.appendChild(opt);
+            });
+            select.appendChild(optGroupVideo);
+        }
+
+        // 3. Tùy chọn tùy chỉnh
+        const optGroupCustom = document.createElement('optgroup');
+        optGroupCustom.label = "⚙️ Nhập thủ công";
+        optGroupCustom.style.color = "#000000";
+        const customOpt = document.createElement('option');
+        customOpt.value = "__custom__";
+        customOpt.style.color = "#000000";
+        customOpt.innerText = "➕ Nhập link RTSP / URL / Tệp khác...";
+        optGroupCustom.appendChild(customOpt);
+        select.appendChild(optGroupCustom);
+
+        // Chọn nguồn ban đầu
+        let hasMatch = false;
+        for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].value === targetSrc) {
+                select.selectedIndex = i;
+                hasMatch = true;
+                break;
+            }
+        }
+        if (!hasMatch) {
+            select.value = "__custom__";
+            document.getElementById('cam-source-input').value = targetSrc;
+            document.getElementById('cam-source-custom-container').style.display = 'block';
+        } else {
+            document.getElementById('cam-source-input').value = targetSrc;
+            document.getElementById('cam-source-custom-container').style.display = 'none';
+        }
+        onCameraSourceSelectChange();
+    }
+
+    async function scanAvailableCameras(currentSource, forceRefresh = false) {
+        const select = document.getElementById('cam-source-select');
+        const input = document.getElementById('cam-source-input');
+        
+        let targetSrc = currentSource !== undefined && currentSource !== null ? String(currentSource).trim() : (input.value.trim() || "0");
+        if (input) input.value = targetSrc;
+
+        // Nếu đã có cache và không yêu cầu quét lại cưỡng bức: render tức thì từ cache
+        if (cachedAvailableCameras && !forceRefresh) {
+            renderCameraSourceOptions(cachedAvailableCameras, targetSrc);
+            return;
+        }
+
+        if (forceRefresh || select.options.length <= 1) {
+            select.innerHTML = `<option value="${targetSrc}" selected>-- Đang kiểm tra cổng khả dụng (${targetSrc})... --</option>`;
+        }
+
+        try {
+            const res = await fetch('/api/system/cameras/scan');
+            if (!res.ok) throw new Error("Không thể quét camera");
+            cachedAvailableCameras = await res.json();
+            renderCameraSourceOptions(cachedAvailableCameras, targetSrc);
+        } catch (err) {
+            console.error("Lỗi quét camera:", err);
+            select.innerHTML = `
+                <option value="${targetSrc}" selected>Nguồn camera hiện tại: ${targetSrc}</option>
+                <option value="__custom__">➕ Nhập thủ công (RTSP / Tệp video)</option>
+            `;
+            document.getElementById('cam-source-custom-container').style.display = 'block';
+            if (input) input.value = targetSrc;
+        }
+    }
+
+    function onCameraSourceSelectChange() {
+        const select = document.getElementById('cam-source-select');
+        const customContainer = document.getElementById('cam-source-custom-container');
+        const input = document.getElementById('cam-source-input');
+        const warningBox = document.getElementById('cam-source-warning');
+        const warningText = document.getElementById('cam-source-warning-text');
+        
+        const val = select.value;
+        if (val === '__custom__') {
+            customContainer.style.display = 'block';
+            warningBox.style.display = 'none';
+        } else {
+            customContainer.style.display = 'none';
+            input.value = val;
+
+            // Kiểm tra xem cổng này có đang bị camera khác dùng không
+            const currentEditingCamId = document.getElementById('camera-modal-action').value === 'edit' ? document.getElementById('cam-id-input').value : null;
+            let conflictCams = [];
+            if (cachedAvailableCameras && cachedAvailableCameras.webcams) {
+                const found = cachedAvailableCameras.webcams.find(w => w.source === val);
+                if (found && found.in_use_by) {
+                    conflictCams = found.in_use_by.filter(cid => cid !== currentEditingCamId);
+                }
+            }
+
+            if (conflictCams.length > 0) {
+                warningBox.style.display = 'flex';
+                warningText.innerText = `Cổng này đang được sử dụng bởi '${conflictCams.join(', ')}'. Nếu chọn cổng này, 2 camera sẽ bị chèn hình ảnh và xung đột thiết bị!`;
+            } else {
+                warningBox.style.display = 'none';
+            }
+        }
+
+        // Nếu khung preview đang mở, cập nhật luôn ảnh xem trước
+        const previewBox = document.getElementById('cam-preview-container');
+        if (previewBox && previewBox.style.display !== 'none') {
+            toggleCameraPreview(true);
+        }
+    }
+
+    async function toggleCameraPreview(forceState) {
+        const previewBox = document.getElementById('cam-preview-container');
+        const previewImg = document.getElementById('cam-preview-img');
+        const previewLoading = document.getElementById('cam-preview-loading');
+        const previewTitle = document.getElementById('cam-preview-title');
+
+        if (forceState === false) {
+            previewBox.style.display = 'none';
+            return;
+        }
+
+        const source = document.getElementById('cam-source-input').value.trim();
+        if (!source) return alert("Vui lòng chọn hoặc nhập nguồn camera trước khi xem thử!");
+
+        previewBox.style.display = 'block';
+        previewImg.style.display = 'none';
+        previewLoading.style.display = 'block';
+        previewLoading.innerText = `Đang chụp thử khung hình từ nguồn: ${source}...`;
+        previewTitle.innerText = `Ảnh xem trước: Cổng ${source}`;
+
+        try {
+            const url = `/api/system/cameras/preview?source=${encodeURIComponent(source)}&_t=${Date.now()}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.detail || "Không thể chụp ảnh từ nguồn này!");
+            }
+            const blob = await res.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            previewImg.src = objectUrl;
+            previewImg.onload = () => {
+                previewLoading.style.display = 'none';
+                previewImg.style.display = 'block';
+            };
+        } catch (err) {
+            previewLoading.innerHTML = `<span style="color: #ef4444;">⚠️ ${err.message}</span>`;
+        }
+    }
+
     function openAddCameraModal() {
-        if (userRole === 'operator') return;
+        if (userRole !== 'admin' && userRole !== 'superadmin') {
+            return alert("Chỉ Quản trị viên (Admin / Super Admin) mới có quyền thêm camera mới!");
+        }
         document.getElementById('camera-modal-title').innerText = "Thêm Camera Mới";
         document.getElementById('camera-modal-action').value = "add";
         document.getElementById('cam-id-input').value = "";
         document.getElementById('cam-id-input').disabled = false;
-        document.getElementById('cam-source-input').value = "video.mp4";
+        
+        document.getElementById('cam-enabled-input').checked = true;
+        updateCamEnabledLabel(true);
+
+        document.getElementById('cam-source-input').value = "0";
+        toggleCameraPreview(false);
+        scanAvailableCameras("0", false);
+
         if (document.getElementById('cam-map-input').options.length > 0) {
             document.getElementById('cam-map-input').selectedIndex = 0;
         }
@@ -657,7 +1032,9 @@
     }
 
     function openEditCameraModal(cameraId) {
-        if (userRole === 'operator') return;
+        if (userRole !== 'admin' && userRole !== 'superadmin') {
+            return alert("Chỉ Quản trị viên (Admin / Super Admin) mới có quyền chỉnh sửa camera!");
+        }
         const cam = activeCameras.find(c => c.camera_id === cameraId);
         if (!cam) return;
 
@@ -665,7 +1042,23 @@
         document.getElementById('camera-modal-action').value = "edit";
         document.getElementById('cam-id-input').value = cam.camera_id;
         document.getElementById('cam-id-input').disabled = true;
-        document.getElementById('cam-source-input').value = cam.source;
+        
+        const isEnabled = cam.enabled !== false;
+        document.getElementById('cam-enabled-input').checked = isEnabled;
+        updateCamEnabledLabel(isEnabled);
+
+        // GÁN NGAY NGUỒN HIỆN TẠI VÀO INPUT ĐỂ BẤM LƯU TỨC THÌ MÀ KHÔNG CẦN CHỜ QUÉT
+        const currentSource = cam.source !== undefined && cam.source !== null ? String(cam.source).trim() : "0";
+        document.getElementById('cam-source-input').value = currentSource;
+
+        // Đặt trước một option vào select để không bị hiển thị trạng thái chờ nếu bấm lưu luôn
+        const select = document.getElementById('cam-source-select');
+        select.innerHTML = `<option value="${currentSource}" selected>Nguồn camera hiện tại: ${currentSource}</option>`;
+
+        toggleCameraPreview(false);
+        // Quét thông tin thiết bị (dùng cache nếu đã có, không làm gián đoạn việc lưu)
+        scanAvailableCameras(currentSource, false);
+
         document.getElementById('cam-map-input').value = cam.map_id || "khu_a_tang_1";
 
         document.getElementById('cam-feat-roi').checked = cam.features.includes('intrusion_roi');
@@ -685,15 +1078,42 @@
     }
 
     function closeCameraModal() {
+        toggleCameraPreview(false);
         document.getElementById('camera-modal').style.display = "none";
     }
 
     async function saveCameraConfig() {
+        if (userRole !== 'admin' && userRole !== 'superadmin') {
+            return alert("Chỉ Quản trị viên (Admin / Super Admin) mới có quyền lưu cấu hình camera!");
+        }
         const action = document.getElementById('camera-modal-action').value;
         const cameraId = document.getElementById('cam-id-input').value.trim();
-        const source = document.getElementById('cam-source-input').value.trim();
+        
+        // Lấy nguồn camera thông minh: ưu tiên input, nếu rỗng lấy từ select, nếu vẫn rỗng lấy từ cấu hình cũ của camera
+        let source = document.getElementById('cam-source-input').value.trim();
+        const selectVal = document.getElementById('cam-source-select').value;
+        if (!source && selectVal && selectVal !== '__custom__' && selectVal !== '') {
+            source = selectVal.trim();
+        }
+        if (!source && action === 'edit') {
+            const oldCam = activeCameras.find(c => c.camera_id === cameraId);
+            if (oldCam && oldCam.source !== undefined) {
+                source = String(oldCam.source).trim();
+            }
+        }
 
         if (!cameraId || !source) return alert("Vui lòng nhập đầy đủ thông tin bắt buộc!");
+
+        // Kiểm tra chống xung đột cổng webcam phần cứng ở Client
+        if (/^\d+$/.test(source) && cachedAvailableCameras && cachedAvailableCameras.webcams) {
+            const found = cachedAvailableCameras.webcams.find(w => w.source === source);
+            if (found && found.in_use_by) {
+                const conflicts = found.in_use_by.filter(cid => cid !== (action === 'edit' ? cameraId : null));
+                if (conflicts.length > 0) {
+                    return alert(`⚠️ Lỗi: Cổng webcam '${source}' đang được gán cho camera '${conflicts.join(', ')}'!\n\nMỗi webcam vật lý chỉ được gán cho 1 camera duy nhất để tránh bị chèn hình ảnh và xung đột thiết bị. Vui lòng chọn cổng khác!`);
+                }
+            }
+        }
 
         const features = [];
         if (document.getElementById('cam-feat-roi').checked) features.push('intrusion_roi');
@@ -716,10 +1136,13 @@
             }
         }
 
+        const isEnabled = document.getElementById('cam-enabled-input').checked;
+
         const payload = {
             camera_id: cameraId,
             source: source,
             features: features,
+            enabled: isEnabled,
             line: existingLine,
             roi: existingRoi,
             schedule_enabled: document.getElementById('cam-sched-enabled').checked,
@@ -761,6 +1184,9 @@
     }
 
     async function deleteCamera(cameraId) {
+        if (userRole !== 'admin' && userRole !== 'superadmin') {
+            return alert("Chỉ Quản trị viên (Admin / Super Admin) mới có quyền xóa camera!");
+        }
         if (!confirm(`Bạn có chắc chắn muốn xóa camera '${cameraId}'?`)) return;
         try {
             const response = await fetch(`/api/cameras/${cameraId}`, { method: 'DELETE' });
@@ -778,6 +1204,32 @@
             }
         } catch (e) {
             alert("Lỗi khi xóa camera!");
+        }
+    }
+
+    async function toggleCameraState(cameraId) {
+        if (userRole !== 'admin' && userRole !== 'superadmin') {
+            return alert("Chỉ Quản trị viên (Admin / Super Admin) mới có quyền tạm dừng hoặc kích hoạt camera!");
+        }
+        const cam = activeCameras.find(c => c.camera_id === cameraId);
+        const actionName = (cam && cam.enabled === false) ? "kích hoạt lại" : "tạm dừng";
+        if (!confirm(`Bạn có chắc chắn muốn ${actionName} hoạt động của camera '${cameraId}'?`)) return;
+
+        try {
+            const response = await fetch(`/api/cameras/${cameraId}/toggle_enabled`, {
+                method: 'PUT'
+            });
+            const res = await response.json();
+            if (response.ok) {
+                // Tải lại danh sách camera
+                const r = await fetch('/api/cameras');
+                activeCameras = await r.json();
+                loadCamerasConfig();
+            } else {
+                alert("Lỗi: " + (res.detail || "Không thể cập nhật trạng thái camera!"));
+            }
+        } catch (e) {
+            alert("Lỗi kết nối khi cập nhật trạng thái camera!");
         }
     }
 
@@ -832,26 +1284,35 @@
             item.style.display = "flex";
             item.style.justifyContent = "space-between";
             item.style.alignItems = "center";
-            item.style.padding = "12px";
-            item.style.background = "rgba(0,0,0,0.2)";
+            item.style.padding = "10px 14px";
+            item.style.background = "rgba(0,0,0,0.25)";
             item.style.borderRadius = "8px";
             item.style.border = "1px solid var(--border-color)";
+            item.style.gap = "12px";
+
+            const thumbSrc = (m.image_path || `/static/emap_${m.map_id}.png`) + `?t=${Date.now()}`;
 
             item.innerHTML = `
-                <div>
-                    <strong style="color: #fff;">${m.name}</strong>
-                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">ID: ${m.map_id}</div>
+                <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+                    <img src="${thumbSrc}" style="width: 50px; height: 32px; object-fit: cover; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); background: #000;" onerror="this.src='/static/emap_khu_a_tang_1.png'">
+                    <div style="min-width: 0;">
+                        <strong style="color: #fff; font-size: 13px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${m.name}</strong>
+                        <div style="font-size: 10px; color: var(--text-muted);">ID: ${m.map_id}</div>
+                    </div>
                 </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <button class="btn" style="padding: 6px 12px; font-size: 12px; margin-bottom: 0;" onclick="renameMap('${m.map_id}', '${m.name}')">
-                        <i class="fa-solid fa-pen"></i> Đổi tên
+                <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+                    <button class="btn" style="padding: 5px 10px; font-size: 11px; margin-bottom: 0;" onclick="renameMap('${m.map_id}', '${m.name}')" title="Đổi tên mặt bằng">
+                        <i class="fa-solid fa-pen"></i> Tên
                     </button>
-                    <label class="btn" style="padding: 6px 12px; font-size: 12px; cursor: pointer; margin-bottom: 0;">
-                        <i class="fa-solid fa-upload"></i> Upload
+                    <label class="btn btn-warning" style="padding: 5px 10px; font-size: 11px; cursor: pointer; margin-bottom: 0; display: inline-flex; align-items: center; gap: 4px;" title="Tải ảnh từ máy tính">
+                        <i class="fa-solid fa-upload"></i> Đổi Ảnh
                         <input type="file" accept="image/*" style="display: none;" onchange="uploadMapFileForMap('${m.map_id}', this)">
                     </label>
-                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="deleteMap('${m.map_id}')">
-                        <i class="fa-solid fa-trash"></i> Xóa
+                    <button class="btn" style="padding: 5px 10px; font-size: 11px; margin-bottom: 0; background: rgba(168, 85, 247, 0.15); border: 1px solid #a855f7; color: #c084fc;" onclick="promptMapImageUrlFor('${m.map_id}')" title="Gán link ảnh từ bên ngoài">
+                        <i class="fa-solid fa-link"></i> Link
+                    </button>
+                    <button class="btn btn-danger" style="padding: 5px 10px; font-size: 11px; margin-bottom: 0;" onclick="deleteMap('${m.map_id}')" title="Xóa mặt bằng">
+                        <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
             `;
@@ -859,29 +1320,75 @@
         });
     }
 
-    async function addNewMap() {
-        const input = document.getElementById('new-map-name-input');
-        const name = input.value.trim();
+    async function addNewMapWithImage() {
+        const nameInput = document.getElementById('new-map-name-input');
+        const fileInput = document.getElementById('new-map-file-input');
+        const urlInput = document.getElementById('new-map-url-input');
+
+        const name = nameInput.value.trim();
         if (!name) return alert("Vui lòng nhập tên mặt bằng!");
 
         try {
+            // 1. Tạo mặt bằng mới
             const response = await fetch('/api/maps', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: name })
             });
             const res = await response.json();
-            if (response.ok) {
-                alert("Đã thêm mặt bằng mới!");
-                input.value = '';
-                await loadAvailableMaps();
-                renderMapManagerList();
-                loadCamerasConfig();
-            } else {
-                alert("Lỗi: " + res.detail);
+            if (!response.ok) {
+                return alert("Lỗi: " + res.detail);
             }
+
+            const createdMap = res.map;
+            const newMapId = createdMap.map_id;
+
+            // 2. Nếu có file ảnh, upload
+            if (fileInput.files && fileInput.files.length > 0) {
+                const formData = new FormData();
+                formData.append("file", fileInput.files[0]);
+                await fetch(`/api/emap/upload/${newMapId}`, { method: 'POST', body: formData });
+            } else if (urlInput.value && urlInput.value.trim()) {
+                // 3. Nếu có link URL ngoài, gửi API tải
+                await fetch(`/api/emap/url/${newMapId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image_url: urlInput.value.trim() })
+                });
+            }
+
+            alert("Đã thêm mặt bằng mới thành công!");
+            nameInput.value = '';
+            fileInput.value = '';
+            urlInput.value = '';
+            await loadAvailableMaps();
+            renderMapManagerList();
+            loadCamerasConfig();
         } catch (e) {
             alert("Lỗi kết nối khi thêm mặt bằng!");
+        }
+    }
+
+    async function promptMapImageUrlFor(mapId) {
+        const url = prompt(`Nhập link URL ảnh mặt bằng từ bên ngoài (http://... hoặc https://...):`);
+        if (!url || !url.trim()) return;
+
+        try {
+            const response = await fetch(`/api/emap/url/${mapId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_url: url.trim() })
+            });
+            const res = await response.json();
+            if (response.ok) {
+                alert("Đã cập nhật ảnh mặt bằng từ link ngoài thành công!");
+                await loadAvailableMaps();
+                renderMapManagerList();
+            } else {
+                alert("Lỗi: " + (res.detail || "Không thể tải ảnh từ link ngoài"));
+            }
+        } catch (e) {
+            alert("Lỗi kết nối khi tải ảnh từ URL!");
         }
     }
 
@@ -934,7 +1441,7 @@
     }
 
     async function uploadMapFileForMap(mapId, fileInput) {
-        if (fileInput.files.length === 0) return;
+        if (!fileInput.files || fileInput.files.length === 0) return;
 
         const file = fileInput.files[0];
         const formData = new FormData();
@@ -954,6 +1461,8 @@
             }
         } catch (e) {
             alert("Lỗi kết nối!");
+        } finally {
+            fileInput.value = "";
         }
     }
 
