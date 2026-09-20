@@ -39,12 +39,12 @@ if ai_device.type == 'cuda':
     YOLO_IMGSZ = 640
     print("[PROCESSORS] CUDA detected: Set optimized default intervals (YOLO=1, Face=3, Fall=2, Fire=2, YOLO_IMGSZ=640)")
 else:
-    YOLO_INTERVAL = 2
-    FACE_INTERVAL = 12
-    FALL_INTERVAL = 6
-    FIRE_INTERVAL = 8
+    YOLO_INTERVAL = 3
+    FACE_INTERVAL = 20
+    FALL_INTERVAL = 10
+    FIRE_INTERVAL = 12
     YOLO_IMGSZ = 320
-    print("[PROCESSORS] CPU mode: Set lightweight intervals (YOLO=2, Face=12, Fall=6, Fire=8, YOLO_IMGSZ=320)")
+    print("[PROCESSORS] CPU mode (Pi4 optimized): Set lightweight intervals (YOLO=3, Face=20, Fall=10, Fire=12, YOLO_IMGSZ=320)")
 
 # Khóa Lock dùng chung toàn cục để đồng bộ suy luận trên thiết bị biên CPU/GPU (Tránh xung đột/Nghẽn cổ chai)
 gpu_lock = threading.Lock()
@@ -436,7 +436,7 @@ class CameraState:
         self.count_in = 0
         self.count_out = 0
         self.last_frame = None
-        self.frame_buffer = collections.deque(maxlen=150)
+        self.frame_buffer = collections.deque(maxlen=30)  # Giảm từ 150→30 để tiết kiệm RAM trên Pi 4
         self.intrusion_entry_times = {}
         self.last_face_log_times = {}
         self.track_histories = {}           # tid -> collections.deque of (timestamp, bbox, center)
@@ -550,8 +550,61 @@ def stop_camera_thread(camera_id: str):
         camera_states[camera_id].last_jpeg_frame = make_paused_frame(camera_id)
     camera_fps[camera_id] = 0.0
 
+def startup_beep(duration=3.0):
+    """
+    Phát tín hiệu khởi động thành công qua còi (GPIO 24) và đèn (GPIO 22):
+    - Đèn bật sáng liên tục trong 3 giây
+    - Còi bíp nhịp nhàng báo hiệu hệ thống đã sẵn sàng
+    - Sau đúng 3 giây: tắt cả đèn và còi
+    Chạy trong luồng riêng để không block quá trình khởi động chính.
+    """
+    global has_gpio
+    BUZZER_PIN = 24  # GPIO 24 (Pin 18)
+    LIGHT_PIN  = 22  # GPIO 22 (Pin 15)
+
+    def _run():
+        SystemStatus.startup_active = True
+        SystemStatus.add_log(f"🔔 HỆ THỐNG: Khởi chạy thành công! Phát tín hiệu đèn & còi {duration:.0f}s...", "info")
+        print(f"[STARTUP] Phát tín hiệu khởi động thành công: Mở đèn và còi trong {duration:.0f} giây.")
+        
+        # 1. Bật đèn qua hàm chuẩn set_light_state để đồng bộ UI và phần cứng
+        set_light_state(True)
+        
+        # 2. Phát âm còi nhịp nhàng báo hiệu trong 3 giây
+        if has_gpio:
+            try:
+                GPIO.setup(BUZZER_PIN, GPIO.OUT)
+                start_t = time.time()
+                while time.time() - start_t < duration:
+                    GPIO.output(BUZZER_PIN, GPIO.HIGH)
+                    time.sleep(0.2)
+                    GPIO.output(BUZZER_PIN, GPIO.LOW)
+                    time.sleep(0.15)
+                GPIO.output(BUZZER_PIN, GPIO.LOW)
+            except Exception as e:
+                print(f"[STARTUP] [ERROR] Lỗi GPIO khi phát tín hiệu khởi động: {e}")
+        else:
+            # Chế độ giả lập (máy dev không có GPIO)
+            start_t = time.time()
+            beep_count = 0
+            while time.time() - start_t < duration:
+                beep_count += 1
+                print(f"[STARTUP] [SIMULATION] Bíp báo khởi chạy #{beep_count}!")
+                time.sleep(0.35)
+                
+        # 3. Kết thúc: Tắt đèn và còi, hoàn trả trạng thái
+        set_light_state(False)
+        SystemStatus.startup_active = False
+        SystemStatus.add_log("✅ HỆ THỐNG: Tín hiệu khởi động hoàn tất, hệ thống đã sẵn sàng.", "success")
+        print("[STARTUP] Tín hiệu khởi động hoàn tất.")
+
+    t = threading.Thread(target=_run, daemon=True, name="StartupBeep")
+    t.start()
+
 def start_all_camera_threads():
     try:
+        # Phát tín hiệu khởi động thành công (3 bíp + đèn 3s)
+        startup_beep()
         # Khởi chạy luồng giám sát cảm biến khí Ga MQ-2
         start_gas_sensor_monitoring()
         # Khởi chạy luồng còi báo động hệ thống
@@ -604,7 +657,7 @@ def gen_dynamic_stream(camera_id: str):
             if consecutive_empty > 100:  # ~10 seconds of no frames
                 ensure_camera_thread_running(camera_id)
                 consecutive_empty = 0
-        time.sleep(0.04) # ~25 FPS max
+        time.sleep(0.15)  # ~7 FPS — phù hợp khả năng xử lý thực tế của Pi 4 (từ 0.04s)
 
 def run_camera_processing_loop(camera_id: str, stop_event=None):
     """
@@ -672,10 +725,10 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 continue
 
         state.frame_index += 1
-        frame = cv2.resize(frame, (640, 360))
+        frame = cv2.resize(frame, (480, 270))  # Pi4 opt: 480x270 thay vì 640x360, YOLO vẫn scale nội bộ về imgsz=320
 
-        # Nạp lại cấu hình nóng tức thì khi có yêu cầu hoặc định kỳ mỗi 30 khung hình
-        if getattr(state, "reload_config_requested", False) or (state.frame_index % 30 == 0):
+        # Nạp lại cấu hình nóng tức thì khi có yêu cầu hoặc định kỳ mỗi 150 khung hình (~30s trên Pi)
+        if getattr(state, "reload_config_requested", False) or (state.frame_index % 150 == 0):
             state.reload_config_requested = False
             cameras = config.get_cameras_config()
             new_cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
@@ -1528,7 +1581,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     pass
                 full_writer = None
 
-        ret_enc, buffer = cv2.imencode('.jpg', annotated_frame)
+        ret_enc, buffer = cv2.imencode('.jpg', annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 65])  # Pi4 opt: quality=65 giảm ~60% CPU encode
         if not ret_enc: continue
 
         state.last_jpeg_frame = buffer.tobytes()
@@ -1554,9 +1607,9 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         if stop_event is not None:
             if stop_event.is_set():
                 break
-            # Giới hạn tốc độ gửi về client (10 FPS trên CPU để tiết kiệm tối đa tài nguyên / 25 FPS trên GPU)
+            # Giới hạn tốc độ xử lý: 7 FPS trên CPU Pi4 (0.15s), 25 FPS trên GPU (0.04s)
             elapsed = t_end - t_start
-            target_fps_delay = 0.10 if ai_device.type != 'cuda' else 0.04
+            target_fps_delay = 0.15 if ai_device.type != 'cuda' else 0.04
             delay = max(0.005, target_fps_delay - elapsed)
             time.sleep(delay)
 
@@ -1660,6 +1713,11 @@ def _buzzer_control_loop():
 
     while True:
         try:
+            # 0. Nếu đang trong 3s phát tín hiệu khởi động, không can thiệp dập còi
+            if getattr(SystemStatus, "startup_active", False):
+                time.sleep(0.2)
+                continue
+
             # 1. Xác định điều kiện kích hoạt báo động
             is_fire = SystemStatus.fire_active
             is_gas = SystemStatus.gas_active
@@ -1839,3 +1897,40 @@ def _auto_light_off_worker():
     with auto_light_lock:
         set_light_state(False)
         auto_light_timer = None
+
+# =========================================================================
+# PHÂN HỆ RƠ-LE KHÓA CỬA ĐIỆN TỪ (SOLENOID DOOR LOCK RELAY VIA GPIO 23)
+# =========================================================================
+door_lock_mutex = threading.Lock()
+
+def unlock_door(duration=3.0):
+    """
+    Kích hoạt rơ-le mở khóa cửa điện từ Solenoid (GPIO 23) trong duration giây (mặc định 3s).
+    Sau đó tự động khóa lại (LOW) để bảo vệ rơ-le và tránh cháy cuộn hút solenoid.
+    """
+    global has_gpio
+    DOOR_PIN = 23  # GPIO 23 (Pin 16)
+    
+    def _worker():
+        with door_lock_mutex:
+            SystemStatus.door_unlock_active = True
+            SystemStatus.add_log(f"🔓 CỬA: Đang mở khóa cửa từ xa ({duration:.0f} giây)...", "warning")
+            if has_gpio:
+                try:
+                    GPIO.setup(DOOR_PIN, GPIO.OUT)
+                    GPIO.output(DOOR_PIN, GPIO.HIGH)
+                    print(f"[DOOR LOCK] GPIO {DOOR_PIN} set to HIGH. Door UNLOCKED.")
+                    time.sleep(duration)
+                    GPIO.output(DOOR_PIN, GPIO.LOW)
+                    print(f"[DOOR LOCK] GPIO {DOOR_PIN} set to LOW. Door LOCKED.")
+                except Exception as e:
+                    print(f"[DOOR LOCK] [ERROR] Lỗi điều khiển GPIO mở cửa: {e}")
+            else:
+                print(f"[DOOR LOCK] [SIMULATION] Cửa mở trong {duration:.0f} giây (Giả lập)...")
+                time.sleep(duration)
+                print(f"[DOOR LOCK] [SIMULATION] Cửa đã đóng chốt khóa an toàn.")
+            
+            SystemStatus.door_unlock_active = False
+            SystemStatus.add_log("🔒 CỬA: Đã đóng chốt khóa an toàn.", "success")
+            
+    threading.Thread(target=_worker, daemon=True, name="DoorUnlockWorker").start()

@@ -57,7 +57,10 @@ def get_alert_keyboard(chat_id, camera_id=None, is_paused=False):
     
     keyboard = []
     
-    # Dòng 1: Điều khiển tắt còi vật lý tạm thời
+    # Dòng 1: Mở khóa cửa Solenoid từ xa (3 giây)
+    keyboard.append([{"text": "🔓 Mở Khóa Cửa (3s)", "callback_data": "unlock_door"}])
+
+    # Dòng 2: Điều khiển tắt còi vật lý tạm thời
     is_buzzer_muted = time.time() < getattr(SystemStatus, "buzzer_mute_until", 0.0)
     if is_buzzer_muted:
         keyboard.append([{"text": "🔊 Bật Lại Còi Báo Động", "callback_data": "unmute_buzzer"}])
@@ -67,22 +70,32 @@ def get_alert_keyboard(chat_id, camera_id=None, is_paused=False):
             {"text": "🔇 Tắt Còi 1h", "callback_data": "mute_buzzer_60"}
         ])
         
-    # Dòng 2: Tắt nhận thông báo cho user hiện tại & Tạm dừng camera
-    row2 = [{"text": mute_text, "callback_data": mute_cb}]
+    # Dòng 3: Tắt nhận thông báo cho user hiện tại & Tạm dừng camera (nếu có)
+    row3 = [{"text": mute_text, "callback_data": mute_cb}]
     if camera_id and camera_id != "Unknown":
         if is_paused:
-            row2.append({"text": "▶️ Bật Lại Cam", "callback_data": f"resume_{camera_id}"})
+            row3.append({"text": "▶️ Bật Lại Cam", "callback_data": f"resume_{camera_id}"})
         else:
-            row2.append({"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
-    keyboard.append(row2)
+            row3.append({"text": f"⏸️ Tạm Dừng Cam 30m", "callback_data": f"pause_{camera_id}_30"})
+    keyboard.append(row3)
     
-    # Dòng 3: Bật/Tắt đèn & Test phần cứng
+    # Dòng 4: Bật/Tắt đèn thông minh theo trạng thái thực tế
+    light_active = getattr(SystemStatus, "light_active", False)
+    light_text = "🔌 Tắt Đèn" if light_active else "💡 Bật Đèn"
     keyboard.append([
-        {"text": "💡 Bật/Tắt Đèn", "callback_data": "toggle_light"}
+        {"text": light_text, "callback_data": "toggle_light"}
     ])
+    
+    # Dòng 5: Kiểm tra phần cứng (Test còi, Test đèn)
     keyboard.append([
         {"text": "🔊 Test Còi 3s", "callback_data": "test_buzzer_3s"},
         {"text": "💡 Test Đèn 5s", "callback_data": "test_light_5s"}
+    ])
+    
+    # Dòng 6: Quản lý danh sách camera & Trạng thái hệ thống
+    keyboard.append([
+        {"text": "📹 Danh Sách Camera", "callback_data": "open_cam_menu"},
+        {"text": "📊 Trạng Thái Hệ Thống", "callback_data": "system_status_info"}
     ])
     
     return {"inline_keyboard": keyboard}
@@ -359,25 +372,91 @@ def telegram_polling_loop():
                             msg = update["message"]
                             chat_id = str(msg["chat"]["id"])
                             txt = msg["text"].strip().lower()
-                            if txt in ("/light_on", "bat den", "bật đèn", "bật đèn chiếu sáng"):
+
+                            if txt in ("/unlock", "/mo_cua", "/mở_cửa", "unlock", "mo cua", "mở cửa", "mo_cua"):
+                                from app.processors import unlock_door
+                                unlock_door(duration=3.0)
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": "🔓 *[ĐIỀU KHIỂN TỪ XA]*\nĐã kích hoạt rơ-le mở khóa cửa điện từ (Solenoid) trong 3 giây thành công!",
+                                    "parse_mode": "Markdown",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
+                                }, timeout=5)
+
+                            elif txt in ("/status", "/trang_thai", "status", "trang thai", "trạng thái", "kiem tra", "kiểm tra"):
+                                from app.config import SystemStatus
+                                is_buzzer_muted = time.time() < getattr(SystemStatus, "buzzer_mute_until", 0.0)
+                                buzzer_str = "🔇 Đang tắt tạm thời" if is_buzzer_muted else ("🔊 Đang kêu" if SystemStatus.buzzer_active else "🟢 Bình thường")
+                                light_str = "💡 Đang BẬT" if getattr(SystemStatus, "light_active", False) else "🔌 Đang TẮT"
+                                gas_str = "⚠️ PHÁT HIỆN RÒ RỈ!" if getattr(SystemStatus, "gas_active", False) else "🟢 An toàn"
+                                door_str = "🔓 Đang mở" if getattr(SystemStatus, "door_unlock_active", False) else "🔒 Đang khóa"
+                                muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
+                                user_alert_str = "🔕 Đang tắt (Không nhận cảnh báo)" if chat_id in muted_chats else "🔔 Đang bật (Đang nhận cảnh báo)"
+                                
+                                status_msg = (
+                                    "📊 *BÁO CÁO TRẠNG THÁI HỆ THỐNG SMART CAMERA*\n\n"
+                                    f"• Cảm biến khí ga MQ-2: {gas_str}\n"
+                                    f"• Đèn chiếu sáng thông minh: {light_str}\n"
+                                    f"• Còi báo động vật lý: {buzzer_str}\n"
+                                    f"• Khóa cửa Solenoid: {door_str}\n"
+                                    f"• Nhận cảnh báo tài khoản của bạn: {user_alert_str}\n\n"
+                                    "👉 Sử dụng bàn phím bên dưới để điều khiển nhanh:"
+                                )
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": status_msg,
+                                    "parse_mode": "Markdown",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
+                                }, timeout=5)
+
+                            elif txt in ("/start", "/help", "/menu", "help", "tro giup", "trợ giúp", "menu", "hi", "hello", "chào", "xin chào"):
+                                help_msg = (
+                                    "👋 *XIN CHÀO! ĐÂY LÀ HỆ THỐNG SMART CAMERA AN NINH*\n\n"
+                                    "Bạn có thể điều khiển hệ thống bằng các nút bên dưới hoặc gửi tin nhắn lệnh:\n"
+                                    "• `/unlock` hoặc `mở cửa`: Mở khóa cửa điện từ 3 giây\n"
+                                    "• `/cameras` hoặc `cam`: Xem & Bật/Tắt cảnh báo từng camera\n"
+                                    "• `/status` hoặc `status`: Báo cáo trạng thái hệ thống\n"
+                                    "• `/light_on` hoặc `bật đèn`: Bật đèn chiếu sáng\n"
+                                    "• `/light_off` hoặc `tắt đèn`: Tắt đèn chiếu sáng\n"
+                                    "• `/mute` hoặc `tắt báo động`: Tắt nhận cảnh báo riêng cho tài khoản\n"
+                                    "• `/unmute` hoặc `bật báo động`: Bật lại nhận cảnh báo\n"
+                                    "• `/test_coi`: Thử còi kêu trong 3 giây\n"
+                                    "• `/test_den`: Thử bật đèn trong 5 giây"
+                                )
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": help_msg,
+                                    "parse_mode": "Markdown",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
+                                }, timeout=5)
+
+                            elif txt in ("/light_on", "bat den", "bật đèn", "bật đèn chiếu sáng"):
                                 from app.processors import set_light_state
                                 set_light_state(True)
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
-                                    "text": "💡 [ĐIỀU KHIỂN TỪ XA]\nĐã bật đèn chiếu sáng thông minh thành công."
+                                    "text": "💡 [ĐIỀU KHIỂN TỪ XA]\nĐã bật đèn chiếu sáng thông minh thành công.",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
                                 }, timeout=5)
+
                             elif txt in ("/light_off", "tat den", "tắt đèn", "tắt đèn chiếu sáng"):
                                 from app.processors import set_light_state
                                 set_light_state(False)
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
-                                    "text": "🔌 [ĐIỀU KHIỂN TỪ XA]\nĐã tắt đèn chiếu sáng thông minh thành công."
+                                    "text": "🔌 [ĐIỀU KHIỂN TỪ XA]\nĐã tắt đèn chiếu sáng thông minh thành công.",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
                                 }, timeout=5)
+
                             elif txt in ("/cameras", "/cam", "/danh_sach_cam", "cameras", "cam"):
                                 send_camera_menu(token, chat_id)
-                            elif txt in ("/mute", "/tat_bao_dong", "tat bao dong", "tat_bao_dong"):
+
+                            elif txt in ("/mute", "/tat_bao_dong", "tat bao dong", "tat_bao_dong", "tắt báo động"):
                                 from app.config import save_settings
                                 muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
                                 if chat_id not in muted_chats:
@@ -387,9 +466,11 @@ def telegram_polling_loop():
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
-                                    "text": "🔕 Bạn đã tắt nhận cảnh báo từ hệ thống. Các quản trị viên khác vẫn nhận bình thường."
+                                    "text": "🔕 Bạn đã tắt nhận cảnh báo từ hệ thống. Các quản trị viên khác vẫn nhận bình thường.\n👉 Để bật lại bất cứ lúc nào, gõ `/unmute` hoặc bấm nút bên dưới.",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
                                 }, timeout=5)
-                            elif txt in ("/unmute", "/bat_bao_dong", "bat bao dong", "bat_bao_dong"):
+
+                            elif txt in ("/unmute", "/bat_bao_dong", "bat bao dong", "bat_bao_dong", "bật báo động"):
                                 from app.config import save_settings
                                 muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
                                 if chat_id in muted_chats:
@@ -399,8 +480,10 @@ def telegram_polling_loop():
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
-                                    "text": "🔔 Bạn đã bật lại nhận cảnh báo từ hệ thống."
+                                    "text": "🔔 Bạn đã bật lại nhận cảnh báo từ hệ thống thành công.",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
                                 }, timeout=5)
+
                             elif txt in ("/mute_buzzer_30", "tat coi 30p", "tắt còi 30p", "tắt còi 30 phút"):
                                 from app.config import SystemStatus
                                 SystemStatus.buzzer_mute_until = time.time() + 30 * 60
@@ -408,8 +491,10 @@ def telegram_polling_loop():
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
-                                    "text": "🔇 [ĐIỀU KHIỂN TỪ XA]\nĐã tắt còi báo động vật lý trong 30 phút thành công!"
+                                    "text": "🔇 [ĐIỀU KHIỂN TỪ XA]\nĐã tắt còi báo động vật lý trong 30 phút thành công!",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
                                 }, timeout=5)
+
                             elif txt in ("/mute_buzzer_60", "tat coi 1h", "tắt còi 1h", "tắt còi 1 tiếng", "tắt còi 60 phút"):
                                 from app.config import SystemStatus
                                 SystemStatus.buzzer_mute_until = time.time() + 60 * 60
@@ -417,8 +502,10 @@ def telegram_polling_loop():
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
-                                    "text": "🔇 [ĐIỀU KHIỂN TỪ XA]\nĐã tắt còi báo động vật lý trong 1 tiếng thành công!"
+                                    "text": "🔇 [ĐIỀU KHIỂN TỪ XA]\nĐã tắt còi báo động vật lý trong 1 tiếng thành công!",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
                                 }, timeout=5)
+
                             elif txt in ("/unmute_buzzer", "bat coi", "bật còi", "bật còi báo động"):
                                 from app.config import SystemStatus
                                 SystemStatus.buzzer_mute_until = 0.0
@@ -426,8 +513,10 @@ def telegram_polling_loop():
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
-                                    "text": "🔊 [ĐIỀU KHIỂN TỪ XA]\nĐã kích hoạt lại còi báo động vật lý thành công!"
+                                    "text": "🔊 [ĐIỀU KHIỂN TỪ XA]\nĐã kích hoạt lại còi báo động vật lý thành công!",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
                                 }, timeout=5)
+
                             elif txt in ("/test_coi", "/test_còi", "test coi", "test còi"):
                                 from app.config import SystemStatus
                                 SystemStatus.mock_buzzer = True
@@ -443,8 +532,10 @@ def telegram_polling_loop():
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
-                                    "text": "🔊 [KIỂM TRA PHẦN CỨNG]\nĐang kiểm tra còi báo động kêu trong 3 giây..."
+                                    "text": "🔊 [KIỂM TRA PHẦN CỨNG]\nĐang kiểm tra còi báo động kêu trong 3 giây...",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
                                 }, timeout=5)
+
                             elif txt in ("/test_den", "/test_đèn", "test den", "test đèn"):
                                 from app.processors import set_light_state
                                 from app.config import SystemStatus
@@ -461,16 +552,31 @@ def telegram_polling_loop():
                                 send_url = f"https://api.telegram.org/bot{token}/sendMessage"
                                 requests.post(send_url, json={
                                     "chat_id": chat_id,
-                                    "text": "💡 [KIỂM TRA PHẦN CỨNG]\nĐang kiểm tra đèn chiếu sáng bật trong 5 giây..."
+                                    "text": "💡 [KIỂM TRA PHẦN CỨNG]\nĐang kiểm tra đèn chiếu sáng bật trong 5 giây...",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
+                                }, timeout=5)
+                            else:
+                                # Fallback: Tin nhắn không khớp lệnh -> Gửi menu phản hồi ngay lập tức, không để bot im lặng
+                                fallback_msg = (
+                                    f"🤖 Hệ thống nhận được tin nhắn: *{txt}*\n\n"
+                                    "Bạn có thể sử dụng bảng điều khiển bên dưới hoặc gõ `/help` để xem danh sách câu lệnh."
+                                )
+                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                                requests.post(send_url, json={
+                                    "chat_id": chat_id,
+                                    "text": fallback_msg,
+                                    "parse_mode": "Markdown",
+                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
                                 }, timeout=5)
                                 
                         # Xử lý sự kiện bấm nút inline
                         if "callback_query" in update:
                             cb = update["callback_query"]
                             cb_id = cb["id"]
-                            cb_data = cb["data"]
-                            chat_id = str(cb["message"]["chat"]["id"])
-                            message_id = cb["message"]["message_id"]
+                            cb_data = cb.get("data", "")
+                            cb_msg = cb.get("message", {})
+                            chat_id = str(cb_msg.get("chat", {}).get("id", ""))
+                            message_id = cb_msg.get("message_id")
                             
                             response_text = ""
                             new_markup = None
@@ -478,13 +584,11 @@ def telegram_polling_loop():
                             # Xác định trạng thái câm hiện tại cho riêng user này
                             muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
                             is_muted = chat_id in muted_chats
-                            mute_text = "🔔 Bật Lại Báo Động" if is_muted else "🔕 Tắt Báo Động"
-                            mute_cb = "unmute_alerts" if is_muted else "mute_alerts"
                             
                             # Trích xuất camera_id từ markup hiện tại nếu có
                             camera_id = None
                             try:
-                                markup = cb["message"].get("reply_markup", {})
+                                markup = cb_msg.get("reply_markup", {})
                                 for row in markup.get("inline_keyboard", []):
                                     for btn in row:
                                         data = btn.get("callback_data", "")
@@ -518,11 +622,49 @@ def telegram_polling_loop():
                                 else:
                                     response_text = "Không tìm thấy camera tương ứng."
                                 
+                                try:
+                                    requests.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery", 
+                                                  json={"callback_query_id": cb_id, "text": response_text}, timeout=5)
+                                except Exception:
+                                    pass
                                 send_camera_menu(token, chat_id, message_id)
+                                continue
                                 
                             elif cb_data == "refresh_cam_menu":
                                 response_text = "Đã làm mới danh sách camera."
+                                try:
+                                    requests.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery", 
+                                                  json={"callback_query_id": cb_id, "text": response_text}, timeout=5)
+                                except Exception:
+                                    pass
                                 send_camera_menu(token, chat_id, message_id)
+                                continue
+
+                            elif cb_data == "open_cam_menu":
+                                response_text = "Đang mở danh sách camera..."
+                                try:
+                                    requests.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery", 
+                                                  json={"callback_query_id": cb_id, "text": response_text}, timeout=5)
+                                except Exception:
+                                    pass
+                                send_camera_menu(token, chat_id)
+                                continue
+
+                            elif cb_data == "system_status_info":
+                                from app.config import SystemStatus
+                                is_buzzer_muted = time.time() < getattr(SystemStatus, "buzzer_mute_until", 0.0)
+                                buzzer_str = "🔇 Đang tắt" if is_buzzer_muted else ("🔊 Đang kêu" if SystemStatus.buzzer_active else "🟢 Tắt")
+                                light_str = "💡 BẬT" if getattr(SystemStatus, "light_active", False) else "🔌 TẮT"
+                                gas_str = "⚠️ RÒ RỈ!" if getattr(SystemStatus, "gas_active", False) else "🟢 An toàn"
+                                door_str = "🔓 Mở" if getattr(SystemStatus, "door_unlock_active", False) else "🔒 Đóng"
+                                response_text = f"Gas: {gas_str} | Đèn: {light_str} | Còi: {buzzer_str} | Cửa: {door_str}"
+                                new_markup = get_alert_keyboard(chat_id, camera_id)
+
+                            elif cb_data == "unlock_door":
+                                from app.processors import unlock_door
+                                unlock_door(duration=3.0)
+                                response_text = "🔓 Đã mở khóa cửa điện từ (Solenoid) trong 3 giây!"
+                                new_markup = get_alert_keyboard(chat_id, camera_id)
                                 
                             elif cb_data == "mute_alerts":
                                 from app.config import save_settings, SystemStatus
@@ -532,7 +674,7 @@ def telegram_polling_loop():
                                     settings["muted_telegram_chats"] = muted_chats
                                     save_settings()
                                 SystemStatus.add_log(f"Telegram Bot: Người dùng {chat_id} đã tắt nhận cảnh báo.", "warning")
-                                response_text = "🔕 Bạn đã tắt nhận cảnh báo từ hệ thống. Các quản trị viên khác vẫn nhận bình thường."
+                                response_text = "🔕 Đã tắt nhận cảnh báo từ bot. Bấm 'Bật Lại Báo Động' để mở lại."
                                 new_markup = get_alert_keyboard(chat_id, camera_id)
                                 
                             elif cb_data == "unmute_alerts":
@@ -543,7 +685,7 @@ def telegram_polling_loop():
                                     settings["muted_telegram_chats"] = muted_chats
                                     save_settings()
                                 SystemStatus.add_log(f"Telegram Bot: Người dùng {chat_id} đã bật lại nhận cảnh báo.", "success")
-                                response_text = "🔔 Bạn đã bật lại nhận cảnh báo từ hệ thống."
+                                response_text = "🔔 Đã bật lại nhận cảnh báo thành công."
                                 new_markup = get_alert_keyboard(chat_id, camera_id)
                                 
                             elif cb_data.startswith("pause_"):
@@ -567,7 +709,7 @@ def telegram_polling_loop():
                             elif cb_data == "toggle_light":
                                 from app.processors import set_light_state
                                 from app.config import SystemStatus
-                                new_state = not SystemStatus.light_active
+                                new_state = not getattr(SystemStatus, "light_active", False)
                                 set_light_state(new_state)
                                 state_str = "BẬT" if new_state else "TẮT"
                                 response_text = f"💡 Đã {state_str} đèn thành công."
@@ -616,26 +758,45 @@ def telegram_polling_loop():
                                 threading.Thread(target=off_worker_light, daemon=True).start()
                                 response_text = "💡 Đang test bật đèn trong 5 giây..."
                                 new_markup = get_alert_keyboard(chat_id, camera_id)
-                                
-                            # Phản hồi lại Telegram xác nhận bấm nút thành công
-                            answer_url = f"https://api.telegram.org/bot{token}/answerCallbackQuery"
-                            requests.post(answer_url, json={"callback_query_id": cb_id, "text": response_text}, timeout=5)
+
+                            # Phản hồi toast thông báo nhanh tới Telegram
+                            try:
+                                answer_url = f"https://api.telegram.org/bot{token}/answerCallbackQuery"
+                                requests.post(answer_url, json={"callback_query_id": cb_id, "text": response_text}, timeout=5)
+                            except Exception as err:
+                                print(f"[TELEGRAM] Lỗi answerCallbackQuery: {err}")
                             
-                            # Cập nhật nhãn caption và nút bấm của bức ảnh
-                            edit_url = f"https://api.telegram.org/bot{token}/editMessageCaption"
-                            original_caption = cb["message"].get("caption", "")
-                            if "\n\n👉 [Hệ Thống]" in original_caption:
-                                original_caption = original_caption.split("\n\n👉 [Hệ Thống]")[0]
-                                
-                            edit_payload = {
-                                "chat_id": chat_id,
-                                "message_id": message_id,
-                                "caption": original_caption + f"\n\n👉 [Hệ Thống] {response_text}"
-                            }
-                            if new_markup:
-                                edit_payload["reply_markup"] = json.dumps(new_markup)
-                                
-                            requests.post(edit_url, json=edit_payload, timeout=5)
+                            # Cập nhật tin nhắn (phân biệt tin nhắn có ảnh và tin nhắn văn bản thường)
+                            try:
+                                has_photo = ("photo" in cb_msg) or ("caption" in cb_msg)
+                                if has_photo:
+                                    edit_url = f"https://api.telegram.org/bot{token}/editMessageCaption"
+                                    original_caption = cb_msg.get("caption", "") or ""
+                                    if "\n\n👉 [Hệ Thống]" in original_caption:
+                                        original_caption = original_caption.split("\n\n👉 [Hệ Thống]")[0]
+                                    edit_payload = {
+                                        "chat_id": chat_id,
+                                        "message_id": message_id,
+                                        "caption": original_caption + f"\n\n👉 [Hệ Thống] {response_text}"
+                                    }
+                                    if new_markup:
+                                        edit_payload["reply_markup"] = json.dumps(new_markup)
+                                    requests.post(edit_url, json=edit_payload, timeout=5)
+                                else:
+                                    edit_url = f"https://api.telegram.org/bot{token}/editMessageText"
+                                    original_text = cb_msg.get("text", "") or ""
+                                    if "\n\n👉 [Hệ Thống]" in original_text:
+                                        original_text = original_text.split("\n\n👉 [Hệ Thống]")[0]
+                                    edit_payload = {
+                                        "chat_id": chat_id,
+                                        "message_id": message_id,
+                                        "text": original_text + f"\n\n👉 [Hệ Thống] {response_text}"
+                                    }
+                                    if new_markup:
+                                        edit_payload["reply_markup"] = json.dumps(new_markup)
+                                    requests.post(edit_url, json=edit_payload, timeout=5)
+                            except Exception as err:
+                                print(f"[TELEGRAM] Lỗi cập nhật nội dung tin nhắn sau callback: {err}")
             else:
                 # Nếu có lỗi (ví dụ: token sai) thì ghi nhận lỗi và tạm nghỉ
                 print(f"[TELEGRAM] getUpdates trả về status code {response.status_code}: {response.text}")

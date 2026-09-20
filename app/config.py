@@ -188,6 +188,8 @@ class SystemStatus:
     buzzer_active = False
     mock_buzzer = False
     buzzer_mute_until = 0.0  # Thời điểm hết hiệu lực tắt còi tạm thời (timestamp)
+    door_unlock_active = False
+    startup_active = False
     light_active = False
     new_logs = []
     log_lock = threading.Lock()

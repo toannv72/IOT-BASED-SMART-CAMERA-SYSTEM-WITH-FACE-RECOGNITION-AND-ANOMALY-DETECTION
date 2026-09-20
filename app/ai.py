@@ -33,14 +33,16 @@ def __getattr__(name):
         if _mtcnn_single is None:
             from facenet_pytorch import MTCNN
             print("[AI MODEL] [LAZY] Loading MTCNN (single)...")
-            _mtcnn_single = MTCNN(keep_all=False, thresholds=[0.5, 0.6, 0.6], device=device)
+            # Pi4 opt: thresholds cao hơn để giảm false positive, min_face_size=60 bỏ qua mặt quá nhỏ/xa
+            _mtcnn_single = MTCNN(keep_all=False, thresholds=[0.6, 0.7, 0.7], min_face_size=60, device=device)
         return _mtcnn_single
         
     elif name == 'mtcnn_multi':
         if _mtcnn_multi is None:
             from facenet_pytorch import MTCNN
             print("[AI MODEL] [LAZY] Loading MTCNN (multi)...")
-            _mtcnn_multi = MTCNN(keep_all=True, thresholds=[0.5, 0.6, 0.6], device=device)
+            # Pi4 opt: thresholds cao hơn để giảm false positive, min_face_size=60 bỏ qua mặt quá nhỏ/xa
+            _mtcnn_multi = MTCNN(keep_all=True, thresholds=[0.6, 0.7, 0.7], min_face_size=60, device=device)
         return _mtcnn_multi
         
     elif name == 'resnet':
