@@ -57,10 +57,7 @@ def get_alert_keyboard(chat_id, camera_id=None, is_paused=False):
     
     keyboard = []
     
-    # Dòng 1: Mở khóa cửa Solenoid từ xa (3 giây)
-    keyboard.append([{"text": "🔓 Mở Khóa Cửa (3s)", "callback_data": "unlock_door"}])
-
-    # Dòng 2: Điều khiển tắt còi vật lý tạm thời
+    # Dòng 1: Điều khiển tắt còi vật lý tạm thời
     is_buzzer_muted = time.time() < getattr(SystemStatus, "buzzer_mute_until", 0.0)
     if is_buzzer_muted:
         keyboard.append([{"text": "🔊 Bật Lại Còi Báo Động", "callback_data": "unmute_buzzer"}])
@@ -100,9 +97,10 @@ def get_alert_keyboard(chat_id, camera_id=None, is_paused=False):
     
     return {"inline_keyboard": keyboard}
 
-def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unknown", frame_buffer=None, face_name=None):
+def send_telegram_alert(message, frame=None, alert_type="intrusion", camera_id="Unknown", frame_buffer=None, face_name=None):
     """
     Gửi tin nhắn cảnh báo chứa hình ảnh chụp được qua Telegram và lưu lại cơ sở dữ liệu.
+    Nếu không có khung hình (ví dụ: cảm biến Khí ga MQ-2 không gắn camera), hệ thống sẽ gửi tin nhắn văn bản Markdown.
     Hàm được thực thi hoàn toàn bất đồng bộ trên một luồng riêng để tránh đứng hình camera stream.
     """
     global last_alert_times
@@ -139,7 +137,7 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
 
             incident = incident_trackers.get(cooldown_key)
             if incident is None:
-                # Sự cố mới toanh (Xâm nhập / Người lạ): Gửi ngay lập tức (Lần 1 - Không trễ)
+                # Sự cố mới toanh (Xâm nhập / Người lạ / Ga): Gửi ngay lập tức (Lần 1 - Không trễ)
                 incident_trackers[cooldown_key] = {
                     "first_time": current_time,
                     "last_alert_time": current_time,
@@ -183,8 +181,8 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
         except Exception as err:
             print(f"[LIGHT RELAY] Lỗi tự động kích hoạt đèn: {err}")
         
-    # Tạo bản sao của khung hình để tránh xung đột ghi đè giữa luồng xử lý và luồng gửi tin
-    frame_copy = frame.copy()
+    # Tạo bản sao của khung hình nếu có để tránh xung đột ghi đè giữa luồng xử lý và luồng gửi tin
+    frame_copy = frame.copy() if frame is not None else None
     
     # Tạo bản sao sâu của frame_buffer nếu có
     buffer_copy = [f.copy() for f in frame_buffer] if frame_buffer else None
@@ -192,17 +190,19 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
     def send_worker():
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
         sanitized_cam = sanitize_filename_component(camera_id)
-        img_filename = f"alert_{alert_type}_{sanitized_cam}_{timestamp_str}.jpg"
-        img_local_path = os.path.join("static", "alerts", img_filename)
-        img_web_path = f"/static/alerts/{img_filename}"
         
-        # 1. Lưu ảnh chụp sự kiện cục bộ
-        try:
-            cv2.imwrite(img_local_path, frame_copy)
-            print(f"[ALERTS] Đã lưu ảnh chụp sự kiện cục bộ tại: {img_local_path}")
-        except Exception as e:
-            print(f"[ALERTS] Lỗi lưu ảnh chụp sự kiện: {e}")
-            img_web_path = None
+        img_web_path = None
+        # 1. Lưu ảnh chụp sự kiện cục bộ (nếu có frame)
+        if frame_copy is not None:
+            img_filename = f"alert_{alert_type}_{sanitized_cam}_{timestamp_str}.jpg"
+            img_local_path = os.path.join("static", "alerts", img_filename)
+            img_web_path = f"/static/alerts/{img_filename}"
+            try:
+                cv2.imwrite(img_local_path, frame_copy)
+                print(f"[ALERTS] Đã lưu ảnh chụp sự kiện cục bộ tại: {img_local_path}")
+            except Exception as e:
+                print(f"[ALERTS] Lỗi lưu ảnh chụp sự kiện: {e}")
+                img_web_path = None
  
         # 2. Ghi video sự cố bất đồng bộ nếu có frame_buffer
         video_web_path = None
@@ -244,14 +244,14 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
             )
             db.add(log_entry)
             db.commit()
-            print(f"[ALERTS] Đã lưu sự kiện '{alert_type}' của '{camera_id}' vào SQLite (Có video: {video_web_path is not None}).")
+            print(f"[ALERTS] Đã lưu sự kiện '{alert_type}' của '{camera_id}' vào SQLite (Có ảnh: {img_web_path is not None}, Có video: {video_web_path is not None}).")
         except Exception as e:
             db.rollback()
             print(f"[ALERTS] Lỗi lưu log vào cơ sở dữ liệu: {e}")
         finally:
             db.close()
             
-        # 4. Tiến hành gọi API Telegram để gửi tin nhắn kèm hình ảnh và nút bấm tương tác
+        # 4. Tiến hành gọi API Telegram để gửi tin nhắn kèm hình ảnh/văn bản và nút bấm tương tác
         token = settings.get("telegram_token")
         chats = [str(x) for x in settings.get("telegram_chats", [])]
         muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
@@ -260,34 +260,49 @@ def send_telegram_alert(message, frame, alert_type="intrusion", camera_id="Unkno
             print("[ALERTS] Thiếu token hoặc chat ID Telegram. Bỏ qua việc gửi tin nhắn.")
             return
             
-        url = f"https://api.telegram.org/bot{token}/sendPhoto"
         try:
-            success, buffer = cv2.imencode(".jpg", frame_copy)
-            if not success:
-                return
-            
             sent_count = 0
-            for chat_id in chats:
-                # Nếu người dùng này đã tắt nhận cảnh báo, và loại cảnh báo có thể tắt (không nằm trong danh sách không thể tắt)
-                if chat_id in muted_chats and alert_type not in unmutable_alerts:
-                    continue
-                
-                # Cấu hình nút bấm tương tác 2 chiều động dùng hàm dùng chung
-                reply_markup = get_alert_keyboard(chat_id, camera_id)
-                
-                files = {"photo": ("alert.jpg", buffer.tobytes(), "image/jpeg")}
-                payload = {
-                    "chat_id": chat_id,
-                    "caption": message,
-                    "reply_markup": json.dumps(reply_markup)
-                }
-                t_tg_start = time.time()
-                requests.post(url, data=payload, files=files, timeout=10)
-                t_tg_end = time.time()
-                TelemetryTracker.record_telegram_latency(t_tg_end - t_tg_start)
-                sent_count += 1
-                
-            print(f"[TELEGRAM] Đã gửi hình ảnh cảnh báo kèm nút bấm tương tác đến {sent_count} người dùng (bỏ qua {len(chats) - sent_count} người đã tắt).")
+            if frame_copy is not None:
+                # Có ảnh: Gửi qua sendPhoto
+                url = f"https://api.telegram.org/bot{token}/sendPhoto"
+                success, buffer = cv2.imencode(".jpg", frame_copy)
+                if not success:
+                    return
+                for chat_id in chats:
+                    if chat_id in muted_chats and alert_type not in unmutable_alerts:
+                        continue
+                    reply_markup = get_alert_keyboard(chat_id, camera_id)
+                    files = {"photo": ("alert.jpg", buffer.tobytes(), "image/jpeg")}
+                    payload = {
+                        "chat_id": chat_id,
+                        "caption": message,
+                        "reply_markup": json.dumps(reply_markup)
+                    }
+                    t_tg_start = time.time()
+                    requests.post(url, data=payload, files=files, timeout=10)
+                    t_tg_end = time.time()
+                    TelemetryTracker.record_telegram_latency(t_tg_end - t_tg_start)
+                    sent_count += 1
+                print(f"[TELEGRAM] Đã gửi hình ảnh cảnh báo kèm nút bấm tương tác đến {sent_count} người dùng (bỏ qua {len(chats) - sent_count} người đã tắt).")
+            else:
+                # Không có ảnh (sự cố cảm biến Khí ga MQ-2 không gắn camera): Gửi qua sendMessage
+                url = f"https://api.telegram.org/bot{token}/sendMessage"
+                for chat_id in chats:
+                    if chat_id in muted_chats and alert_type not in unmutable_alerts:
+                        continue
+                    reply_markup = get_alert_keyboard(chat_id, camera_id)
+                    payload = {
+                        "chat_id": chat_id,
+                        "text": message,
+                        "parse_mode": "Markdown",
+                        "reply_markup": json.dumps(reply_markup)
+                    }
+                    t_tg_start = time.time()
+                    requests.post(url, json=payload, timeout=10)
+                    t_tg_end = time.time()
+                    TelemetryTracker.record_telegram_latency(t_tg_end - t_tg_start)
+                    sent_count += 1
+                print(f"[TELEGRAM] Đã gửi tin nhắn cảnh báo văn bản đến {sent_count} người dùng (bỏ qua {len(chats) - sent_count} người đã tắt).")
         except Exception as e:
             print(f"[TELEGRAM] Lỗi gọi API gửi Telegram: {e}")
 
@@ -334,7 +349,7 @@ def send_camera_menu(token, chat_id, message_id=None):
     except Exception as e:
         print(f"[TELEGRAM] Lỗi khi gửi menu camera: {e}")
 def telegram_polling_loop():
-    time.sleep(5)  # Đợi hệ thống khởi chạy ổn định
+    time.sleep(3)  # Đợi hệ thống khởi chạy ổn định
     offset = 0
     last_token = None
     print("[TELEGRAM] Bắt đầu khởi chạy luồng Polling bot tương tác 2 chiều...")
@@ -351,21 +366,29 @@ def telegram_polling_loop():
             try:
                 print(f"[TELEGRAM] Cấu hình bot nhận thấy token mới/thực tế. Đang xóa Webhook để nhận updates...")
                 del_webhook_url = f"https://api.telegram.org/bot{token}/deleteWebhook"
-                res = requests.post(del_webhook_url, json={"drop_pending_updates": True}, timeout=10)
+                # drop_pending_updates=False để không làm mất lệnh người dùng vừa gửi
+                res = requests.post(del_webhook_url, json={"drop_pending_updates": False}, timeout=10)
                 if res.status_code == 200:
-                    print("[TELEGRAM] Đã xóa Webhook và xóa sạch các bản tin cũ đang đợi trên Telegram.")
-                last_token = token
+                    print("[TELEGRAM] Đã chuyển đổi sang chế độ Long Polling thành công.")
             except Exception as e:
-                print(f"[TELEGRAM] Lỗi khi xóa Webhook: {e}")
+                print(f"[TELEGRAM] Lỗi khi cấu hình xóa Webhook: {e}")
+            last_token = token
             
         url = f"https://api.telegram.org/bot{token}/getUpdates"
         try:
-            response = requests.get(url, params={"offset": offset, "timeout": 20}, timeout=25)
+            # QUAN TRỌNG: allowed_updates bao gồm cả message và callback_query để Telegram trả về cả tin nhắn và sự kiện bấm nút
+            params = {
+                "offset": offset,
+                "timeout": 20,
+                "allowed_updates": json.dumps(["message", "callback_query"])
+            }
+            response = requests.get(url, params=params, timeout=25)
             if response.status_code == 200:
                 data = response.json()
                 if "result" in data:
                     for update in data["result"]:
-                        offset = update["update_id"] + 1
+                        # Luôn tăng offset ngay lập tức để không bị lặp lại bản tin khi có lỗi
+                        offset = max(offset, update["update_id"] + 1)
                         
                         # Xử lý tin nhắn văn bản (Text Commands)
                         if "message" in update and "text" in update["message"]:
@@ -373,24 +396,12 @@ def telegram_polling_loop():
                             chat_id = str(msg["chat"]["id"])
                             txt = msg["text"].strip().lower()
 
-                            if txt in ("/unlock", "/mo_cua", "/mở_cửa", "unlock", "mo cua", "mở cửa", "mo_cua"):
-                                from app.processors import unlock_door
-                                unlock_door(duration=3.0)
-                                send_url = f"https://api.telegram.org/bot{token}/sendMessage"
-                                requests.post(send_url, json={
-                                    "chat_id": chat_id,
-                                    "text": "🔓 *[ĐIỀU KHIỂN TỪ XA]*\nĐã kích hoạt rơ-le mở khóa cửa điện từ (Solenoid) trong 3 giây thành công!",
-                                    "parse_mode": "Markdown",
-                                    "reply_markup": json.dumps(get_alert_keyboard(chat_id))
-                                }, timeout=5)
-
-                            elif txt in ("/status", "/trang_thai", "status", "trang thai", "trạng thái", "kiem tra", "kiểm tra"):
+                            if txt in ("/status", "/trang_thai", "status", "trang thai", "trạng thái", "kiem tra", "kiểm tra"):
                                 from app.config import SystemStatus
                                 is_buzzer_muted = time.time() < getattr(SystemStatus, "buzzer_mute_until", 0.0)
                                 buzzer_str = "🔇 Đang tắt tạm thời" if is_buzzer_muted else ("🔊 Đang kêu" if SystemStatus.buzzer_active else "🟢 Bình thường")
                                 light_str = "💡 Đang BẬT" if getattr(SystemStatus, "light_active", False) else "🔌 Đang TẮT"
                                 gas_str = "⚠️ PHÁT HIỆN RÒ RỈ!" if getattr(SystemStatus, "gas_active", False) else "🟢 An toàn"
-                                door_str = "🔓 Đang mở" if getattr(SystemStatus, "door_unlock_active", False) else "🔒 Đang khóa"
                                 muted_chats = [str(x) for x in settings.get("muted_telegram_chats", [])]
                                 user_alert_str = "🔕 Đang tắt (Không nhận cảnh báo)" if chat_id in muted_chats else "🔔 Đang bật (Đang nhận cảnh báo)"
                                 
@@ -399,7 +410,6 @@ def telegram_polling_loop():
                                     f"• Cảm biến khí ga MQ-2: {gas_str}\n"
                                     f"• Đèn chiếu sáng thông minh: {light_str}\n"
                                     f"• Còi báo động vật lý: {buzzer_str}\n"
-                                    f"• Khóa cửa Solenoid: {door_str}\n"
                                     f"• Nhận cảnh báo tài khoản của bạn: {user_alert_str}\n\n"
                                     "👉 Sử dụng bàn phím bên dưới để điều khiển nhanh:"
                                 )
@@ -519,6 +529,7 @@ def telegram_polling_loop():
 
                             elif txt in ("/test_coi", "/test_còi", "test coi", "test còi"):
                                 from app.config import SystemStatus
+                                SystemStatus.buzzer_mute_until = 0.0  # Tạm bỏ mute để còi kêu được khi test
                                 SystemStatus.mock_buzzer = True
                                 SystemStatus.add_log("Telegram Bot: Đang kiểm tra còi báo động (3 giây)...", "info")
                                 
@@ -656,14 +667,7 @@ def telegram_polling_loop():
                                 buzzer_str = "🔇 Đang tắt" if is_buzzer_muted else ("🔊 Đang kêu" if SystemStatus.buzzer_active else "🟢 Tắt")
                                 light_str = "💡 BẬT" if getattr(SystemStatus, "light_active", False) else "🔌 TẮT"
                                 gas_str = "⚠️ RÒ RỈ!" if getattr(SystemStatus, "gas_active", False) else "🟢 An toàn"
-                                door_str = "🔓 Mở" if getattr(SystemStatus, "door_unlock_active", False) else "🔒 Đóng"
-                                response_text = f"Gas: {gas_str} | Đèn: {light_str} | Còi: {buzzer_str} | Cửa: {door_str}"
-                                new_markup = get_alert_keyboard(chat_id, camera_id)
-
-                            elif cb_data == "unlock_door":
-                                from app.processors import unlock_door
-                                unlock_door(duration=3.0)
-                                response_text = "🔓 Đã mở khóa cửa điện từ (Solenoid) trong 3 giây!"
+                                response_text = f"Gas: {gas_str} | Đèn: {light_str} | Còi: {buzzer_str}"
                                 new_markup = get_alert_keyboard(chat_id, camera_id)
                                 
                             elif cb_data == "mute_alerts":
@@ -732,6 +736,7 @@ def telegram_polling_loop():
                                 
                             elif cb_data == "test_buzzer_3s":
                                 from app.config import SystemStatus
+                                SystemStatus.buzzer_mute_until = 0.0  # Tạm bỏ mute để còi kêu được khi test
                                 SystemStatus.mock_buzzer = True
                                 SystemStatus.add_log("Telegram Bot: Đang kiểm tra còi báo động (3 giây)...", "info")
                                 
@@ -804,7 +809,7 @@ def telegram_polling_loop():
         except Exception as e:
             print(f"[TELEGRAM] Lỗi trong luồng Polling: {e}")
             time.sleep(5)
-        time.sleep(2)
+        time.sleep(1)
 
 # Khởi chạy luồng Polling ngầm
 threading.Thread(target=telegram_polling_loop, daemon=True, name="TelegramBotPolling").start()

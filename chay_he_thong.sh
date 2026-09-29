@@ -21,10 +21,11 @@ show_menu() {
     echo "[7] Cảnh báo xâm nhập ROI YOLOv5 (test_video.py)"
     echo "[8] Test phát hiện ngã YOLOv8 (test_fall_video.py)"
     echo "[9] Test nhận diện cháy nổ (verify_fire_stream.py)"
-    echo "[10] Thoát"
+    echo "[10] Test trực tiếp thiết bị ngoại vi (test_ngoai_vi.py)"
+    echo "[11] Thoát"
     echo ""
     echo "======================================================="
-    echo -n "Nhập lựa chọn của bạn (1-10): "
+    echo -n "Nhập lựa chọn của bạn (1-11): "
 }
 
 press_any_key() {
@@ -48,20 +49,21 @@ while true; do
     read choice
     case $choice in
         1)
-            echo "Đang cài đặt thư viện hệ thống cần thiết cho OpenCV..."
+            echo "Đang cài đặt thư viện hệ thống cần thiết cho OpenCV và GPIO..."
             sudo apt update
-            sudo apt install -y libglib2.0-0 libgl1-mesa-glx python3-venv python3-pip
+            sudo apt install -y libglib2.0-0 libgl1-mesa-glx python3-venv python3-pip python3-rpi.gpio python3-dev
             press_any_key
             ;;
         2)
             echo "Đang khởi tạo môi trường ảo và cài đặt PyTorch CPU..."
             if [ ! -d "venv" ]; then
-                python3 -m venv venv
+                python3 -m venv --system-site-packages venv
             fi
             source venv/bin/activate
             pip install --upgrade pip
             pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
             pip install -r requirements.txt
+            pip install RPi.GPIO || true
             press_any_key
             ;;
         3)
@@ -100,6 +102,11 @@ while true; do
             press_any_key
             ;;
         10)
+            echo "Đang chạy test_ngoai_vi.py (Kiểm tra thiết bị ngoại vi)..."
+            run_python test_ngoai_vi.py
+            press_any_key
+            ;;
+        11)
             echo "Thoát chương trình."
             exit 0
             ;;

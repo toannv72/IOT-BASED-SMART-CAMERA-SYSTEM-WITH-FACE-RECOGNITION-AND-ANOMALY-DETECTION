@@ -10,6 +10,8 @@ import torch
 import supervision as sv
 from app.telemetry import TelemetryTracker
 
+import sys
+
 # Cấu hình GPIO an toàn cho Raspberry Pi (hỗ trợ cross-platform)
 try:
     import RPi.GPIO as GPIO
@@ -17,9 +19,17 @@ try:
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
     print("[PROCESSORS] RPi.GPIO loaded and BCM mode initialized successfully.")
-except ImportError:
+except (ImportError, Exception) as e:
     has_gpio = False
-    print("[PROCESSORS] [WARNING] RPi.GPIO không khả dụng. Chạy chế độ giả lập.")
+    print(f"[PROCESSORS] [WARNING] RPi.GPIO không khả dụng ({e}). Chạy chế độ giả lập.")
+    if sys.platform.startswith("linux"):
+        print("!" * 68)
+        print("[LƯU Ý QUAN TRỌNG] Bạn đang chạy trên Linux nhưng thiếu thư viện 'RPi.GPIO'!")
+        print("-> Toàn bộ thiết bị ngoại vi (Còi, Đèn, Ga, Khóa Cửa) sẽ chạy ở chế độ GIẢ LẬP.")
+        print("-> Để điều khiển phần cứng thật, vui lòng cài RPi.GPIO vào môi trường hiện tại:")
+        print("      pip install RPi.GPIO")
+        print("   hoặc tạo lại venv kế thừa hệ thống: python3 -m venv --system-site-packages venv")
+        print("!" * 68)
 
 # Import các biến cấu hình và mô hình AI từ các package
 import threading
@@ -563,40 +573,44 @@ def startup_beep(duration=3.0):
     LIGHT_PIN  = 22  # GPIO 22 (Pin 15)
 
     def _run():
-        SystemStatus.startup_active = True
-        SystemStatus.add_log(f"🔔 HỆ THỐNG: Khởi chạy thành công! Phát tín hiệu đèn & còi {duration:.0f}s...", "info")
-        print(f"[STARTUP] Phát tín hiệu khởi động thành công: Mở đèn và còi trong {duration:.0f} giây.")
-        
-        # 1. Bật đèn qua hàm chuẩn set_light_state để đồng bộ UI và phần cứng
-        set_light_state(True)
-        
-        # 2. Phát âm còi nhịp nhàng báo hiệu trong 3 giây
-        if has_gpio:
-            try:
-                GPIO.setup(BUZZER_PIN, GPIO.OUT)
-                start_t = time.time()
-                while time.time() - start_t < duration:
-                    GPIO.output(BUZZER_PIN, GPIO.HIGH)
-                    time.sleep(0.2)
+        try:
+            SystemStatus.startup_active = True
+            SystemStatus.add_log(f"🔔 HỆ THỐNG: Khởi chạy thành công! Phát tín hiệu đèn & còi {duration:.0f}s...", "info")
+            print(f"[STARTUP] Phát tín hiệu khởi động thành công: Mở đèn và còi trong {duration:.0f} giây.")
+            
+            # 1. Bật đèn qua hàm chuẩn set_light_state để đồng bộ UI và phần cứng
+            set_light_state(True)
+            
+            # 2. Phát âm còi nhịp nhàng báo hiệu trong 3 giây
+            if has_gpio:
+                try:
+                    GPIO.setup(BUZZER_PIN, GPIO.OUT)
+                    start_t = time.time()
+                    while time.time() - start_t < duration:
+                        GPIO.output(BUZZER_PIN, GPIO.HIGH)
+                        time.sleep(0.2)
+                        GPIO.output(BUZZER_PIN, GPIO.LOW)
+                        time.sleep(0.15)
                     GPIO.output(BUZZER_PIN, GPIO.LOW)
-                    time.sleep(0.15)
-                GPIO.output(BUZZER_PIN, GPIO.LOW)
-            except Exception as e:
-                print(f"[STARTUP] [ERROR] Lỗi GPIO khi phát tín hiệu khởi động: {e}")
-        else:
-            # Chế độ giả lập (máy dev không có GPIO)
-            start_t = time.time()
-            beep_count = 0
-            while time.time() - start_t < duration:
-                beep_count += 1
-                print(f"[STARTUP] [SIMULATION] Bíp báo khởi chạy #{beep_count}!")
-                time.sleep(0.35)
-                
-        # 3. Kết thúc: Tắt đèn và còi, hoàn trả trạng thái
-        set_light_state(False)
-        SystemStatus.startup_active = False
-        SystemStatus.add_log("✅ HỆ THỐNG: Tín hiệu khởi động hoàn tất, hệ thống đã sẵn sàng.", "success")
-        print("[STARTUP] Tín hiệu khởi động hoàn tất.")
+                except Exception as e:
+                    print(f"[STARTUP] [ERROR] Lỗi GPIO khi phát tín hiệu khởi động: {e}")
+            else:
+                # Chế độ giả lập (máy dev không có GPIO)
+                start_t = time.time()
+                beep_count = 0
+                while time.time() - start_t < duration:
+                    beep_count += 1
+                    print(f"[STARTUP] [SIMULATION] Bíp báo khởi chạy #{beep_count}!")
+                    time.sleep(0.35)
+        finally:
+            # 3. Kết thúc: Luôn tắt đèn và còi, hoàn trả trạng thái chắc chắn
+            try:
+                set_light_state(False)
+            except Exception:
+                pass
+            SystemStatus.startup_active = False
+            SystemStatus.add_log("✅ HỆ THỐNG: Tín hiệu khởi động hoàn tất, hệ thống đã sẵn sàng.", "success")
+            print("[STARTUP] Tín hiệu khởi động hoàn tất.")
 
     t = threading.Thread(target=_run, daemon=True, name="StartupBeep")
     t.start()
@@ -1646,30 +1660,48 @@ def _gas_sensor_loop():
             # MQ-2 DO pin outputs LOW (0) when gas is detected, or HIGH (1) when clean.
             # We configure pull-up to keep it stable.
             GPIO.setup(GAS_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            print(f"[GAS SENSOR] Đã cấu hình GPIO {GAS_PIN} làm chân đọc tín hiệu số cảm biến khí Ga MQ-2 (Pull-up).")
         except Exception as e:
-            print(f"[GAS SENSOR] [ERROR] Không thể khởi tạo GPIO: {e}")
+            print(f"[GAS SENSOR] [ERROR] Không thể khởi tạo GPIO {GAS_PIN}: {e}")
             local_has_gpio = False
 
     cooldown = 0
     while True:
         try:
+            # Hỗ trợ cả cảm biến vật lý (DO = LOW khi có ga) VÀ kiểm tra giả lập từ Web Dashboard/Telegram
+            physical_detected = False
             if local_has_gpio:
-                is_gas_detected = (GPIO.input(GAS_PIN) == GPIO.LOW)
-            else:
-                # Đọc trạng thái giả lập từ SystemStatus
-                is_gas_detected = getattr(SystemStatus, "mock_gas_leak", False)
+                try:
+                    physical_detected = (GPIO.input(GAS_PIN) == GPIO.LOW)
+                except Exception as pin_err:
+                    print(f"[GAS SENSOR] Lỗi đọc chân GPIO {GAS_PIN}: {pin_err}")
+            mock_detected = getattr(SystemStatus, "mock_gas_leak", False)
+            is_gas_detected = physical_detected or mock_detected
                 
             if is_gas_detected:
                 if not SystemStatus.gas_active:
                     SystemStatus.gas_active = True
                     SystemStatus.add_log("🚨 CẢNH BÁO: Phát hiện rò rỉ khí GA tại cảm biến MQ-2!", "danger")
+                    print("[GAS SENSOR] 🚨 Phát hiện rò rỉ khí Ga! Đã kích hoạt cờ trạng thái báo động.")
                 
                 # Gửi cảnh báo Telegram với cooldown 30 giây tránh spam
                 if time.time() - cooldown > 30:
                     cooldown = time.time()
                     try:
+                        # Lấy khung hình mới nhất từ camera bất kỳ (nếu có) để gửi kèm ảnh hiện trường
+                        gas_frame = None
+                        for c_id, c_state in camera_states.items():
+                            if getattr(c_state, "last_jpeg_frame", None) is not None:
+                                try:
+                                    nparr = np.frombuffer(c_state.last_jpeg_frame, np.uint8)
+                                    gas_frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                                    if gas_frame is not None:
+                                        break
+                                except Exception:
+                                    pass
                         send_telegram_alert(
                             message="🚨 [CẢNH BÁO NGUY HIỂM]\nPhát hiện sự cố RÒ RỈ KHÍ GA tại cảm biến biên MQ-2!",
+                            frame=gas_frame,
                             alert_type="gas"
                         )
                     except Exception as e:
@@ -1678,6 +1710,7 @@ def _gas_sensor_loop():
                 if SystemStatus.gas_active:
                     SystemStatus.gas_active = False
                     SystemStatus.add_log("💨 Trạng thái khí ga đã trở về mức an toàn.", "success")
+                    print("[GAS SENSOR] Trạng thái khí ga đã trở về mức an toàn.")
                     
             time.sleep(1.0)
         except Exception as e:
@@ -1707,6 +1740,7 @@ def _buzzer_control_loop():
         try:
             GPIO.setup(BUZZER_PIN, GPIO.OUT)
             GPIO.output(BUZZER_PIN, GPIO.LOW)
+            print(f"[BUZZER] Đã cấu hình GPIO {BUZZER_PIN} xuất tín hiệu còi báo động.")
         except Exception as e:
             print(f"[BUZZER] [ERROR] Lỗi cấu hình GPIO còi: {e}")
             local_has_gpio = False
@@ -1737,11 +1771,11 @@ def _buzzer_control_loop():
                             break
                             
             # Kiểm tra xem còi có đang bị tắt tạm thời từ Telegram/Admin hay không
+            # LƯU Ý: is_mock (Test còi thủ công từ web/Telegram) KHÔNG bị mute để luôn cho phép kiểm tra loa
             if time.time() < getattr(SystemStatus, "buzzer_mute_until", 0.0):
                 is_fire = False
                 is_gas = False
                 is_intrusion_alarm = False
-                is_mock = False
             
             # 2. Xử lý nháy còi báo động tùy theo mức độ ưu tiên
             if is_fire:
@@ -1773,7 +1807,7 @@ def _buzzer_control_loop():
                 time.sleep(0.8)
             elif is_mock:
                 SystemStatus.buzzer_active = True
-                # Giả lập: Nháy chu kỳ 0.5s
+                # Giả lập / Test còi: Nháy chu kỳ 0.5s
                 if local_has_gpio:
                     GPIO.output(BUZZER_PIN, GPIO.HIGH)
                 time.sleep(0.5)
@@ -1798,7 +1832,10 @@ auto_light_timer = None
 auto_light_lock = threading.Lock()
 
 def set_light_state(state: bool):
-    """Đặt trạng thái bật/tắt rơ-le đèn chiếu sáng (GPIO 22)"""
+    """
+    Đặt trạng thái bật/tắt rơ-le đèn chiếu sáng (GPIO 22).
+    Tự động hỗ trợ cả Rơ-le kích mức Thấp (Active-Low) và LED/Rơ-le kích mức Cao (Active-High).
+    """
     SystemStatus.light_active = state
     
     global has_gpio
@@ -1807,9 +1844,12 @@ def set_light_state(state: bool):
     if has_gpio:
         try:
             GPIO.setup(LIGHT_PIN, GPIO.OUT)
-            # Kích hoạt rơ-le đèn (HIGH = Bật, LOW = Tắt)
-            GPIO.output(LIGHT_PIN, GPIO.HIGH if state else GPIO.LOW)
-            print(f"[LIGHT RELAY] GPIO {LIGHT_PIN} set to {'HIGH' if state else 'LOW'}.")
+            # Hỗ trợ tùy chọn active-low nếu dùng module rơ-le kích mức thấp
+            active_low = config.settings.get("light_active_low", False)
+            pin_level = (GPIO.LOW if state else GPIO.HIGH) if active_low else (GPIO.HIGH if state else GPIO.LOW)
+            GPIO.output(LIGHT_PIN, pin_level)
+            level_str = "LOW" if pin_level == GPIO.LOW else "HIGH"
+            print(f"[LIGHT RELAY] GPIO {LIGHT_PIN} set to {level_str} (state={'ON' if state else 'OFF'}, active_low={active_low}).")
         except Exception as e:
             print(f"[LIGHT RELAY] [ERROR] Lỗi điều khiển GPIO rơ-le đèn: {e}")
     else:
@@ -1897,40 +1937,3 @@ def _auto_light_off_worker():
     with auto_light_lock:
         set_light_state(False)
         auto_light_timer = None
-
-# =========================================================================
-# PHÂN HỆ RƠ-LE KHÓA CỬA ĐIỆN TỪ (SOLENOID DOOR LOCK RELAY VIA GPIO 23)
-# =========================================================================
-door_lock_mutex = threading.Lock()
-
-def unlock_door(duration=3.0):
-    """
-    Kích hoạt rơ-le mở khóa cửa điện từ Solenoid (GPIO 23) trong duration giây (mặc định 3s).
-    Sau đó tự động khóa lại (LOW) để bảo vệ rơ-le và tránh cháy cuộn hút solenoid.
-    """
-    global has_gpio
-    DOOR_PIN = 23  # GPIO 23 (Pin 16)
-    
-    def _worker():
-        with door_lock_mutex:
-            SystemStatus.door_unlock_active = True
-            SystemStatus.add_log(f"🔓 CỬA: Đang mở khóa cửa từ xa ({duration:.0f} giây)...", "warning")
-            if has_gpio:
-                try:
-                    GPIO.setup(DOOR_PIN, GPIO.OUT)
-                    GPIO.output(DOOR_PIN, GPIO.HIGH)
-                    print(f"[DOOR LOCK] GPIO {DOOR_PIN} set to HIGH. Door UNLOCKED.")
-                    time.sleep(duration)
-                    GPIO.output(DOOR_PIN, GPIO.LOW)
-                    print(f"[DOOR LOCK] GPIO {DOOR_PIN} set to LOW. Door LOCKED.")
-                except Exception as e:
-                    print(f"[DOOR LOCK] [ERROR] Lỗi điều khiển GPIO mở cửa: {e}")
-            else:
-                print(f"[DOOR LOCK] [SIMULATION] Cửa mở trong {duration:.0f} giây (Giả lập)...")
-                time.sleep(duration)
-                print(f"[DOOR LOCK] [SIMULATION] Cửa đã đóng chốt khóa an toàn.")
-            
-            SystemStatus.door_unlock_active = False
-            SystemStatus.add_log("🔒 CỬA: Đã đóng chốt khóa an toàn.", "success")
-            
-    threading.Thread(target=_worker, daemon=True, name="DoorUnlockWorker").start()

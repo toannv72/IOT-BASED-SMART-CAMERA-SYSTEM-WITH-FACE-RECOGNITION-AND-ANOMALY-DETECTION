@@ -12,3 +12,4 @@ ultralytics
 supervision
 psutil
 python-multipart
+RPi.GPIO; sys_platform == 'linux'
