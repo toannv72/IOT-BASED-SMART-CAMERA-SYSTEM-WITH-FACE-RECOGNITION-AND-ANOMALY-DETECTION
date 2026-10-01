@@ -464,6 +464,9 @@ class CameraState:
         self.fire_counter = 0
         self.last_jpeg_frame = None
         self.reload_config_requested = False
+        self.active_stream_clients = 0
+        self.active_clients_lock = threading.Lock()
+        self.threaded_cam = None
 
 
 def notify_camera_config_updated(camera_id: str):
@@ -558,6 +561,12 @@ def stop_camera_thread(camera_id: str):
     # Đặt ngay khung hình thông báo tạm dừng cho state và reset fps
     if camera_id in camera_states:
         camera_states[camera_id].last_jpeg_frame = make_paused_frame(camera_id)
+        if camera_states[camera_id].threaded_cam is not None:
+            try:
+                camera_states[camera_id].threaded_cam.release()
+            except Exception:
+                pass
+            camera_states[camera_id].threaded_cam = None
     camera_fps[camera_id] = 0.0
 
 def startup_beep(duration=3.0):
@@ -639,39 +648,53 @@ def gen_dynamic_stream(camera_id: str):
     """
     Bộ sinh luồng xử lý ảnh camera động.
     Đọc khung hình đã được xử lý và mã hóa JPEG từ luồng chạy ngầm (background thread).
+    Tự động ghi nhận số lượng người xem trực tiếp để tối ưu hóa nén JPEG trên Pi 4.
     """
     if camera_id not in camera_states:
         camera_states[camera_id] = CameraState()
     state = camera_states[camera_id]
     
+    with state.active_clients_lock:
+        state.active_stream_clients += 1
+    
     consecutive_empty = 0
     loop_count = 0
-    while True:
-        loop_count += 1
-        # Cứ mỗi 15 chu kỳ (~0.6s) kiểm tra lại xem camera có bị Admin tạm dừng không
-        if loop_count % 15 == 1:
-            cameras = config.get_cameras_config()
-            cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
-            is_enabled = cfg.get("enabled", True) is not False if cfg else True
-            if not is_enabled:
-                paused_frame = make_paused_frame(camera_id)
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + paused_frame + b'\r\n')
-                time.sleep(0.5)
-                continue
+    last_sent_frame_id = -1
+    try:
+        while True:
+            loop_count += 1
+            # Cứ mỗi 15 chu kỳ (~0.6s) kiểm tra lại xem camera có bị Admin tạm dừng không
+            if loop_count % 15 == 1:
+                cameras = config.get_cameras_config()
+                cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
+                is_enabled = cfg.get("enabled", True) is not False if cfg else True
+                if not is_enabled:
+                    paused_frame = make_paused_frame(camera_id)
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + paused_frame + b'\r\n')
+                    time.sleep(0.5)
+                    continue
 
-        ensure_camera_thread_running(camera_id)
-        
-        if state.last_jpeg_frame is not None:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + state.last_jpeg_frame + b'\r\n')
-            consecutive_empty = 0
-        else:
-            consecutive_empty += 1
-            if consecutive_empty > 100:  # ~10 seconds of no frames
-                ensure_camera_thread_running(camera_id)
-                consecutive_empty = 0
-        time.sleep(0.15)  # ~7 FPS — phù hợp khả năng xử lý thực tế của Pi 4 (từ 0.04s)
+            ensure_camera_thread_running(camera_id)
+            
+            cur_frame_id = getattr(state, "frame_index", 0)
+            if state.last_jpeg_frame is not None:
+                # Chỉ truyền khung hình khi có frame mới hoặc định kỳ heartbeat (tiết kiệm băng thông & CPU Pi)
+                if cur_frame_id != last_sent_frame_id or (loop_count % 10 == 0):
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + state.last_jpeg_frame + b'\r\n')
+                    last_sent_frame_id = cur_frame_id
+                    consecutive_empty = 0
+            else:
+                consecutive_empty += 1
+                if consecutive_empty > 100:  # ~10 seconds of no frames
+                    ensure_camera_thread_running(camera_id)
+                    consecutive_empty = 0
+            # Giảm độ trễ phát stream xuống mượt mà (~12-15 FPS) thay vì 7 FPS
+            time.sleep(0.07)
+    finally:
+        with state.active_clients_lock:
+            state.active_stream_clients = max(0, state.active_stream_clients - 1)
 
 def run_camera_processing_loop(camera_id: str, stop_event=None):
     """
@@ -693,9 +716,10 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
     if isinstance(source, str) and source.isdigit():
         source = int(source)
 
-    from app.camera_manager import open_safe_video_capture
-    cap = open_safe_video_capture(source)
-    if not cap.isOpened():
+    from app.camera_manager import ThreadedCamera
+    threaded_cam = ThreadedCamera(source, width=640, height=480, fps=25).start()
+    state.threaded_cam = threaded_cam
+    if not threaded_cam.isOpened():
         print(f"[PROCESSORS] [ERROR] Không thể mở camera source {source} cho camera {camera_id}")
         return
 
@@ -725,21 +749,13 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             break
         t_start = time.time()
         current_time = t_start
-        ret, frame = cap.read()
-        if not ret:
-            if isinstance(source, str) and os.path.exists(source):
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                state.frame_index = 0
-                state.track_states.clear()
-                state.lost_tracks.clear()
-                state.active_tracks.clear()
-                continue
-            else:
-                time.sleep(0.5)
-                continue
+        ret, frame = threaded_cam.read()
+        if not ret or frame is None:
+            time.sleep(0.02)
+            continue
 
         state.frame_index += 1
-        frame = cv2.resize(frame, (480, 270))  # Pi4 opt: 480x270 thay vì 640x360, YOLO vẫn scale nội bộ về imgsz=320
+        frame = cv2.resize(frame, (640, 360))  # Độ phân giải chuẩn 16:9, tương thích chính xác vùng ROI, đường ranh giới và MTCNN box
 
         # Nạp lại cấu hình nóng tức thì khi có yêu cầu hoặc định kỳ mỗi 150 khung hình (~30s trên Pi)
         if getattr(state, "reload_config_requested", False) or (state.frame_index % 150 == 0):
@@ -749,12 +765,12 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             if new_cfg:
                 if str(new_cfg.get("source", "")).strip() != str(cfg.get("source", "")).strip():
                     print(f"[PROCESSORS] Camera '{camera_id}' source changed from '{cfg.get('source')}' to '{new_cfg.get('source')}'. Reopening...")
-                    cap.release()
+                    threaded_cam.release()
                     source = new_cfg["source"]
                     if isinstance(source, str) and source.isdigit():
                         source = int(source)
-                    from app.camera_manager import open_safe_video_capture
-                    cap = open_safe_video_capture(source)
+                    threaded_cam = ThreadedCamera(source, width=640, height=480, fps=25).start()
+                    state.threaded_cam = threaded_cam
                 cfg = new_cfg
             
             if "face_id" in cfg.get("features", []) or "abnormal_behavior" in cfg.get("features", []):
@@ -1595,14 +1611,18 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     pass
                 full_writer = None
 
-        ret_enc, buffer = cv2.imencode('.jpg', annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 65])  # Pi4 opt: quality=65 giảm ~60% CPU encode
-        if not ret_enc: continue
-
-        state.last_jpeg_frame = buffer.tobytes()
+        # Tối ưu hóa CPU Raspberry Pi 4: Chỉ mã hóa JPEG ở mọi khung hình khi có người dùng xem trực tiếp trên Web Dashboard
+        # Nếu không có client xem (chạy ngầm), chỉ mã hóa định kỳ mỗi 15 khung hình (~1s) để cập nhật thumbnail và phục vụ Telegram
+        should_encode_jpeg = (getattr(state, "active_stream_clients", 0) > 0) or (state.frame_index % 15 == 0) or (state.last_jpeg_frame is None)
+        if should_encode_jpeg:
+            ret_enc, buffer = cv2.imencode('.jpg', annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 65])  # Pi4 opt: quality=65 giảm ~60% CPU encode
+            if ret_enc:
+                state.last_jpeg_frame = buffer.tobytes()
 
         try:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + state.last_jpeg_frame + b'\r\n')
+            if state.last_jpeg_frame is not None:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + state.last_jpeg_frame + b'\r\n')
         except GeneratorExit:
             if full_writer is not None:
                 try:
@@ -1610,7 +1630,8 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     print(f"[RECORDING] Giải phóng trình ghi video cho camera '{camera_id}' khi đóng generator (GeneratorExit).")
                 except Exception:
                     pass
-            cap.release()
+            threaded_cam.release()
+            state.threaded_cam = None
             raise
 
         t_end = time.time()
@@ -1621,9 +1642,9 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         if stop_event is not None:
             if stop_event.is_set():
                 break
-            # Giới hạn tốc độ xử lý: 7 FPS trên CPU Pi4 (0.15s), 25 FPS trên GPU (0.04s)
+            # Giới hạn tốc độ xử lý: ~12-14 FPS trên CPU Pi4 (0.07s) thay vì 7 FPS (0.15s), 25 FPS trên GPU (0.04s)
             elapsed = t_end - t_start
-            target_fps_delay = 0.15 if ai_device.type != 'cuda' else 0.04
+            target_fps_delay = 0.07 if ai_device.type != 'cuda' else 0.04
             delay = max(0.005, target_fps_delay - elapsed)
             time.sleep(delay)
 
@@ -1633,7 +1654,8 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             print(f"[RECORDING] Giải phóng trình ghi video cho camera '{camera_id}' khi dừng luồng.")
         except Exception:
             pass
-    cap.release()
+    threaded_cam.release()
+    state.threaded_cam = None
 
 # =========================================================================
 # PHÂN HỆ CẢM BIẾN KHÍ GA MQ-2 (ĐỒNG BỘ CHO THIẾT BỊ BIÊN RASPBERRY PI 4)

@@ -4,7 +4,7 @@
         "source": "0",
         "features": [
             "face_id",
-            "fall_detection"
+            "fire_detection"
         ],
         "line": [
             [
@@ -38,13 +38,13 @@
         "schedule_start": "01:00",
         "schedule_end": "14:00",
         "low_light_enhance": false,
-        "enhance_clip_limit": 2,
+        "enhance_clip_limit": 8.5,
         "map_id": "khu_a_tang_2",
         "map_x": 20.97,
         "map_y": 77.56,
         "in_direction": "down",
         "trigger_alarm": false,
-        "enabled": false
+        "enabled": true
     },
     {
         "camera_id": "2",

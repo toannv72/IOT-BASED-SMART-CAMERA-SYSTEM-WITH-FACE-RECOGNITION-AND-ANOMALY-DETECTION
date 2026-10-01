@@ -4,6 +4,19 @@ import numpy as np
 
 # Xác định thiết bị tính toán (GPU CUDA nếu khả dụng, nếu không sử dụng CPU)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Tối ưu hóa số luồng tính toán trên CPU biên (Raspberry Pi 4 có 4 nhân Cortex-A72)
+if device.type == 'cpu':
+    # Giới hạn PyTorch dùng tối đa 2 threads để tránh 100% CPU starvation và quá nhiệt (Thermal Throttling)
+    torch.set_num_threads(2)
+    try:
+        torch.set_num_interop_threads(1)
+    except Exception:
+        pass
+    import cv2
+    cv2.setNumThreads(1)
+    print(f"[AI MODEL] CPU mode detected: PyTorch constrained to 2 threads, OpenCV to 1 thread for Pi 4 thermal & latency safety.")
+
 print(f"==================================================")
 print(f"[AI MODEL] Compute device configured: {device}")
 print(f"==================================================")
