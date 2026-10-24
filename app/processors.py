@@ -501,6 +501,22 @@ def is_near_border(bbox, margin_x=60, margin_y=40):
     x1, y1, x2, y2 = bbox
     return (x1 < margin_x or x2 > 640 - margin_x or y1 < margin_y or y2 > 360 - margin_y)
 
+_DEFAULT_ROI = [[100, 100], [540, 100], [540, 300], [100, 300]]
+_JPEG_ENCODE_PARAMS = [int(cv2.IMWRITE_JPEG_QUALITY), 65]
+
+def cached_roi_polygons(state, cfg):
+    """Giữ đa giác ROI đã chuyển sang mảng NumPy cho đến khi cấu hình camera đổi."""
+    if getattr(state, "_roi_cache_cfg", None) is cfg:
+        return state._roi_polys
+    rois = cfg.get("rois")
+    if not rois:
+        roi = cfg.get("roi")
+        rois = [roi if roi else _DEFAULT_ROI]
+    polys = [np.array(roi_poly, np.int32).reshape((-1, 1, 2)) for roi_poly in rois]
+    state._roi_cache_cfg = cfg
+    state._roi_polys = polys
+    return polys
+
 import threading
 
 camera_threads = {}
@@ -508,6 +524,11 @@ camera_stop_events = {}
 camera_threads_lock = threading.Lock()
 
 def ensure_camera_thread_running(camera_id: str):
+    with camera_threads_lock:
+        existing = camera_threads.get(camera_id)
+        if existing is not None and existing.is_alive():
+            return
+
     cameras = config.get_cameras_config()
     cfg = next((c for c in cameras if c["camera_id"] == camera_id), None)
     if cfg and cfg.get("enabled", True) is False:
@@ -755,7 +776,12 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             continue
 
         state.frame_index += 1
-        frame = cv2.resize(frame, (640, 360))  # Độ phân giải chuẩn 16:9, tương thích chính xác vùng ROI, đường ranh giới và MTCNN box
+        # Độ phân giải chuẩn 16:9. Resize đã tạo mảng mới; nếu đúng kích thước thì copy một lần
+        # để bộ đệm sự kiện không dùng chung bộ nhớ với buffer của OpenCV.
+        if frame.shape[0] != 360 or frame.shape[1] != 640:
+            frame = cv2.resize(frame, (640, 360))
+        else:
+            frame = frame.copy()
 
         # Nạp lại cấu hình nóng tức thì khi có yêu cầu hoặc định kỳ mỗi 150 khung hình (~30s trên Pi)
         if getattr(state, "reload_config_requested", False) or (state.frame_index % 150 == 0):
@@ -785,18 +811,23 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     db_embeddings = db_embeddings / norms
 
         if cfg.get("low_light_enhance", False):
-            clip_limit = cfg.get("enhance_clip_limit", 2.0)
+            clip_limit = float(cfg.get("enhance_clip_limit", 2.0))
             try:
+                clahe = getattr(state, "_clahe", None)
+                if clahe is None or getattr(state, "_clahe_clip", None) != clip_limit:
+                    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8))
+                    state._clahe = clahe
+                    state._clahe_clip = clip_limit
                 lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
                 l_channel, a, b = cv2.split(lab)
-                clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8))
                 cl = clahe.apply(l_channel)
                 limg = cv2.merge((cl, a, b))
                 frame = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
             except Exception as e:
                 print(f"[PROCESSORS] Lỗi CLAHE: {e}")
 
-        state.last_frame = frame.copy()
+        # Khung hình này không bị ghi đè tại chỗ ở các vòng sau, nên không cần sao chép thêm
+        state.last_frame = frame
 
         features = cfg.get("features", [])
         conf_thr = config.settings.get("conf_threshold", 0.25)
@@ -840,15 +871,16 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             else:
                 detections = state.last_detections
 
-        annotated_frame = frame.copy()
+        # Chỉ tách bản vẽ khi có lớp phủ. Ảnh gốc giữ nguyên để gửi cảnh báo.
+        needs_overlay = bool(features) or cfg.get("schedule_enabled", False)
+        annotated_frame = frame.copy() if needs_overlay else frame
 
         if "intrusion_roi" in features and detections is not None:
-            rois = cfg.get("rois", [cfg.get("roi", [[100, 100], [540, 100], [540, 300], [100, 300]])])
+            roi_polys = cached_roi_polygons(state, cfg)
             person_in_roi = False
             active_tids_in_roi = set()
 
-            for roi_poly in rois:
-                pts = np.array(roi_poly, np.int32).reshape((-1, 1, 2))
+            for pts in roi_polys:
                 
                 is_this_roi_violated = False
                 if detections.tracker_id is not None and len(detections.tracker_id) == len(detections):
@@ -1199,14 +1231,13 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         reasons.append("Ban Dem")
                         
                     # 2. Vùng cấm (+40)
-                    rois = cfg.get("rois", [cfg.get("roi", [[100, 100], [540, 100], [540, 300], [100, 300]])])
+                    roi_polys = cached_roi_polygons(state, cfg)
                     in_roi = False
                     check_points = [
                         (int((bbox[0] + bbox[2]) / 2), int(bbox[3])),  # Điểm chân
                         (int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2))  # Trọng tâm
                     ]
-                    for roi_poly in rois:
-                        pts = np.array(roi_poly, np.int32).reshape((-1, 1, 2))
+                    for pts in roi_polys:
                         for cp in check_points:
                             if cv2.pointPolygonTest(pts, cp, False) >= 0:
                                 in_roi = True
@@ -1235,6 +1266,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         reasons.append("Dung Lau")
                         
                     # 4. Chạy nhanh (+10)
+                    is_running = False
                     recent_1_5s = [item for item in trajectory if current_time - item[0] <= 1.5]
                     if len(recent_1_5s) >= 2:
                         t_diff = recent_1_5s[-1][0] - recent_1_5s[0][0]
@@ -1344,9 +1376,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         state.track_high_risk_start_times.pop(tid, None)
                                 
             # Vẽ nét mỏng vùng đa giác ROI của tính năng hành vi
-            rois = cfg.get("rois", [cfg.get("roi", [[100, 100], [540, 100], [540, 300], [100, 300]])])
-            for roi_poly in rois:
-                pts = np.array(roi_poly, np.int32).reshape((-1, 1, 2))
+            for pts in cached_roi_polygons(state, cfg):
                 cv2.polylines(annotated_frame, [pts], True, (0, 255, 255), 1)
 
             state.intrusion_active = any_intrusion_active
@@ -1544,8 +1574,8 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             cv2.rectangle(annotated_frame, (8, 330), (290, 354), (0, 220, 255), 1)
             cv2.putText(annotated_frame, "[LICH TRINH: TAT CANH BAO]", (14, 347), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 220, 255), 1)
 
-        # Lưu khung hình kèm nét vẽ AI vào bộ đệm để ghi video sự cố
-        state.frame_buffer.append(annotated_frame.copy())
+        # annotated_frame không bị sửa sau thời điểm này, nên đưa thẳng vào bộ đệm
+        state.frame_buffer.append(annotated_frame)
 
         # Ghi hình toàn bộ (Continuous Video Recording)
         record_full = config.settings.get("record_full_video", False)
@@ -1615,7 +1645,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         # Nếu không có client xem (chạy ngầm), chỉ mã hóa định kỳ mỗi 15 khung hình (~1s) để cập nhật thumbnail và phục vụ Telegram
         should_encode_jpeg = (getattr(state, "active_stream_clients", 0) > 0) or (state.frame_index % 15 == 0) or (state.last_jpeg_frame is None)
         if should_encode_jpeg:
-            ret_enc, buffer = cv2.imencode('.jpg', annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 65])  # Pi4 opt: quality=65 giảm ~60% CPU encode
+            ret_enc, buffer = cv2.imencode('.jpg', annotated_frame, _JPEG_ENCODE_PARAMS)
             if ret_enc:
                 state.last_jpeg_frame = buffer.tobytes()
 

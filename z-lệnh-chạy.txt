@@ -2,6 +2,23 @@
 HƯỚNG DẪN CÀI ĐẶT VÀ CHẠY DỰ ÁN SMART CAMERA TRÊN RASPBERRY PI 4
 ========================================================================
 
+>>> CÁCH CÀI ĐẶT 1 BƯỚC NHƯ MỘT ỨNG DỤNG TỰ KHỞI ĐỘNG (KHUYÊN DÙNG) <<<
+(Tự động chạy ngầm mỗi lần mở máy hoặc khi mất điện rồi có điện trở lại)
+------------------------------------------------------------------------
+unzip SmartCamera_System.zip -d ~/Downloads/yolo
+cd ~/Downloads/yolo
+bash cai_dat_app.sh
+
+* Script 'cai_dat_app.sh' sẽ tự động làm toàn bộ từ A-Z:
+  1. Tự tạo Venv và cài đặt PyTorch CPU ARMv8 (chống lỗi tràn RAM disk /tmp).
+  2. Tự cấu hình và kích hoạt Systemd Service (chạy ngầm khi cấp điện).
+  3. Tạo biểu tượng ứng dụng 'Smart Camera AI' ngay trên Desktop của Pi.
+  4. Tự giải phóng cổng 8000 và khởi chạy máy chủ ngay lập tức!
+
+========================================================================
+HƯỚNG DẪN CÀI ĐẶT THỦ CÔNG TỪNG BƯỚC (NẾU MUỐN TỰ QUẢN LÝ):
+========================================================================
+
 Bước 1: Giải nén mã nguồn vào thư mục mong muốn trên Pi
 ------------------------------------------------------------------------
 unzip SmartCamera_System.zip -d ~/Downloads/yolo

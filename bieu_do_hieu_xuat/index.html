@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng Đo Lường Hiệu Suất Hệ Thống Smart Camera Edge AI</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-base: #0B0F19;
+            --bg-card: rgba(17, 24, 39, 0.75);
+            --bg-card-hover: rgba(30, 41, 59, 0.85);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --border-active: rgba(59, 130, 246, 0.4);
+            
+            --primary: #3B82F6;
+            --primary-glow: rgba(59, 130, 246, 0.25);
+            --cyan: #06B6D4;
+            --teal: #10B981;
+            --emerald: #059669;
+            --amber: #F59E0B;
+            --rose: #F43F5E;
+            --purple: #8B5CF6;
+            
+            --text-main: #F3F4F6;
+            --text-muted: #9CA3AF;
+            --text-dark: #6B7280;
+            
+            --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            line-height: 1.6;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 75%, rgba(139, 92, 246, 0.07) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.04) 0%, transparent 60%);
+            background-attachment: fixed;
+            padding-bottom: 60px;
+        }
+
+        /* Top Navigation Header */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(11, 15, 25, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-glass);
+            padding: 16px 36px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .header-logo {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, #3B82F6, #8B5CF6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .header-title h1 {
+            font-size: 19px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #FFFFFF, #93C5FD);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-title p {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .header-badges {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .pill-badge {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-glass);
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #D1D5DB;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pill-badge.active {
+            background: rgba(16, 185, 129, 0.12);
+            border-color: rgba(16, 185, 129, 0.35);
+            color: #34D399;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #10B981;
+            box-shadow: 0 0 10px #10B981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
+        }
+
+        /* Container */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 24px;
+        }
+
+        /* KPI Quick Stat Cards Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 18px;
+            margin-bottom: 30px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 20px 22px;
+            backdrop-filter: blur(12px);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--border-active);
+            box-shadow: 0 8px 30px rgba(59, 130, 246, 0.15);
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--card-color, #3B82F6), transparent);
+        }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .kpi-title {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .kpi-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--card-color, #3B82F6);
+            font-size: 16px;
+        }
+
+        .kpi-value {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: #FFFFFF;
+            margin-bottom: 4px;
+        }
+
+        .kpi-subtext {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .kpi-tag {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 6px;
+            background: rgba(16, 185, 129, 0.15);
+            color: #34D399;
+        }
+
+        /* Tabs Navigation */
+        .tabs-nav {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 6px;
+            margin-bottom: 26px;
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 13.5px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .tab-btn.active {
+            color: #FFFFFF;
+            background: rgba(59, 130, 246, 0.18);
+            border-color: rgba(59, 130, 246, 0.35);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+        }
+
+        /* Tab Content Section */
+        .tab-pane {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Chart Grid Layouts */
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .chart-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glass);
+            border-radius: 18px;
+            padding: 24px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        .chart-box-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .chart-box-title h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #FFFFFF;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-box-title p {
+            font-size: 12.5px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .chart-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-action {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-glass);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-action:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .canvas-container {
+            position: relative;
+            height: 360px;
+            width: 100%;
+        }
+
+        /* Image Preview Box for Publication-Quality 300 DPI Figures */
+        .figure-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glass);
+            border-radius: 18px;
+            padding: 20px;
+            backdrop-filter: blur(12px);
+            margin-bottom: 24px;
+            transition: all 0.3s;
+        }
+
+        .figure-card:hover {
+            border-color: var(--border-active);
+        }
+
+        .figure-card img {
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .figure-card img:hover {
+            transform: scale(1.008);
+        }
+
+        .figure-caption {
+            margin-top: 14px;
+            font-size: 13.5px;
+            color: #D1D5DB;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .figure-caption strong {
+            color: #60A5FA;
+        }
+
+        /* Table Styling */
+        .data-table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glass);
+            border-radius: 18px;
+            padding: 24px;
+            backdrop-filter: blur(12px);
+            overflow-x: auto;
+        }
+
+        table.custom-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13.5px;
+            text-align: left;
+        }
+
+        table.custom-table th {
+            background: rgba(255, 255, 255, 0.03);
+            color: #93C5FD;
+            font-weight: 600;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border-glass);
+            text-transform: uppercase;
+            font-size: 11.5px;
+            letter-spacing: 0.05em;
+        }
+
+        table.custom-table td {
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            color: #E5E7EB;
+        }
+
+        table.custom-table tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge-table {
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-optimal {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34D399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .badge-baseline {
+            background: rgba(148, 163, 184, 0.15);
+            color: #94A3B8;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        /* Modal Lightbox */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.88);
+            backdrop-filter: blur(8px);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.open {
+            display: flex;
+        }
+
+        .modal-content {
+            max-width: 95%;
+            max-height: 90vh;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 25px;
+            right: 35px;
+            color: white;
+            font-size: 32px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-modal:hover {
+            color: #F87171;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            header {
+                padding: 14px 18px;
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+            .canvas-container {
+                height: 290px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header>
+        <div class="header-brand">
+            <div class="header-logo">
+                <i class="fa-solid fa-microchip"></i>
+            </div>
+            <div class="header-title">
+                <h1>Hệ Thống Smart Camera Edge AI - Báo Cáo Đo Lường Hiệu Suất</h1>
+                <p>Khung Kết Nối IoT Cộng Tác Biên - Đám Mây (Raspberry Pi 4 Model B - 8GB RAM, CPU Mode)</p>
+            </div>
+        </div>
+        <div class="header-badges">
+            <div class="pill-badge active">
+                <span class="status-dot"></span>
+                <span>Thực nghiệm Biên Đạt Chuẩn</span>
+            </div>
+            <div class="pill-badge">
+                <i class="fa-solid fa-code-commit text-muted"></i>
+                <span>v2.4.0 (Edge Optimized)</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+
+        <!-- 6 Thẻ KPI Tóm Tắt Nhanh (High-level Summary Cards) -->
+        <div class="kpi-grid">
+            <div class="kpi-card" style="--card-color: #3B82F6;">
+                <div class="kpi-header">
+                    <span class="kpi-title">Độ trễ AI nhanh nhất</span>
+                    <div class="kpi-icon"><i class="fa-solid fa-bolt"></i></div>
+                </div>
+                <div class="kpi-value">37.1 <span style="font-size: 16px; font-weight: 500;">ms</span></div>
+                <div class="kpi-subtext">
+                    <span class="kpi-tag">MTCNN Face</span>
+                    <span>Phát hiện khuôn mặt cực nhanh</span>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="--card-color: #10B981;">
+                <div class="kpi-header">
+                    <span class="kpi-title">Độ chính xác xác thực</span>
+                    <div class="kpi-icon"><i class="fa-solid fa-id-card"></i></div>
+                </div>
+                <div class="kpi-value">98.2<span style="font-size: 16px; font-weight: 500;">%</span></div>
+                <div class="kpi-subtext">
+                    <span class="kpi-tag">FaceNet L2</span>
+                    <span>Nhận dạng khẩu trang 89.5%</span>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="--card-color: #F59E0B;">
+                <div class="kpi-header">
+                    <span class="kpi-title">Phát hiện hỏa hoạn</span>
+                    <div class="kpi-icon"><i class="fa-solid fa-fire"></i></div>
+                </div>
+                <div class="kpi-value">94.3<span style="font-size: 16px; font-weight: 500;">%</span></div>
+                <div class="kpi-subtext">
+                    <span class="kpi-tag">YOLOv8n-fire</span>
+                    <span>347.7 ms độ trễ suy luận</span>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="--card-color: #EF4444;">
+                <div class="kpi-header">
+                    <span class="kpi-title">Phát hiện té ngã</span>
+                    <div class="kpi-icon"><i class="fa-solid fa-person-falling"></i></div>
+                </div>
+                <div class="kpi-value">92.1<span style="font-size: 16px; font-weight: 500;">%</span></div>
+                <div class="kpi-subtext">
+                    <span class="kpi-tag">YOLOv8-fall</span>
+                    <span>2.8 FPS (nhanh gấp 3.5x Pose)</span>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="--card-color: #8B5CF6;">
+                <div class="kpi-header">
+                    <span class="kpi-title">Tốc độ khung hình</span>
+                    <div class="kpi-icon"><i class="fa-solid fa-video"></i></div>
+                </div>
+                <div class="kpi-value">6.5 <span style="font-size: 16px; font-weight: 500;">FPS</span></div>
+                <div class="kpi-subtext">
+                    <span class="kpi-tag">Pi 4 CPU</span>
+                    <span>3.8 FPS khi chạy 2 Camera</span>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="--card-color: #06B6D4;">
+                <div class="kpi-header">
+                    <span class="kpi-title">Tiết kiệm băng thông</span>
+                    <div class="kpi-icon"><i class="fa-solid fa-network-wired"></i></div>
+                </div>
+                <div class="kpi-value">>99.9<span style="font-size: 16px; font-weight: 500;">%</span></div>
+                <div class="kpi-subtext">
+                    <span class="kpi-tag">Edge-Cloud</span>
+                    <span>6.5 MB so với 130 GB/ngày</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tabs-nav">
+            <button class="tab-btn active" onclick="switchTab('tab-summary', this)">
+                <i class="fa-solid fa-chart-pie"></i> Tổng Quan (Executive Dashboard)
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-latency', this)">
+                <i class="fa-solid fa-gauge-high"></i> Độ Trễ & FPS
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-accuracy', this)">
+                <i class="fa-solid fa-bullseye"></i> Độ Chính Xác AI
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-face', this)">
+                <i class="fa-solid fa-user-shield"></i> Nhận Diện Khuôn Mặt
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-hardware', this)">
+                <i class="fa-solid fa-server"></i> Tải Phần Cứng Pi 4
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-alerts', this)">
+                <i class="fa-solid fa-bell"></i> Điều Phối & Băng Thông
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-raw-data', this)">
+                <i class="fa-solid fa-table-list"></i> Bảng Dữ Liệu Chi Tiết
+            </button>
+        </div>
+
+        <!-- ================= TAB 1: EXECUTIVE SUMMARY ================= -->
+        <div id="tab-summary" class="tab-pane active">
+            <div class="figure-card">
+                <img src="00_bieu_do_tong_hop_hieu_xuat.png" alt="Biểu đồ tổng hợp hiệu suất toàn hệ thống Smart Camera" onclick="openModal(this.src)">
+                <div class="figure-caption">
+                    <div>
+                        <strong>Hình 1:</strong> Bảng điều khiển Infographic tổng hợp toàn bộ 6 phân hệ đo lường hiệu năng của Smart Camera trên Raspberry Pi 4.
+                    </div>
+                    <button class="btn-action" onclick="openModal('00_bieu_do_tong_hop_hieu_xuat.png')">
+                        <i class="fa-solid fa-expand"></i> Phóng to 300 DPI
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 2: LATENCY & FPS ================= -->
+        <div id="tab-latency" class="tab-pane">
+            <div class="charts-row">
+                <div class="chart-box">
+                    <div class="chart-box-header">
+                        <div class="chart-box-title">
+                            <h3><i class="fa-solid fa-stopwatch text-cyan"></i> Độ Trễ Suy Luận AI & Ngoại Vi (ms)</h3>
+                            <p>Đo trực tiếp trên CPU Broadcom BCM2711 của Raspberry Pi 4 (giá trị thấp hơn là tốt hơn)</p>
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="chartLatencyHorizontal"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-box">
+                    <div class="chart-box-header">
+                        <div class="chart-box-title">
+                            <h3><i class="fa-solid fa-code-compare text-emerald"></i> Đối Sánh Mô Hình Đề Xuất vs Baselines</h3>
+                            <p>Chứng minh ưu thế vượt trội khi triển khai thực tế trên nút biên không có GPU rời</p>
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="chartLatencyBaseline"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="figure-card">
+                <img src="01_do_tre_suy_luan_cac_mo_hinh.png" alt="Biểu đồ độ trễ suy luận" onclick="openModal(this.src)">
+                <div class="figure-caption">
+                    <div><strong>Hình 2:</strong> Bản in đồ họa chuẩn IEEE biểu diễn độ trễ suy luận AI và đối sánh mô hình cơ sở.</div>
+                    <button class="btn-action" onclick="openModal('01_do_tre_suy_luan_cac_mo_hinh.png')"><i class="fa-solid fa-expand"></i> Xem 300 DPI</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 3: ACCURACY METRICS ================= -->
+        <div id="tab-accuracy" class="tab-pane">
+            <div class="charts-row">
+                <div class="chart-box">
+                    <div class="chart-box-header">
+                        <div class="chart-box-title">
+                            <h3><i class="fa-solid fa-bullseye text-primary"></i> 4 Chỉ Số Đánh Giá Toàn Diện</h3>
+                            <p>Precision, Recall, F1-Score và mAP50 trên các tập dữ liệu kiểm thử thực tế</p>
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="chartAccuracyBar"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-box">
+                    <div class="chart-box-header">
+                        <div class="chart-box-title">
+                            <h3><i class="fa-solid fa-compass-drafting text-purple"></i> Bản Đồ Radar Năng Lực Phát Hiện</h3>
+                            <p>Độ đồng đều và vững chắc của hệ thống qua 5 lớp nguy cơ an ninh</p>
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="chartRadarMetrics"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="figure-card">
+                <img src="02_do_chinh_xac_cac_tinh_nang.png" alt="Biểu đồ độ chính xác các tính năng" onclick="openModal(this.src)">
+                <div class="figure-caption">
+                    <div><strong>Hình 3:</strong> Biểu đồ so sánh độ chính xác Precision, Recall, F1-Score và mAP50 chuẩn học thuật.</div>
+                    <button class="btn-action" onclick="openModal('02_do_chinh_xac_cac_tinh_nang.png')"><i class="fa-solid fa-expand"></i> Xem 300 DPI</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 4: FACE RECOGNITION ================= -->
+        <div id="tab-face" class="tab-pane">
+            <div class="charts-row">
+                <div class="chart-box">
+                    <div class="chart-box-header">
+                        <div class="chart-box-title">
+                            <h3><i class="fa-solid fa-user-check text-emerald"></i> Nhận Diện Khuôn Mặt Đa Góc Nhìn</h3>
+                            <p>Khảo sát độ chính xác khi quay trái/phải, ngẩng/cúi và trường hợp đeo khẩu trang y tế</p>
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="chartFacePoses"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-box">
+                    <div class="chart-box-header">
+                        <div class="chart-box-title">
+                            <h3><i class="fa-solid fa-sliders text-amber"></i> Đánh Đổi Ngưỡng So Khớp (FAR vs FRR Curve)</h3>
+                            <p>Xác định điểm cân bằng tối ưu θ = 0.80 triệt tiêu từ chối nhầm (FRR < 2%)</p>
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="chartFaceTradeoff"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="figure-card">
+                <img src="03_nhan_dien_khuon_mat_goc_nhin_va_nguong.png" alt="Khảo sát nhận diện khuôn mặt" onclick="openModal(this.src)">
+                <div class="figure-caption">
+                    <div><strong>Hình 4:</strong> Biểu đồ đường cong đánh đổi tỷ lệ lỗi FAR, FRR và ảnh hưởng của các góc xoay đầu.</div>
+                    <button class="btn-action" onclick="openModal('03_nhan_dien_khuon_mat_goc_nhin_va_nguong.png')"><i class="fa-solid fa-expand"></i> Xem 300 DPI</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 5: HARDWARE & SCALABILITY ================= -->
+        <div id="tab-hardware" class="tab-pane">
+            <div class="charts-row">
+                <div class="chart-box">
+                    <div class="chart-box-header">
+                        <div class="chart-box-title">
+                            <h3><i class="fa-solid fa-microchip text-rose"></i> Tốc Độ Khung Hình (FPS) vs Tải CPU (%)</h3>
+                            <p>Khả năng mở rộng đa kênh camera và giới hạn phần cứng của Raspberry Pi 4</p>
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="chartHardwareScalability"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-box">
+                    <div class="chart-box-header">
+                        <div class="chart-box-title">
+                            <h3><i class="fa-solid fa-hard-drive text-cyan"></i> Dung Lượng Mô Hình & Số Lượng Tham Số</h3>
+                            <p>Tối ưu hóa bộ nhớ RAM và không gian lưu trữ Flash cho thiết bị nhúng biên</p>
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="chartModelFootprint"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="figure-card">
+                <img src="04_tai_nguyen_va_kha_nang_mo_rong_pi4.png" alt="Khả năng mở rộng phần cứng Pi 4" onclick="openModal(this.src)">
+                <div class="figure-caption">
+                    <div><strong>Hình 5:</strong> Biểu đồ đo lường tải CPU và tốc độ FPS thực tế khi tăng số lượng camera giám sát.</div>
+                    <button class="btn-action" onclick="openModal('04_tai_nguyen_va_kha_nang_mo_rong_pi4.png')"><i class="fa-solid fa-expand"></i> Xem 300 DPI</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 6: DISPATCHER & BANDWIDTH ================= -->
+        <div id="tab-alerts" class="tab-pane">
+            <div class="charts-row">
+                <div class="chart-box">
+                    <div class="chart-box-header">
+                        <div class="chart-box-title">
+                            <h3><i class="fa-solid fa-paper-plane text-emerald"></i> Điều Phối Cảnh Báo Bất Đồng Bộ</h3>
+                            <p>So sánh cơ chế Dispatcher bất đồng bộ (Đề xuất) với gọi HTTP đồng bộ truyền thống</p>
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="chartDispatcherCompare"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-box">
+                    <div class="chart-box-header">
+                        <div class="chart-box-title">
+                            <h3><i class="fa-solid fa-cloud-arrow-up text-primary"></i> Tiết Kiệm Băng Thông Mạng Hàng Ngày</h3>
+                            <p>Mô hình Cloud-Only (130 GB/ngày) vs Mô hình Edge-Cloud đề xuất (6.5 MB/ngày)</p>
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="chartBandwidthSavings"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="figure-card">
+                <img src="05_dieu_phoi_canh_bao_va_bang_thong.png" alt="Điều phối cảnh báo và băng thông" onclick="openModal(this.src)">
+                <div class="figure-caption">
+                    <div><strong>Hình 6:</strong> Biểu đồ đo lường hiệu năng chống giật lag luồng video và mức tiết kiệm băng thông đến 99.99%.</div>
+                    <button class="btn-action" onclick="openModal('05_dieu_phoi_canh_bao_va_bang_thong.png')"><i class="fa-solid fa-expand"></i> Xem 300 DPI</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 7: RAW DATA TABLE ================= -->
+        <div id="tab-raw-data" class="tab-pane">
+            <div class="data-table-container">
+                <div style="margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="font-size: 16px; font-weight: 700; color: #FFFFFF;">
+                        <i class="fa-solid fa-database text-cyan"></i> Bảng Tổng Hợp Thông Số Kỹ Thuật & Đo Lường Thực Nghiệm
+                    </h3>
+                    <span class="badge-table badge-optimal">Trích xuất từ kết quả thực nghiệm luận văn</span>
+                </div>
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Phân Hệ / Tính Năng</th>
+                            <th>Mô Hình Sử Dụng</th>
+                            <th>Độ Trễ Suy Luận</th>
+                            <th>Tốc Độ (FPS)</th>
+                            <th>Độ Chính Xác</th>
+                            <th>Dung Lượng / Tham Số</th>
+                            <th>Trạng Thái Biên</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Phát hiện khuôn mặt</strong></td>
+                            <td>MTCNN Cascade</td>
+                            <td>37.1 ms</td>
+                            <td>27.0 FPS</td>
+                            <td>98.5% Detection</td>
+                            <td>2.1 MB / 0.8M</td>
+                            <td><span class="badge-table badge-optimal">Tối ưu mượt</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Trích xuất đặc trưng mặt</strong></td>
+                            <td>FaceNet (Inception-ResNet)</td>
+                            <td>789.9 ms</td>
+                            <td>1.27 FPS</td>
+                            <td>98.2% Accuracy</td>
+                            <td>23.0 MB / 23.5M</td>
+                            <td><span class="badge-table badge-optimal">Đạt chuẩn Edge</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Phát hiện té ngã</strong></td>
+                            <td>YOLOv8-fall (Custom SGD)</td>
+                            <td>363.6 ms</td>
+                            <td>2.75 FPS</td>
+                            <td>92.1% Prec / 91.5% mAP</td>
+                            <td>6.2 MB / 3.2M</td>
+                            <td><span class="badge-table badge-optimal">Gấp 3.5x Pose</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Phát hiện hỏa hoạn khói/lửa</strong></td>
+                            <td>YOLOv8n-fire (Custom)</td>
+                            <td>347.7 ms</td>
+                            <td>2.88 FPS</td>
+                            <td>94.3% Prec / 92.2% mAP</td>
+                            <td>6.2 MB / 3.2M</td>
+                            <td><span class="badge-table badge-optimal">Rất nhạy</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Xâm nhập vùng chỉ định</strong></td>
+                            <td>YOLOv8n + ByteTrack</td>
+                            <td>198.5 ms</td>
+                            <td>5.04 FPS</td>
+                            <td>95.2% Prec / 94.1% mAP</td>
+                            <td>6.5 MB / 3.2M</td>
+                            <td><span class="badge-table badge-optimal">Vạch đôi ổn định</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cảm biến khí ga MQ-2</strong></td>
+                            <td>GPIO ngắt phần cứng (Pin 12)</td>
+                            <td>1.2 ms</td>
+                            <td>Quét 1.0 Hz</td>
+                            <td>99.8% Recall</td>
+                            <td>0 KB / Vi mạch</td>
+                            <td><span class="badge-table badge-optimal">Ngay lập tức</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Rơ-le khóa cửa Solenoid</strong></td>
+                            <td>GPIO Relay Switch (Pin 16)</td>
+                            <td>25.0 ms</td>
+                            <td>Chu kỳ mở 3.0s</td>
+                            <td>100% Kích hoạt</td>
+                            <td>Bảo vệ cuộn hút</td>
+                            <td><span class="badge-table badge-optimal">An toàn vật lý</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Còi báo động vật lý Buzzer</strong></td>
+                            <td>GPIO PWM/Pulse (Pin 18)</td>
+                            <td>5.0 ms</td>
+                            <td>Ưu tiên 3 cấp độ</td>
+                            <td>Hỏa hoạn nháy 0.1s</td>
+                            <td>Chớp tắt tức thì</td>
+                            <td><span class="badge-table badge-optimal">Thời gian thực</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Điều phối thông báo Telegram</strong></td>
+                            <td>Luồng Daemon bất đồng bộ</td>
+                            <td>1.63 giây</td>
+                            <td>6.5 FPS giữ vững</td>
+                            <td>Không đứng hình (0s)</td>
+                            <td>Async Queue</td>
+                            <td><span class="badge-table badge-optimal">Loại bỏ nghẽn</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modal Phóng to Ảnh -->
+    <div id="imageModal" class="modal" onclick="closeModal()">
+        <span class="close-modal">&times;</span>
+        <img class="modal-content" id="modalImg" alt="Phóng to biểu đồ">
+    </div>
+
+    <script>
+        // Cấu hình giao diện Chart.js mặc định theo phong cách Dark Mode Sleek
+        Chart.defaults.color = '#9CA3AF';
+        Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+        Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15, 23, 42, 0.95)';
+        Chart.defaults.plugins.tooltip.titleColor = '#F3F4F6';
+        Chart.defaults.plugins.tooltip.bodyColor = '#E2E8F0';
+        Chart.defaults.plugins.tooltip.borderColor = 'rgba(255, 255, 255, 0.1)';
+        Chart.defaults.plugins.tooltip.borderWidth = 1;
+        Chart.defaults.plugins.tooltip.padding = 12;
+        Chart.defaults.plugins.tooltip.boxPadding = 6;
+        Chart.defaults.plugins.tooltip.cornerRadius = 8;
+
+        // Chuyển Tab
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        // Modal Lightbox
+        function openModal(src) {
+            const modal = document.getElementById('imageModal');
+            const img = document.getElementById('modalImg');
+            img.src = src;
+            modal.classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('imageModal').classList.remove('open');
+        }
+
+        // Khởi tạo các biểu đồ Chart.js tương tác
+        window.addEventListener('DOMContentLoaded', () => {
+
+            // 1. Chart Latency Horizontal Bar
+            new Chart(document.getElementById('chartLatencyHorizontal'), {
+                type: 'bar',
+                data: {
+                    labels: ['MTCNN Mặt', 'Xâm nhập ROI', 'YOLOv8-fire', 'YOLOv8-fall', 'FaceNet 512D', 'MQ-2 Ga (GPIO)', 'Rơ-le (GPIO)'],
+                    datasets: [{
+                        label: 'Độ trễ suy luận (ms)',
+                        data: [37.1, 198.5, 347.7, 363.6, 789.9, 1.2, 25.0],
+                        backgroundColor: [
+                            'rgba(6, 182, 212, 0.8)',
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(239, 68, 68, 0.8)',
+                            'rgba(139, 92, 246, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(99, 102, 241, 0.8)'
+                        ],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // 2. Chart Latency Baseline
+            new Chart(document.getElementById('chartLatencyBaseline'), {
+                type: 'bar',
+                data: {
+                    labels: ['Nhận diện khuôn mặt', 'Phát hiện ngã', 'Phát hiện cháy/khói'],
+                    datasets: [
+                        {
+                            label: 'Mô hình Đề xuất (Tối ưu Edge)',
+                            data: [789.9, 363.6, 347.7],
+                            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Mô hình Baseline',
+                            data: [4500.0, 1250.0, 210.0],
+                            backgroundColor: 'rgba(148, 163, 184, 0.4)',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, title: { display: true, text: 'Mili-giây (ms)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // 3. Chart Accuracy Bar
+            new Chart(document.getElementById('chartAccuracyBar'), {
+                type: 'bar',
+                data: {
+                    labels: ['Phát hiện ngã', 'Cháy & khói', 'Xâm nhập ROI', 'Xác thực mặt', 'Khí ga MQ-2'],
+                    datasets: [
+                        { label: 'Precision (%)', data: [92.1, 94.3, 95.2, 98.2, 98.5], backgroundColor: 'rgba(59, 130, 246, 0.85)', borderRadius: 4 },
+                        { label: 'Recall (%)', data: [90.4, 89.1, 93.0, 96.8, 99.8], backgroundColor: 'rgba(6, 182, 212, 0.85)', borderRadius: 4 },
+                        { label: 'F1-Score (%)', data: [91.2, 91.6, 94.1, 97.5, 99.1], backgroundColor: 'rgba(16, 185, 129, 0.85)', borderRadius: 4 },
+                        { label: 'mAP50 (%)', data: [91.5, 92.2, 94.1, 98.2, 99.2], backgroundColor: 'rgba(139, 92, 246, 0.85)', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 75, max: 105, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // 4. Chart Radar Metrics
+            new Chart(document.getElementById('chartRadarMetrics'), {
+                type: 'radar',
+                data: {
+                    labels: ['Té ngã', 'Cháy khói', 'Xâm nhập', 'Khuôn mặt', 'Khí ga'],
+                    datasets: [
+                        {
+                            label: 'Precision (%)',
+                            data: [92.1, 94.3, 95.2, 98.2, 98.5],
+                            borderColor: '#3B82F6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                            pointBackgroundColor: '#3B82F6'
+                        },
+                        {
+                            label: 'Recall (%)',
+                            data: [90.4, 89.1, 93.0, 96.8, 99.8],
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                            pointBackgroundColor: '#10B981'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            min: 80,
+                            max: 100,
+                            grid: { color: 'rgba(255, 255, 255, 0.08)' },
+                            angleLines: { color: 'rgba(255, 255, 255, 0.08)' },
+                            pointLabels: { color: '#E2E8F0', font: { size: 12, weight: '600' } }
+                        }
+                    }
+                }
+            });
+
+            // 5. Chart Face Poses
+            new Chart(document.getElementById('chartFacePoses'), {
+                type: 'bar',
+                data: {
+                    labels: ['Trực diện', 'Nghiêng trái 35°', 'Nghiêng phải 35°', 'Ngẩng/Cúi', 'Đeo khẩu trang'],
+                    datasets: [{
+                        label: 'Độ chính xác xác thực (%)',
+                        data: [98.0, 85.0, 83.0, 88.0, 89.5],
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.85)',
+                            'rgba(6, 182, 212, 0.85)',
+                            'rgba(16, 185, 129, 0.85)',
+                            'rgba(139, 92, 246, 0.85)',
+                            'rgba(245, 158, 11, 0.85)'
+                        ],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 60, max: 105, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // 6. Chart Face Tradeoff Curve
+            new Chart(document.getElementById('chartFaceTradeoff'), {
+                type: 'line',
+                data: {
+                    labels: ['0.55', '0.60', '0.65', '0.70', '0.75', '0.80', '0.85', '0.90'],
+                    datasets: [
+                        {
+                            label: 'FAR (Chấp nhận người lạ %)',
+                            data: [0.2, 0.5, 1.4, 3.2, 6.5, 9.8, 18.4, 32.1],
+                            borderColor: '#EF4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.3,
+                            borderWidth: 2.5
+                        },
+                        {
+                            label: 'FRR (Từ chối người quen %)',
+                            data: [45.0, 36.2, 22.5, 12.8, 5.4, 1.9, 0.8, 0.2],
+                            borderColor: '#F59E0B',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.3,
+                            borderWidth: 2.5
+                        },
+                        {
+                            label: 'F1-Score Tổng thể (%)',
+                            data: [69.5, 78.5, 87.2, 91.8, 94.0, 93.9, 88.5, 77.2],
+                            borderColor: '#10B981',
+                            borderDash: [5, 5],
+                            tension: 0.3,
+                            borderWidth: 2.5
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 0, max: 100, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+                        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, title: { display: true, text: 'Ngưỡng so khớp khoảng cách đặc trưng θ_face' } }
+                    }
+                }
+            });
+
+            // 7. Chart Hardware Scalability
+            new Chart(document.getElementById('chartHardwareScalability'), {
+                type: 'bar',
+                data: {
+                    labels: ['1 Camera (Đơn luồng)', '2 Camera (Đa luồng)', 'Full 5 AI (1 Cam)', '3 Camera (Quá tải)'],
+                    datasets: [
+                        {
+                            type: 'bar',
+                            label: 'Tốc độ khung hình (FPS)',
+                            data: [6.5, 3.8, 3.7, 0.8],
+                            backgroundColor: 'rgba(6, 182, 212, 0.85)',
+                            yAxisID: 'yFps',
+                            borderRadius: 6
+                        },
+                        {
+                            type: 'line',
+                            label: 'Mức tải CPU (%)',
+                            data: [43.4, 82.0, 55.0, 98.5],
+                            borderColor: '#EF4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                            yAxisID: 'yCpu',
+                            borderWidth: 3,
+                            pointRadius: 6,
+                            pointBackgroundColor: '#EF4444'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        yFps: {
+                            type: 'linear',
+                            position: 'left',
+                            min: 0, max: 8,
+                            title: { display: true, text: 'FPS (Khung hình/giây)' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        },
+                        yCpu: {
+                            type: 'linear',
+                            position: 'right',
+                            min: 0, max: 110,
+                            title: { display: true, text: 'Tải CPU (%)' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // 8. Chart Model Footprint
+            new Chart(document.getElementById('chartModelFootprint'), {
+                type: 'bar',
+                data: {
+                    labels: ['ArcFace', 'FaceNet', 'MobileFaceNet', 'YOLO-pose', 'YOLO-fall', 'MobileNet-SSD', 'YOLOv8n-fire'],
+                    datasets: [
+                        {
+                            label: 'Dung lượng tệp (MB)',
+                            data: [145.0, 23.0, 5.2, 22.5, 6.2, 14.8, 6.2],
+                            backgroundColor: 'rgba(59, 130, 246, 0.85)',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Số tham số (Triệu - M)',
+                            data: [65.1, 23.5, 1.2, 11.6, 3.2, 6.8, 3.2],
+                            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, title: { display: true, text: 'MB / Triệu tham số' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // 9. Chart Dispatcher Compare
+            new Chart(document.getElementById('chartDispatcherCompare'), {
+                type: 'bar',
+                data: {
+                    labels: ['FPS khi phát cảnh báo', 'Đóng băng luồng video (s)', 'Độ trễ gửi Telegram (s)'],
+                    datasets: [
+                        {
+                            label: 'Điều phối Đồng bộ (Truyền thống)',
+                            data: [1.2, 18.0, 2.40],
+                            backgroundColor: 'rgba(239, 68, 68, 0.85)',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Điều phối Bất đồng bộ (Đề xuất)',
+                            data: [6.5, 0.0, 1.63],
+                            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // 10. Chart Bandwidth Savings
+            new Chart(document.getElementById('chartBandwidthSavings'), {
+                type: 'bar',
+                data: {
+                    labels: ['Cloud-Only (Stream 1080p)', 'Edge-Cloud (Đề xuất)'],
+                    datasets: [{
+                        label: 'Lưu lượng dữ liệu mạng (MB / ngày)',
+                        data: [133120, 6.5],
+                        backgroundColor: ['rgba(239, 68, 68, 0.85)', 'rgba(6, 182, 212, 0.85)'],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: 'logarithmic',
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            title: { display: true, text: 'MB / ngày (Log scale)' }
+                        },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+        });
+    </script>
+</body>
+</html>

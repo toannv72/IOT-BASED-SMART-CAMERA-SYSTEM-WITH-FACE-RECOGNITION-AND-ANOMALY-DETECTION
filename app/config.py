@@ -1,5 +1,7 @@
 import os
 import json
+import copy
+import threading
 
 SETTINGS_FILE = "settings.json"
 CONFIG_FILE = "cameras_config.json"
@@ -89,9 +91,19 @@ def save_settings():
     except Exception as e:
         print(f"[CONFIG] Lỗi ghi file cấu hình: {e}")
 
+# Bộ nhớ đệm cấu hình camera theo thời điểm sửa file, tránh đọc/parse JSON trên mỗi khung hình
+_cameras_cache = None
+_cameras_mtime = None
+_cameras_lock = threading.Lock()
+
 def get_cameras_config():
+    global _cameras_cache, _cameras_mtime
     if os.path.exists(CONFIG_FILE):
         try:
+            mtime = os.path.getmtime(CONFIG_FILE)
+            with _cameras_lock:
+                if _cameras_cache is not None and _cameras_mtime == mtime:
+                    return copy.deepcopy(_cameras_cache)
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 cams = json.load(f)
                 # Đảm bảo mỗi camera đều có map_id
@@ -102,7 +114,13 @@ def get_cameras_config():
                         updated = True
                 if updated:
                     save_full_cameras_config(cams)
-                return cams
+                    return copy.deepcopy(cams)
+            with _cameras_lock:
+                # Không ghi đè nếu một lần lưu mới hơn vừa cập nhật bộ nhớ đệm
+                if _cameras_mtime is None or mtime >= _cameras_mtime:
+                    _cameras_cache = cams
+                    _cameras_mtime = mtime
+            return copy.deepcopy(cams)
         except Exception as e:
             print(f"[CONFIG] Lỗi tải cameras_config.json: {e}")
     # Trả về cấu hình mặc định nếu file lỗi hoặc không tồn tại
@@ -164,9 +182,13 @@ def save_cameras_config(camera_id, p1, p2):
         print(f"[CONFIG] Lỗi lưu vạch kẻ camera: {e}")
 
 def save_full_cameras_config(cameras):
+    global _cameras_cache, _cameras_mtime
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(cameras, f, indent=4, ensure_ascii=False)
+        with _cameras_lock:
+            _cameras_cache = copy.deepcopy(cameras)
+            _cameras_mtime = os.path.getmtime(CONFIG_FILE)
         print(f"[CONFIG] Đã lưu toàn bộ cấu hình {len(cameras)} camera vào {CONFIG_FILE}")
     except Exception as e:
         print(f"[CONFIG] Lỗi lưu cấu hình camera: {e}")
