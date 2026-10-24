@@ -184,8 +184,20 @@ def send_telegram_alert(message, frame=None, alert_type="intrusion", camera_id="
     # Tạo bản sao của khung hình nếu có để tránh xung đột ghi đè giữa luồng xử lý và luồng gửi tin
     frame_copy = frame.copy() if frame is not None else None
     
+    # Khung hình sự cố có thể là (thời điểm, ảnh) để phát lại đúng tốc độ thực
+    clip_fps = 8.0
+    frames_for_clip = frame_buffer
+    if frame_buffer:
+        first = frame_buffer[0]
+        if isinstance(first, tuple) and len(first) == 2:
+            times = [item[0] for item in frame_buffer]
+            frames_for_clip = [item[1] for item in frame_buffer]
+            if len(times) >= 2 and times[-1] > times[0]:
+                clip_fps = (len(times) - 1) / (times[-1] - times[0])
+            clip_fps = float(min(12.0, max(4.0, clip_fps)))
+
     # Tạo bản sao sâu của frame_buffer nếu có
-    buffer_copy = [f.copy() for f in frame_buffer] if frame_buffer else None
+    buffer_copy = [f.copy() for f in frames_for_clip] if frames_for_clip else None
     
     def send_worker():
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
@@ -215,13 +227,13 @@ def send_telegram_alert(message, frame=None, alert_type="intrusion", camera_id="
                 # Thiết lập VideoWriter (640x360, 15 FPS)
                 # Thử mã hóa H.264 (avc1) trước để phát trực tiếp được trên các trình duyệt web
                 fourcc = cv2.VideoWriter_fourcc(*'avc1')
-                out = cv2.VideoWriter(video_local_path, fourcc, 15.0, (640, 360))
+                out = cv2.VideoWriter(video_local_path, fourcc, clip_fps, (640, 360))
                 
                 # Nếu avc1 không được hỗ trợ (do thiếu codec trên HĐH), fallback về mp4v chuẩn
                 if not out.isOpened():
                     print("[ALERTS] Trình ghi 'avc1' không thể khởi tạo. Đang chuyển sang codec 'mp4v' dự phòng...")
                     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                    out = cv2.VideoWriter(video_local_path, fourcc, 15.0, (640, 360))
+                    out = cv2.VideoWriter(video_local_path, fourcc, clip_fps, (640, 360))
                     
                 for f in buffer_copy:
                     out.write(f)

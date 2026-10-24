@@ -467,6 +467,9 @@ class CameraState:
         self.active_stream_clients = 0
         self.active_clients_lock = threading.Lock()
         self.threaded_cam = None
+        self.preview_index = 0
+        self.overlay_ops = []
+        self.paced_frame = None
 
 
 def notify_camera_config_updated(camera_id: str):
@@ -503,6 +506,143 @@ def is_near_border(bbox, margin_x=60, margin_y=40):
 
 _DEFAULT_ROI = [[100, 100], [540, 100], [540, 300], [100, 300]]
 _JPEG_ENCODE_PARAMS = [int(cv2.IMWRITE_JPEG_QUALITY), 65]
+
+def blit_rect(img, ops, p1, p2, color, thickness):
+    cv2.rectangle(img, p1, p2, color, thickness)
+    ops.append(("rect", p1, p2, color, thickness))
+
+def blit_text(img, ops, text, org, scale, color, thickness):
+    cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness)
+    ops.append(("text", text, org, scale, color, thickness))
+
+def blit_poly(img, ops, pts, color, thickness):
+    cv2.polylines(img, [pts], True, color, thickness)
+    ops.append(("poly", pts, color, thickness))
+
+def apply_overlay(frame, ops):
+    for op in ops:
+        kind = op[0]
+        if kind == "rect":
+            cv2.rectangle(frame, op[1], op[2], op[3], op[4])
+        elif kind == "text":
+            cv2.putText(frame, op[1], op[2], cv2.FONT_HERSHEY_SIMPLEX, op[3], op[4], op[5])
+        elif kind == "poly":
+            cv2.polylines(frame, [op[1]], True, op[2], op[3])
+
+def owned_camera_frame(raw):
+    """Tạo mảng riêng 640x360 để không dùng chung bộ nhớ với buffer của OpenCV."""
+    if raw.shape[0] != 360 or raw.shape[1] != 640:
+        return cv2.resize(raw, (640, 360))
+    return raw.copy()
+
+def _open_record_writer(camera_id, fps):
+    """Mở file ghi hình. avc1 để trình duyệt phát được, rồi mới tới codec dự phòng."""
+    os.makedirs("static/recordings", exist_ok=True)
+    from datetime import datetime
+    from app.alerts import sanitize_filename_component
+    sanitized_cam = sanitize_filename_component(camera_id)
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    candidates = [
+        (f"recording_{sanitized_cam}_{timestamp_str}.mp4", "avc1"),
+        (f"recording_{sanitized_cam}_{timestamp_str}.mp4", "mp4v"),
+        (f"recording_{sanitized_cam}_{timestamp_str}.avi", "XVID"),
+        (f"recording_{sanitized_cam}_{timestamp_str}.avi", "MJPG"),
+    ]
+    for filename, codec in candidates:
+        filepath = os.path.join("static", "recordings", filename)
+        writer = cv2.VideoWriter(filepath, cv2.VideoWriter_fourcc(*codec), fps, (640, 360))
+        if writer.isOpened():
+            print(f"[RECORDING] Ghi {fps:.0f} FPS bằng {codec}: {filename}")
+            return writer
+        writer.release()
+    print(f"[RECORDING] [ERROR] Không thể khởi tạo codec cho camera '{camera_id}'")
+    return None
+
+def _preview_worker(state, threaded_cam, stop_event):
+    """Phát hình theo nhịp đồng hồ, không chờ mô hình AI xử lý xong."""
+    interval = 1.0 / 12.0
+    next_tick = time.perf_counter()
+    tick_i = 0
+    while not stop_event.is_set():
+        viewers = state.active_stream_clients > 0
+        recording = bool(config.settings.get("record_full_video", False))
+        step = interval if (viewers or recording) else 0.5
+        now = time.perf_counter()
+        if now < next_tick:
+            time.sleep(min(0.01, next_tick - now))
+            continue
+        if now - next_tick > step:
+            next_tick = now
+        next_tick += step
+        tick_i += 1
+        ret, raw = threaded_cam.read()
+        if not ret or raw is None:
+            continue
+        frame = owned_camera_frame(raw)
+        ops = state.overlay_ops
+        if ops:
+            apply_overlay(frame, ops)
+        state.paced_frame = frame
+        state.preview_index += 1
+        if state.active_stream_clients > 0 or tick_i % 12 == 0 or state.last_jpeg_frame is None:
+            ok, buf = cv2.imencode(".jpg", frame, _JPEG_ENCODE_PARAMS)
+            if ok:
+                state.last_jpeg_frame = buf.tobytes()
+
+def _record_worker(camera_id, state, stop_event):
+    """Ghi file theo thời gian thực. Bỏ khung hình trễ thay vì xếp hàng làm video bị chậm."""
+    record_fps = 8.0 if ai_device.type != "cuda" else 15.0
+    interval = 1.0 / record_fps
+    segment_frames = int(record_fps * 600)
+    writer = None
+    frames_written = 0
+    next_tick = time.perf_counter()
+    while not stop_event.is_set():
+        record_on = bool(config.settings.get("record_full_video", False))
+        if not record_on:
+            if writer is not None:
+                writer.release()
+                writer = None
+                print(f"[RECORDING] Dừng ghi hình camera '{camera_id}'.")
+            next_tick = time.perf_counter() + interval
+            time.sleep(0.2)
+            continue
+        now = time.perf_counter()
+        if now < next_tick:
+            time.sleep(min(0.01, next_tick - now))
+            continue
+        if now - next_tick > interval:
+            next_tick = now
+        next_tick += interval
+        if writer is None:
+            writer = _open_record_writer(camera_id, record_fps)
+            frames_written = 0
+            if writer is None:
+                time.sleep(0.5)
+                continue
+        frame = state.paced_frame
+        if frame is None:
+            continue
+        try:
+            writer.write(frame)
+            frames_written += 1
+            if frames_written >= segment_frames:
+                writer.release()
+                writer = None
+                print(f"[RECORDING] Đạt 10 phút, tách file camera '{camera_id}'.")
+        except Exception as e:
+            print(f"[RECORDING] Lỗi ghi khung hình: {e}")
+            try:
+                writer.release()
+            except Exception:
+                pass
+            writer = None
+    if writer is not None:
+        try:
+            writer.release()
+            print(f"[RECORDING] Đã đóng file ghi hình camera '{camera_id}'.")
+        except Exception:
+            pass
 
 def cached_roi_polygons(state, cfg):
     """Giữ đa giác ROI đã chuyển sang mảng NumPy cho đến khi cấu hình camera đổi."""
@@ -698,7 +838,7 @@ def gen_dynamic_stream(camera_id: str):
 
             ensure_camera_thread_running(camera_id)
             
-            cur_frame_id = getattr(state, "frame_index", 0)
+            cur_frame_id = state.preview_index
             if state.last_jpeg_frame is not None:
                 # Chỉ truyền khung hình khi có frame mới hoặc định kỳ heartbeat (tiết kiệm băng thông & CPU Pi)
                 if cur_frame_id != last_sent_frame_id or (loop_count % 10 == 0):
@@ -759,10 +899,28 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
     print(f"[PROCESSORS] Bắt đầu khởi chạy luồng dynamic camera: {camera_id}")
 
-    # Biến phục vụ ghi hình toàn bộ (Full Video Recording)
-    full_writer = None
-    frames_written = 0
-    full_video_filename = None
+    output_stop = threading.Event()
+    preview_thread = threading.Thread(
+        target=_preview_worker,
+        args=(state, threaded_cam, output_stop),
+        daemon=True,
+        name=f"Preview_{camera_id}"
+    )
+    record_thread = threading.Thread(
+        target=_record_worker,
+        args=(camera_id, state, output_stop),
+        daemon=True,
+        name=f"Record_{camera_id}"
+    )
+    preview_thread.start()
+    record_thread.start()
+
+    def stop_output_threads():
+        if output_stop.is_set():
+            return
+        output_stop.set()
+        preview_thread.join(timeout=1.0)
+        record_thread.join(timeout=1.5)
 
     while True:
         if stop_event is not None and stop_event.is_set():
@@ -874,6 +1032,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         # Chỉ tách bản vẽ khi có lớp phủ. Ảnh gốc giữ nguyên để gửi cảnh báo.
         needs_overlay = bool(features) or cfg.get("schedule_enabled", False)
         annotated_frame = frame.copy() if needs_overlay else frame
+        overlay_ops = []
 
         if "intrusion_roi" in features and detections is not None:
             roi_polys = cached_roi_polygons(state, cfg)
@@ -916,7 +1075,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                                 break
 
                 color = (0, 0, 255) if is_this_roi_violated else (0, 255, 255)
-                cv2.polylines(annotated_frame, [pts], True, color, 2)
+                blit_poly(annotated_frame, overlay_ops, pts, color, 2)
 
             loitering_detected = False
             current_time = time.time()
@@ -929,7 +1088,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     elapsed = current_time - state.intrusion_entry_times[tid]
                     if elapsed > loitering_threshold:
                         loitering_detected = True
-                        cv2.putText(annotated_frame, f"LANG VANG ID #{tid}: {int(elapsed)}s", (10, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
+                        blit_text(annotated_frame, overlay_ops, f"LANG VANG ID #{tid}: {int(elapsed)}s", (10, 85), 0.6, (0, 165, 255), 2)
                         
                         if "abnormal_behavior" not in features:
                             if alerts_enabled and alert_allowed_by_schedule and not is_paused:
@@ -950,7 +1109,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 if "abnormal_behavior" not in features:
                     state.intrusion_active = True
                 if not loitering_detected:
-                    cv2.putText(annotated_frame, "CANH BAO XAM NHAP!", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    blit_text(annotated_frame, overlay_ops, "CANH BAO XAM NHAP!", (10, 60), 0.6, (0, 0, 255), 2)
                     if "abnormal_behavior" not in features:
                         if alerts_enabled and alert_allowed_by_schedule and not is_paused:
                             SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện xâm nhập vùng cấm!", "danger")
@@ -1085,9 +1244,9 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
                     if "face_id" in features:
                         color = (0, 255, 0) if best_match_name != "Unknown" else (0, 0, 255)
-                        cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
+                        blit_rect(annotated_frame, overlay_ops, (x_1, y_1), (x_2, y_2), color, 2)
                         text = f"{best_match_name} ({best_distance:.2f})" if best_match_name != "Unknown" else "Unknown"
-                        cv2.putText(annotated_frame, text, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                        blit_text(annotated_frame, overlay_ops, text, (x_1, y_1 - 10), 0.5, color, 1)
 
                         last_log_time = state.last_face_log_times.get(best_match_name, 0)
                         if current_time - last_log_time > face_log_cooldown:
@@ -1335,13 +1494,13 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         color = (0, 0, 255)
                         
                     # Vẽ hộp bao và nhãn rủi ro lên khung hình
-                    cv2.rectangle(annotated_frame, (x1_b, y1_b), (x2_b, y2_b), color, 2)
+                    blit_rect(annotated_frame, overlay_ops, (x1_b, y1_b), (x2_b, y2_b), color, 2)
                     label_text = f"ID #{tid} | Risk: {score} ({status})"
-                    cv2.putText(annotated_frame, label_text, (x1_b, y1_b - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    blit_text(annotated_frame, overlay_ops, label_text, (x1_b, y1_b - 10), 0.5, color, 2)
                     
                     if reasons:
                         behavior_str = ", ".join(reasons)
-                        cv2.putText(annotated_frame, f"Beh: {behavior_str}", (x1_b, y2_b + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                        blit_text(annotated_frame, overlay_ops, f"Beh: {behavior_str}", (x1_b, y2_b + 15), 0.4, color, 1)
                         
                     # Gửi cảnh báo Telegram bất đồng bộ nếu rủi ro cực cao (Cảnh báo trễ 5 giây)
                     if score > 60:
@@ -1352,7 +1511,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         
                         if high_risk_duration < 5.0:
                             countdown = 5 - int(high_risk_duration)
-                            cv2.putText(annotated_frame, f"Xác minh: {countdown}s...", (x1_b, y2_b + 32), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 165, 255), 1)
+                            blit_text(annotated_frame, overlay_ops, f"Xác minh: {countdown}s...", (x1_b, y2_b + 32), 0.45, (0, 165, 255), 1)
                         else:
                             any_intrusion_active = True
                             last_alert_t = state.behavior_alert_cooldowns.get(tid, 0)
@@ -1377,7 +1536,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                                 
             # Vẽ nét mỏng vùng đa giác ROI của tính năng hành vi
             for pts in cached_roi_polygons(state, cfg):
-                cv2.polylines(annotated_frame, [pts], True, (0, 255, 255), 1)
+                blit_poly(annotated_frame, overlay_ops, pts, (0, 255, 255), 1)
 
             state.intrusion_active = any_intrusion_active
             if not any_intrusion_active:
@@ -1467,8 +1626,8 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     else:
                         color = (0, 255, 0)
                         label = f"Normal ({conf:.2f})"
-                    cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
-                    cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                    blit_rect(annotated_frame, overlay_ops, (x_1, y_1), (x_2, y_2), color, 2)
+                    blit_text(annotated_frame, overlay_ops, label, (x_1, y_1 - 10), 0.5, color, 1)
             else:
                 for x_1, y_1, x_2, y_2, is_fall in fall_boxes:
                     if is_fall:
@@ -1477,14 +1636,14 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     else:
                         color = (0, 255, 0)
                         label = "Normal (Pose)"
-                    cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
-                    cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                    blit_rect(annotated_frame, overlay_ops, (x_1, y_1), (x_2, y_2), color, 2)
+                    blit_text(annotated_frame, overlay_ops, label, (x_1, y_1 - 10), 0.5, color, 1)
 
             if fall_in_frame:
                 state.fall_counter += 1
                 if state.fall_counter >= 12:
                     state.fall_active = True
-                    cv2.putText(annotated_frame, "CANH BAO: NGUOI NGA!", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    blit_text(annotated_frame, overlay_ops, "CANH BAO: NGUOI NGA!", (10, 90), 0.6, (0, 0, 255), 2)
                     if alerts_enabled and alert_allowed_by_schedule and not is_paused:
                         SystemStatus.add_log(f"🚨 {camera_id}: Phát hiện người bị ngã!", "danger")
                         send_telegram_alert(
@@ -1541,14 +1700,14 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                 else:
                     color = (0, 165, 255)
                 label = f"{label_name} ({conf:.2f})"
-                cv2.rectangle(annotated_frame, (x_1, y_1), (x_2, y_2), color, 2)
-                cv2.putText(annotated_frame, label, (x_1, y_1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                blit_rect(annotated_frame, overlay_ops, (x_1, y_1), (x_2, y_2), color, 2)
+                blit_text(annotated_frame, overlay_ops, label, (x_1, y_1 - 10), 0.5, color, 1)
 
             if fire_in_frame:
                 state.fire_counter += 1
                 if state.fire_counter >= fire_frame_buf_thr:
                     state.fire_active = True
-                    cv2.putText(annotated_frame, "CANH BAO: CHAY NO!", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    blit_text(annotated_frame, overlay_ops, "CANH BAO: CHAY NO!", (10, 120), 0.6, (0, 0, 255), 2)
                     if alerts_enabled and alert_allowed_by_schedule and not is_paused:
                         SystemStatus.add_log(f"🚨 {camera_id}: Phát hiện ngọn lửa hoặc khói bất thường!", "danger")
                         send_telegram_alert(
@@ -1570,96 +1729,20 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
         # Trạng thái lịch trình (khi hết khung giờ cảnh báo)
         if not alert_allowed_by_schedule:
-            cv2.rectangle(annotated_frame, (8, 330), (290, 354), (0, 0, 0), -1)
-            cv2.rectangle(annotated_frame, (8, 330), (290, 354), (0, 220, 255), 1)
-            cv2.putText(annotated_frame, "[LICH TRINH: TAT CANH BAO]", (14, 347), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 220, 255), 1)
+            blit_rect(annotated_frame, overlay_ops, (8, 330), (290, 354), (0, 0, 0), -1)
+            blit_rect(annotated_frame, overlay_ops, (8, 330), (290, 354), (0, 220, 255), 1)
+            blit_text(annotated_frame, overlay_ops, "[LICH TRINH: TAT CANH BAO]", (14, 347), 0.45, (0, 220, 255), 1)
 
-        # annotated_frame không bị sửa sau thời điểm này, nên đưa thẳng vào bộ đệm
-        state.frame_buffer.append(annotated_frame)
-
-        # Ghi hình toàn bộ (Continuous Video Recording)
-        record_full = config.settings.get("record_full_video", False)
-        if record_full:
-            if full_writer is None:
-                try:
-                    os.makedirs("static/recordings", exist_ok=True)
-                    from datetime import datetime
-                    from app.alerts import sanitize_filename_component
-                    sanitized_cam = sanitize_filename_component(camera_id)
-                    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    full_video_filename = f"recording_{sanitized_cam}_{timestamp_str}.mp4"
-                    filepath = os.path.join("static", "recordings", full_video_filename)
-                    
-                    # Thử mở trình ghi video với các codec khác nhau
-                    fourcc = cv2.VideoWriter_fourcc(*'avc1')
-                    full_writer = cv2.VideoWriter(filepath, fourcc, 15.0, (640, 360))
-                    
-                    if not full_writer.isOpened():
-                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                        full_writer = cv2.VideoWriter(filepath, fourcc, 15.0, (640, 360))
-                        
-                    if not full_writer.isOpened():
-                        # Thử ghi định dạng AVI bằng codec XVID nếu MP4 thất bại
-                        full_video_filename = f"recording_{sanitized_cam}_{timestamp_str}.avi"
-                        filepath = os.path.join("static", "recordings", full_video_filename)
-                        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-                        full_writer = cv2.VideoWriter(filepath, fourcc, 15.0, (640, 360))
-                        
-                    if not full_writer.isOpened():
-                        # Thử codec MJPG
-                        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-                        full_writer = cv2.VideoWriter(filepath, fourcc, 15.0, (640, 360))
-                        
-                    if not full_writer.isOpened():
-                        print(f"[RECORDING] [ERROR] Không thể khởi tạo bất kỳ codec nào cho camera '{camera_id}'!")
-                        full_writer = None
-                    else:
-                        frames_written = 0
-                        print(f"[RECORDING] Khởi tạo thành công trình ghi cho camera '{camera_id}': {full_video_filename}")
-                except Exception as e:
-                    print(f"[RECORDING] Lỗi khởi tạo trình ghi video: {e}")
-                    full_writer = None
-            
-            if full_writer is not None:
-                try:
-                    full_writer.write(annotated_frame)
-                    frames_written += 1
-                    
-                    # Tách file sau mỗi 10 phút (ở 15 FPS = 9000 frames)
-                    if frames_written >= 9000:
-                        print(f"[RECORDING] Đạt giới hạn 10 phút. Tách tệp ghi hình cho camera '{camera_id}'.")
-                        full_writer.release()
-                        full_writer = None
-                except Exception as e:
-                    print(f"[RECORDING] Lỗi ghi khung hình: {e}")
-        else:
-            if full_writer is not None:
-                try:
-                    full_writer.release()
-                    print(f"[RECORDING] Dừng ghi hình toàn bộ cho camera '{camera_id}' (Tắt option).")
-                except Exception:
-                    pass
-                full_writer = None
-
-        # Tối ưu hóa CPU Raspberry Pi 4: Chỉ mã hóa JPEG ở mọi khung hình khi có người dùng xem trực tiếp trên Web Dashboard
-        # Nếu không có client xem (chạy ngầm), chỉ mã hóa định kỳ mỗi 15 khung hình (~1s) để cập nhật thumbnail và phục vụ Telegram
-        should_encode_jpeg = (getattr(state, "active_stream_clients", 0) > 0) or (state.frame_index % 15 == 0) or (state.last_jpeg_frame is None)
-        if should_encode_jpeg:
-            ret_enc, buffer = cv2.imencode('.jpg', annotated_frame, _JPEG_ENCODE_PARAMS)
-            if ret_enc:
-                state.last_jpeg_frame = buffer.tobytes()
+        # Đưa lớp vẽ cho luồng phát hình. File ghi và JPEG không chạy trên luồng AI nữa.
+        state.overlay_ops = overlay_ops
+        state.frame_buffer.append((time.time(), annotated_frame))
 
         try:
             if state.last_jpeg_frame is not None:
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + state.last_jpeg_frame + b'\r\n')
         except GeneratorExit:
-            if full_writer is not None:
-                try:
-                    full_writer.release()
-                    print(f"[RECORDING] Giải phóng trình ghi video cho camera '{camera_id}' khi đóng generator (GeneratorExit).")
-                except Exception:
-                    pass
+            stop_output_threads()
             threaded_cam.release()
             state.threaded_cam = None
             raise
@@ -1672,18 +1755,13 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         if stop_event is not None:
             if stop_event.is_set():
                 break
-            # Giới hạn tốc độ xử lý: ~12-14 FPS trên CPU Pi4 (0.07s) thay vì 7 FPS (0.15s), 25 FPS trên GPU (0.04s)
+            # Giới hạn tốc độ xử lý AI. Hình xem trực tiếp do luồng preview phát riêng, không bị khóa bởi nhịp này.
             elapsed = t_end - t_start
             target_fps_delay = 0.07 if ai_device.type != 'cuda' else 0.04
             delay = max(0.005, target_fps_delay - elapsed)
             time.sleep(delay)
 
-    if full_writer is not None:
-        try:
-            full_writer.release()
-            print(f"[RECORDING] Giải phóng trình ghi video cho camera '{camera_id}' khi dừng luồng.")
-        except Exception:
-            pass
+    stop_output_threads()
     threaded_cam.release()
     state.threaded_cam = None
 

@@ -4,6 +4,7 @@
         "source": "0",
         "features": [
             "face_id",
+            "fall_detection",
             "fire_detection"
         ],
         "line": [
