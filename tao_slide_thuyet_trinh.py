@@ -281,7 +281,7 @@ def main():
         ("2", "Hiện Trạng & Thách Thức Kỹ Thuật", "Giới hạn CPU biên Raspberry Pi 4, che khuất đặc trưng khi đeo khẩu trang, an toàn rơ-le khóa cửa."),
         ("3", "Phương Pháp & Kiến Trúc Hệ Thống", "Pipeline đa mô hình AI, thuật toán nhận diện khẩu trang 1 ảnh mẫu, sơ đồ GPIO ngoại vi, Web & Telegram."),
         ("4", "Kết Quả Thực Nghiệm & Trực Quan", "4 kịch bản kiểm nghiệm thực tế: Khuôn mặt khẩu trang, Té ngã, Cháy nổ & Khí ga, Khóa cửa Solenoid 3s."),
-        ("5", "Đánh Giá Hiệu Năng & Kết Luận", "Bảng đo lường tài nguyên CPU 55%, RAM 846.5MB, FPS 3.7, độ trễ 1.67s, ma trận nhầm lẫn và hướng phát triển.")
+        ("5", "Đánh Giá Hiệu Năng & Kết Luận", "Pi 4: 1 camera 6,5 FPS, 2 camera 3,8 FPS; CPU 55%, RAM 846,5 MB, độ trễ Telegram 1,67 giây.")
     ]
 
     for i, (num, title, desc) in enumerate(agenda_items):
@@ -642,7 +642,7 @@ def main():
         "• Kết quả đo lường thực tế (chạy liên tục 1525.6 giây ~ 25.4 phút):\n"
         "   + Tải CPU trung bình: Duy trì ổn định ở 55.0% (mát mẻ, không quá nhiệt).\n"
         "   + Bộ nhớ RAM sử dụng: 846.5 MB (chỉ chiếm ~21% dung lượng 4GB của Pi 4).\n"
-        "   + Tốc độ khung hình: 3.7 FPS (đạt chuẩn thời gian thực cho giám sát an ninh nhúng).\n"
+        "   + Tốc độ khung hình: 6,5 FPS với 1 camera; 3,8 FPS khi chạy đồng thời 2 camera.\n"
         "   + Độ trễ gửi tin nhắn Telegram: 1.67 giây.\n\n"
         "• So sánh với khi không dùng khóa gpu_lock:\n"
         "   + Không dùng lock: CPU vọt lên 100%, RAM tăng mất kiểm soát > 2.8GB, hệ thống bị treo cứng sau ~3 phút chạy 2 camera.\n"
@@ -1041,7 +1041,7 @@ def main():
     # 4 thẻ KPI lớn
     add_metric_card(s18, Inches(0.8), Inches(1.65), Inches(2.75), Inches(1.4), "55.0%", "CPU Sử Dụng", "Duy trì ổn định trên 4 nhân ARM", val_color=COLOR_PRIMARY)
     add_metric_card(s18, Inches(3.783), Inches(1.65), Inches(2.75), Inches(1.4), "846.5 MB", "RAM Sử Dụng", "~21% tổng dung lượng 4GB", val_color=COLOR_GREEN)
-    add_metric_card(s18, Inches(6.766), Inches(1.65), Inches(2.75), Inches(1.4), "3.7 FPS", "Tốc Độ Khung Hình", "Đạt chuẩn an ninh thời gian thực", val_color=COLOR_SLATE)
+    add_metric_card(s18, Inches(6.766), Inches(1.65), Inches(2.75), Inches(1.4), "6,5 FPS", "Tốc Độ Khung Hình", "1 camera; 3,8 FPS khi chạy 2 camera", val_color=COLOR_SLATE)
     add_metric_card(s18, Inches(9.75), Inches(1.65), Inches(2.75), Inches(1.4), "1.67 s", "Độ Trễ Telegram", "Bắn tin khẩn cấp kèm ảnh", val_color=COLOR_AMBER_BORDER)
 
     # Bảng chi tiết độ trễ suy luận AI

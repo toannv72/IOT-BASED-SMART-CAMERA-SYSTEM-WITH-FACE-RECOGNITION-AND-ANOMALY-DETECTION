@@ -4,6 +4,55 @@
 {% block page_title %}Giám Sát Live{% endblock %}
 
 {% block content %}
+<style>
+    .camera-grid.layout-normal {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .camera-grid.layout-overview {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 10px;
+    }
+    .camera-grid.layout-focus {
+        grid-template-columns: 1fr;
+    }
+    .camera-card {
+        margin-bottom: 0;
+    }
+    .camera-stream-wrapper {
+        cursor: zoom-in;
+    }
+    .camera-grid.layout-overview .camera-card {
+        padding: 8px;
+    }
+    .camera-grid.layout-overview .camera-header {
+        margin-bottom: 6px;
+    }
+    .camera-grid.layout-overview .camera-title {
+        font-size: 12px;
+    }
+    .camera-grid.layout-overview .camera-meta,
+    .camera-grid.layout-overview .stream-controls {
+        display: none;
+    }
+    .camera-grid.layout-overview .camera-card:hover .stream-controls {
+        display: flex;
+        margin-top: 6px;
+    }
+    .camera-grid.layout-focus .camera-card {
+        display: none;
+    }
+    .camera-grid.layout-focus .camera-card.is-focused {
+        display: flex;
+    }
+    .camera-grid.layout-focus .is-focused .camera-stream-wrapper {
+        cursor: zoom-out;
+    }
+    .layout-btn.is-active {
+        background: rgba(59, 130, 246, 0.22);
+        border-color: rgba(59, 130, 246, 0.55);
+        color: #bfdbfe;
+    }
+</style>
 <!-- Thanh Bộ Lọc & Tìm Kiếm Camera Hiện Đại -->
 <div class="glass-card" style="margin-bottom: 16px; padding: 12px 18px; border: 1px solid rgba(255,255,255,0.08);">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
@@ -40,8 +89,20 @@
             </button>
         </div>
 
-        <!-- Bên phải: Thống kê số lượng camera -->
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <!-- Bên phải: cỡ lưới camera và thống kê -->
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div id="camera-layout-controls" style="display: flex; align-items: center; gap: 6px;">
+                <button type="button" id="btn-layout-overview" class="btn layout-btn" onclick="setCameraLayout('overview')" title="Thu nhỏ để nhìn nhiều camera" style="height: 36px; padding: 0 10px; font-size: 11px;">
+                    <i class="fa-solid fa-compress"></i> Thu nhỏ
+                </button>
+                <button type="button" id="btn-layout-normal" class="btn layout-btn" onclick="setCameraLayout('normal')" title="Cỡ vừa, 2 camera một hàng" style="height: 36px; padding: 0 10px; font-size: 11px;">
+                    <i class="fa-solid fa-table-cells-large"></i> Vừa
+                </button>
+                <button type="button" id="btn-layout-back" class="btn" onclick="exitCameraFocus()" style="display: none; height: 36px; padding: 0 10px; font-size: 11px; background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.35);">
+                    <i class="fa-solid fa-border-all"></i> Xem tất cả
+                </button>
+            </div>
+            <span id="camera-layout-hint" style="font-size: 11px; color: var(--text-muted);">Bấm đúp một camera để xem chi tiết</span>
             <span id="camera-filter-stat" style="font-size: 12px; color: var(--text-muted);">
                 <!-- Thống kê camera -->
             </span>
@@ -122,6 +183,8 @@
     // Trạng thái tìm kiếm & lọc nhiều tầng
     let searchQuery = '';
     let selectedFloors = [];
+    let cameraLayout = localStorage.getItem('monitor_camera_layout') === 'overview' ? 'overview' : 'normal';
+    let focusedCameraId = null;
     try {
         const saved = localStorage.getItem('monitor_selected_floors');
         if (saved) selectedFloors = JSON.parse(saved);
@@ -386,6 +449,7 @@
 
         if (activeCameras.length === 0) {
             grid.innerHTML = '<div class="glass-card" style="grid-column: span 2; text-align: center; padding: 40px; color: var(--text-muted);">Không có camera nào được kết nối. Hãy thêm camera trong tab Cấu hình hệ thống!</div>';
+            applyCameraLayout();
             return;
         }
 
@@ -454,6 +518,7 @@
                 </div>
             `;
             grid.appendChild(emptyCard);
+            applyCameraLayout();
             return;
         }
 
@@ -489,6 +554,8 @@
 
             const card = document.createElement('div');
             card.className = 'glass-card camera-card';
+            card.dataset.cameraId = cam.camera_id;
+            if (focusedCameraId === cam.camera_id) card.classList.add('is-focused');
             if (isPaused) card.style.opacity = '0.85';
 
             // Đối với camera đã tạm dừng: ẨN NÚT BẬT/TẮT HOÀN TOÀN
@@ -520,7 +587,7 @@
                     </div>
                     ${statusBadgeHtml}
                 </div>
-                <div class="camera-stream-wrapper">
+                <div class="camera-stream-wrapper" title="Bấm đúp để xem camera này lớn. Bấm đúp lần nữa để trở lại lưới.">
                     <img id="stream-${cam.camera_id}" class="camera-stream" style="display: none;" alt="${cam.camera_id} Stream">
                     <div id="placeholder-${cam.camera_id}" class="camera-placeholder">
                         <i class="fa-solid ${isPaused ? 'fa-circle-pause' : 'fa-circle-play'}" style="${isPaused ? 'color: #f59e0b;' : ''}"></i>
@@ -530,7 +597,7 @@
                 <div class="stream-controls" style="display: flex; gap: 8px;">
                     ${controlsHtml}
                 </div>
-                <div style="font-size: 11px; padding: 10px 12px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.15);">
+                <div class="camera-meta" style="font-size: 11px; padding: 10px 12px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.15);">
                     <div>${featuresHtml}</div>
                     <div style="display: flex; justify-content: space-between; font-size: 10px;">
                         <span>Cảnh báo an ninh:</span>
@@ -539,6 +606,13 @@
                 </div>
             `;
             grid.appendChild(card);
+            const streamWrap = card.querySelector('.camera-stream-wrapper');
+            if (streamWrap) {
+                streamWrap.addEventListener('dblclick', function (event) {
+                    event.preventDefault();
+                    onCameraDoubleClick(cam.camera_id);
+                });
+            }
             
             // Khôi phục trạng thái stream nếu có (chỉ dành cho camera đang hoạt động)
             if (!isPaused && streamStates[cam.camera_id]) {
@@ -555,7 +629,55 @@
                 saveStreamStates();
             }
         });
+        applyCameraLayout();
     }
+
+    function setCameraLayout(mode) {
+        cameraLayout = mode === 'overview' ? 'overview' : 'normal';
+        focusedCameraId = null;
+        localStorage.setItem('monitor_camera_layout', cameraLayout);
+        applyCameraLayout();
+    }
+
+    function exitCameraFocus() {
+        focusedCameraId = null;
+        applyCameraLayout();
+    }
+
+    function onCameraDoubleClick(cameraId) {
+        focusedCameraId = focusedCameraId === cameraId ? null : cameraId;
+        applyCameraLayout();
+    }
+
+    function applyCameraLayout() {
+        const grid = document.getElementById('camera-streams-grid');
+        if (!grid) return;
+        grid.classList.remove('layout-normal', 'layout-overview', 'layout-focus');
+        if (focusedCameraId) {
+            grid.classList.add('layout-focus');
+        } else {
+            grid.classList.add(cameraLayout === 'overview' ? 'layout-overview' : 'layout-normal');
+        }
+        grid.querySelectorAll('.camera-card').forEach(card => {
+            card.classList.toggle('is-focused', card.dataset.cameraId === focusedCameraId);
+        });
+        const overviewBtn = document.getElementById('btn-layout-overview');
+        const normalBtn = document.getElementById('btn-layout-normal');
+        const backBtn = document.getElementById('btn-layout-back');
+        const hint = document.getElementById('camera-layout-hint');
+        if (overviewBtn) overviewBtn.classList.toggle('is-active', !focusedCameraId && cameraLayout === 'overview');
+        if (normalBtn) normalBtn.classList.toggle('is-active', !focusedCameraId && cameraLayout !== 'overview');
+        if (backBtn) backBtn.style.display = focusedCameraId ? 'inline-flex' : 'none';
+        if (hint) {
+            hint.textContent = focusedCameraId
+                ? 'Đang xem ' + focusedCameraId + '. Bấm đúp lần nữa để thu về lưới.'
+                : 'Bấm đúp một camera để xem chi tiết';
+        }
+    }
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && focusedCameraId) exitCameraFocus();
+    });
 
     function toggleDynamicStream(cameraId, endpoint) {
         const cam = activeCameras.find(c => c.camera_id === cameraId);
