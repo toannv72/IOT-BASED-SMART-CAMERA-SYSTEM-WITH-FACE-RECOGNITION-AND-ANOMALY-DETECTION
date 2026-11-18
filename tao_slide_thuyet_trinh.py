@@ -19,7 +19,7 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-OUTPUT_PATH = "thuyet_trinh_do_an.pptx"
+OUTPUT_PATH = "Slide_Bao_Cao_Do_An_Tot_Nghiep.pptx"
 
 # ==============================================================================
 # HỆ THỐNG MÀU SẮC THẨM MỸ (COLOR PALETTE - DEEP NAVY & TECH BLUE)
@@ -258,7 +258,7 @@ def main():
     p_sv.font.color.rgb = COLOR_NAVY
 
     p_gv = tf_info.add_paragraph()
-    p_gv.text = "Giảng viên hướng dẫn:  ..."
+    p_gv.text = "Giảng viên hướng dẫn:  Dr. Doan Xuan Huy Minh"
     p_gv.font.name = FONT_HEADING
     p_gv.font.size = Pt(14)
     p_gv.font.bold = True

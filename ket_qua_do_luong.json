@@ -1,22 +1,24 @@
 {
-    "thoi_gian_cap_nhat": "2026-10-24 18:01:08",
-    "thoi_gian_da_chay_giay": 1060.8,
+    "thoi_gian_cap_nhat": "2026-11-17 08:16:17",
+    "thoi_gian_da_chay_giay": 371.6,
     "tai_nguyen_he_thong": {
-        "cpu_su_dung_phantram": 23.5,
-        "ram_su_dung_mb": 1545.9
+        "cpu_su_dung_phantram": 38.1,
+        "ram_su_dung_mb": 1700.7
     },
     "hieu_nang_camera_fps": {
-        "1": 11.8
+        "1": 21.1,
+        "2": 21.4,
+        "3": 21.7
     },
     "do_tre_suy_luan_ai_ms": {
-        "phat_hien_khuon_mat_mtcnn_ms": 60.03,
-        "nhan_dien_dac_trung_facenet_ms": 70.04,
-        "phat_hien_chay_yolo_ms": 32.41,
-        "phat_hien_nga_yolo_ms": 31.53,
+        "phat_hien_khuon_mat_mtcnn_ms": 0.0,
+        "nhan_dien_dac_trung_facenet_ms": 0.0,
+        "phat_hien_chay_yolo_ms": 0.0,
+        "phat_hien_nga_yolo_ms": 64.46,
         "phat_hien_xam_nhap_yolo_ms": 0.0
     },
     "do_tre_truyen_thong_canh_bao": {
-        "thoi_gian_gui_telegram_giay": 0.0,
-        "dong_bang_luong_video_max_ms": 2746.5
+        "thoi_gian_gui_telegram_giay": 2.02,
+        "dong_bang_luong_video_max_ms": 34917.1
     }
 }

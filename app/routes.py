@@ -215,9 +215,9 @@ async def update_settings_route(request: Request):
     for k, v in payload.items():
         if k in config.DEFAULT_SETTINGS:
             # Chuyển đổi kiểu dữ liệu phù hợp
-            if k in ["conf_threshold", "fire_conf_threshold", "face_threshold"]:
+            if k in ["conf_threshold", "fire_conf_threshold", "fall_conf_threshold", "face_threshold"]:
                 config.settings[k] = float(v)
-            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer", "light_auto_off_seconds", "light_brightness_threshold"]:
+            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer", "fall_frame_buffer", "light_auto_off_seconds", "light_brightness_threshold"]:
                 config.settings[k] = int(v)
             elif k in ["alerts_enabled", "tts_enabled", "auto_cleanup_enabled", "record_full_video"]:
                 config.settings[k] = bool(v)

@@ -1,11 +1,9 @@
 [
     {
         "camera_id": "1",
-        "source": "0",
+        "source": "ArcSpec Fall Detection Video software demonstration.mp4",
         "features": [
-            "face_id",
-            "fall_detection",
-            "fire_detection"
+            "fall_detection"
         ],
         "line": [
             [
@@ -35,7 +33,7 @@
                 300
             ]
         ],
-        "schedule_enabled": true,
+        "schedule_enabled": false,
         "schedule_start": "01:00",
         "schedule_end": "14:00",
         "low_light_enhance": false,
@@ -49,9 +47,9 @@
     },
     {
         "camera_id": "2",
-        "source": "1",
+        "source": "Man Collapses at Hospital After Heart Attack.mp4",
         "features": [
-            "face_id"
+            "fall_detection"
         ],
         "line": [
             [
@@ -91,13 +89,13 @@
         "map_y": 30.39,
         "in_direction": "down",
         "trigger_alarm": false,
-        "enabled": false
+        "enabled": true
     },
     {
         "camera_id": "3",
-        "source": "2",
+        "source": "Camera Hikvision DS-2CE56C0T-IR _ Video Demo Bản Quyền Của CTy Kamera.mp4",
         "features": [
-            "face_id"
+            "fall_detection"
         ],
         "line": [
             [
@@ -137,6 +135,6 @@
         "map_y": 31.32,
         "in_direction": "down",
         "trigger_alarm": false,
-        "enabled": false
+        "enabled": true
     }
 ]
