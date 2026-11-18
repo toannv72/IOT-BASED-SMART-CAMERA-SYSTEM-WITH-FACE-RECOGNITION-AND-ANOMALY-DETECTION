@@ -1,0 +1,179 @@
+{
+  "updated_at": "2026-11-08 10:23:47",
+  "device": "cuda",
+  "fall_class_names": {
+    "0": "normal",
+    "1": "fall"
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "conf_thr": 0.25,
+      "frame_buf": 6,
+      "results": [
+        {
+          "ok": true,
+          "video": "ArcSpec Fall Detection Video software demonstration.mp4",
+          "total_frames": 2739,
+          "fps": 29.97,
+          "sampled": 456,
+          "fall_hits": 47,
+          "fall_ratio": 0.103,
+          "alerted": true,
+          "first_alert_frame": 378,
+          "first_alert_sec": 12.61,
+          "max_fall_conf": 0.317,
+          "model_fall_boxes": 3,
+          "pose_fall_boxes": 47,
+          "collapse_boxes": 0,
+          "sources": {
+            "model": 3,
+            "pose": 0,
+            "collapse": 0,
+            "transition": 52
+          },
+          "conf_thr": 0.25,
+          "frame_buf": 6,
+          "passed": true,
+          "elapsed_sec": 62.0
+        },
+        {
+          "ok": true,
+          "video": "Man Collapses at Hospital After Heart Attack.mp4",
+          "total_frames": 2632,
+          "fps": 20.0,
+          "sampled": 439,
+          "fall_hits": 41,
+          "fall_ratio": 0.093,
+          "alerted": true,
+          "first_alert_frame": 1056,
+          "first_alert_sec": 52.8,
+          "max_fall_conf": 0.897,
+          "model_fall_boxes": 70,
+          "pose_fall_boxes": 40,
+          "collapse_boxes": 100,
+          "sources": {
+            "model": 70,
+            "pose": 0,
+            "collapse": 0,
+            "transition": 92
+          },
+          "conf_thr": 0.25,
+          "frame_buf": 6,
+          "passed": true,
+          "elapsed_sec": 51.1
+        },
+        {
+          "ok": true,
+          "video": "Man-Collapses-at-SnapYT.App.mp4",
+          "total_frames": 2630,
+          "fps": 20.0,
+          "sampled": 439,
+          "fall_hits": 41,
+          "fall_ratio": 0.093,
+          "alerted": true,
+          "first_alert_frame": 1056,
+          "first_alert_sec": 52.8,
+          "max_fall_conf": 0.897,
+          "model_fall_boxes": 70,
+          "pose_fall_boxes": 40,
+          "collapse_boxes": 100,
+          "sources": {
+            "model": 70,
+            "pose": 0,
+            "collapse": 0,
+            "transition": 92
+          },
+          "conf_thr": 0.25,
+          "frame_buf": 6,
+          "passed": true,
+          "elapsed_sec": 52.1
+        }
+      ]
+    }
+  ],
+  "final": [
+    {
+      "ok": true,
+      "video": "ArcSpec Fall Detection Video software demonstration.mp4",
+      "total_frames": 2739,
+      "fps": 29.97,
+      "sampled": 456,
+      "fall_hits": 47,
+      "fall_ratio": 0.103,
+      "alerted": true,
+      "first_alert_frame": 378,
+      "first_alert_sec": 12.61,
+      "max_fall_conf": 0.317,
+      "model_fall_boxes": 3,
+      "pose_fall_boxes": 47,
+      "collapse_boxes": 0,
+      "sources": {
+        "model": 3,
+        "pose": 0,
+        "collapse": 0,
+        "transition": 52
+      },
+      "conf_thr": 0.25,
+      "frame_buf": 6,
+      "passed": true,
+      "elapsed_sec": 62.0
+    },
+    {
+      "ok": true,
+      "video": "Man Collapses at Hospital After Heart Attack.mp4",
+      "total_frames": 2632,
+      "fps": 20.0,
+      "sampled": 439,
+      "fall_hits": 41,
+      "fall_ratio": 0.093,
+      "alerted": true,
+      "first_alert_frame": 1056,
+      "first_alert_sec": 52.8,
+      "max_fall_conf": 0.897,
+      "model_fall_boxes": 70,
+      "pose_fall_boxes": 40,
+      "collapse_boxes": 100,
+      "sources": {
+        "model": 70,
+        "pose": 0,
+        "collapse": 0,
+        "transition": 92
+      },
+      "conf_thr": 0.25,
+      "frame_buf": 6,
+      "passed": true,
+      "elapsed_sec": 51.1
+    },
+    {
+      "ok": true,
+      "video": "Man-Collapses-at-SnapYT.App.mp4",
+      "total_frames": 2630,
+      "fps": 20.0,
+      "sampled": 439,
+      "fall_hits": 41,
+      "fall_ratio": 0.093,
+      "alerted": true,
+      "first_alert_frame": 1056,
+      "first_alert_sec": 52.8,
+      "max_fall_conf": 0.897,
+      "model_fall_boxes": 70,
+      "pose_fall_boxes": 40,
+      "collapse_boxes": 100,
+      "sources": {
+        "model": 70,
+        "pose": 0,
+        "collapse": 0,
+        "transition": 92
+      },
+      "conf_thr": 0.25,
+      "frame_buf": 6,
+      "passed": true,
+      "elapsed_sec": 52.1
+    }
+  ],
+  "final_settings": {
+    "fall_conf_threshold": 0.25,
+    "fall_frame_buffer": 6
+  }
+}

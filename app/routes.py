@@ -266,9 +266,9 @@ async def update_settings_route(request: Request):
     for k, v in payload.items():
         if k in config.DEFAULT_SETTINGS:
             # Chuyển đổi kiểu dữ liệu phù hợp
-            if k in ["conf_threshold", "fire_conf_threshold", "face_threshold", "local_min_free_gb"]:
+            if k in ["conf_threshold", "fire_conf_threshold", "fall_conf_threshold", "face_threshold", "local_min_free_gb"]:
                 config.settings[k] = float(v)
-            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer", "light_auto_off_seconds", "light_brightness_threshold", "gdrive_retention_days", "gdrive_min_free_mb"]:
+            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer", "fall_frame_buffer", "light_auto_off_seconds", "light_brightness_threshold", "gdrive_retention_days", "gdrive_min_free_mb"]:
                 config.settings[k] = int(v)
             elif k in ["alerts_enabled", "tts_enabled", "auto_cleanup_enabled", "record_full_video", "gdrive_enabled", "gdrive_auto_cleanup", "gdrive_sync_alerts", "gdrive_sync_recordings", "gdrive_sync_db", "gdrive_organize_by_date", "remote_access_auto_start"]:
                 config.settings[k] = bool(v)

@@ -59,6 +59,50 @@ else:
 # Khóa Lock dùng chung toàn cục để đồng bộ suy luận trên thiết bị biên CPU/GPU (Tránh xung đột/Nghẽn cổ chai)
 gpu_lock = threading.Lock()
 
+from app.fall_detect import (
+    FallTrackState,
+    detect_fall_hybrid as _detect_fall_hybrid_core,
+    format_posture_overlay,
+    is_fall_class_name as _is_fall_class_name,
+    update_fall_alert_counter,
+)
+
+def detect_fall_hybrid(frame, state, conf_thr=0.25, imgsz=640):
+    """Wrapper dùng chung cho luồng camera: nạp mô hình lazy + khóa gpu_lock."""
+    from app.ai import yolov8_fall_model, yolov8_pose_model
+    # Đồng bộ thuộc tính máy trạng thái nếu CameraState cũ chưa có
+    if not hasattr(state, "person_height_history"):
+        state.person_height_history = collections.deque(maxlen=90)
+    if not hasattr(state, "posture_history"):
+        state.posture_history = collections.deque(maxlen=24)
+    if not hasattr(state, "seen_upright"):
+        state.seen_upright = False
+    if not hasattr(state, "upright_until"):
+        state.upright_until = 0.0
+    if not hasattr(state, "upright_grace"):
+        state.upright_grace = 0
+    if not hasattr(state, "lying_streak"):
+        state.lying_streak = 0
+    if not hasattr(state, "candidate_streak"):
+        state.candidate_streak = 0
+    if not hasattr(state, "fall_confirmed"):
+        state.fall_confirmed = False
+    if not hasattr(state, "stand_streak"):
+        state.stand_streak = 0
+    if not hasattr(state, "upright_streak"):
+        state.upright_streak = 0
+    fall_in_frame, boxes, _diag = _detect_fall_hybrid_core(
+        frame,
+        state,
+        fall_model=yolov8_fall_model,
+        pose_model=yolov8_pose_model,
+        device=device,
+        conf_thr=conf_thr,
+        imgsz=imgsz,
+        lock=gpu_lock,
+    )
+    return fall_in_frame, boxes
+
 # Biến lưu trữ FPS đo được thời gian thực cho từng luồng camera
 camera_fps = {
     "face": 0.0,
@@ -303,7 +347,7 @@ def gen_fall_stream():
             return
 
     print("[PROCESSORS] Khởi tạo thành công luồng phát hiện ngã.")
-    fall_counter = 0
+    local_state = FallTrackState()
     
     while True:
         t_start = time.time()
@@ -392,24 +436,26 @@ def gen_fall_stream():
                         
                     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                     cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        fall_frame_buf = int(config.settings.get("fall_frame_buffer", 10))
+        fall_active_now = update_fall_alert_counter(local_state, fall_in_frame, fall_frame_buf)
+        for item in detected_boxes:
+            x1, y1, x2, y2, label_name, conf = item[:6]
+            label, color = format_posture_overlay(label_name, conf)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
-        # 2. Xử lý logic cảnh báo người ngã
-        if fall_in_frame:
-            fall_counter += 1
-            if fall_counter >= 12:  # Báo động khi ngã trên 1.2 giây
-                SystemStatus.fall_active = True
-                cv2.putText(frame, "CANH BAO: NGUOI NGA!", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-                SystemStatus.add_log("⚠️ CẢNH BÁO: Phát hiện người bị ngã hoặc nằm trên sàn!", "danger")
-                send_telegram_alert(
-                    message="⚠️ [CẢNH BÁO FALL] Cảnh báo nguy hiểm! Phát hiện người bị ngã hoặc nằm yên trên sàn nhà!",
-                    frame=frame,
-                    alert_type="fall",
-                    camera_id="Cam_Phat_Hien_Nga"
-                )
+        if fall_active_now:
+            SystemStatus.fall_active = True
+            cv2.putText(frame, "CANH BAO: NGUOI NGA!", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            SystemStatus.add_log("⚠️ CẢNH BÁO: Phát hiện người bị ngã hoặc nằm trên sàn!", "danger")
+            send_telegram_alert(
+                message="⚠️ [CẢNH BÁO FALL] Cảnh báo nguy hiểm! Phát hiện người bị ngã hoặc nằm yên trên sàn nhà!",
+                frame=frame,
+                alert_type="fall",
+                camera_id="Cam_Phat_Hien_Nga"
+            )
         else:
-            fall_counter = max(0, fall_counter - 1)
-            if fall_counter == 0:
-                SystemStatus.fall_active = False
+            SystemStatus.fall_active = False
 
         ret, buffer = cv2.imencode('.jpg', frame)
         if not ret: continue
@@ -465,6 +511,17 @@ class CameraState:
         self.fire_active = False
         self.fire_counter = 0
         self.last_jpeg_frame = None
+        self.last_fall_boxes = []
+        self.last_fall_in_frame = False
+        self.person_height_history = collections.deque(maxlen=90)
+        self.posture_history = collections.deque(maxlen=24)
+        self.seen_upright = False
+        self.upright_grace = 0
+        self.lying_streak = 0
+        self.candidate_streak = 0
+        self.fall_confirmed = False
+        self.stand_streak = 0
+        self.upright_streak = 0
         self.reload_config_requested = False
         self.active_stream_clients = 0
         self.active_clients_lock = threading.Lock()
@@ -1739,7 +1796,6 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             else:
                 fall_in_frame = getattr(state, "last_fall_in_frame", False)
 
-            # Vẽ UI dựa trên bộ nhớ đệm
             fall_boxes = getattr(state, "last_fall_boxes", [])
             if getattr(state, "using_custom_fall_model", True):
                 for x_1, y_1, x_2, y_2, is_fall_cls, conf in fall_boxes:

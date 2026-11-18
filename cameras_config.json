@@ -1,7 +1,7 @@
 [
     {
         "camera_id": "1",
-        "source": "0",
+        "source": "ArcSpec Fall Detection Video software demonstration.mp4",
         "features": [
             "intrusion_roi",
             "face_id",
@@ -52,7 +52,7 @@
     },
     {
         "camera_id": "2",
-        "source": "1",
+        "source": "Man Collapses at Hospital After Heart Attack.mp4",
         "features": [
             "intrusion_roi",
             "face_id",

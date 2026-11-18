@@ -691,6 +691,23 @@
             <label class="form-label">Bộ Lọc Trễ Xác Minh Cháy Nổ (Frames)</label>
             <input type="number" id="setting-fire-buffer" class="form-input" min="5" max="150" value="25">
         </div>
+        <div class="form-group">
+            <label class="form-label">Ngưỡng Tin Cậy Phát Hiện Ngã (Fall Confidence)</label>
+            <input type="number" id="setting-fall-conf" class="form-input" step="0.01" min="0.05" max="0.80"
+                value="0.25">
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Khuyến nghị 0.20–0.35. Chỉ báo khi đứng/ngồi → nằm (không báo khi chỉ ngồi/cúi).</div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Số Khung Xác Minh Ngã (Frames)</label>
+            <input type="number" id="setting-fall-buffer" class="form-input" min="4" max="60" value="6">
+        </div>
+        <div class="form-group">
+            <label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="setting-fall-smart-posture" checked style="width:18px;height:18px;">
+                Smart Posture (phân biệt Standing / Sitting / Bending / Lying / FALL)
+            </label>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Bật để hiển thị tư thế trên khung; ngồi ghế không bị coi là ngã.</div>
+        </div>
         <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 10px;">
             <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="saveSettings()">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình Hệ Thống
@@ -740,6 +757,10 @@
             updateFaceCooldownPreview(faceCd);
             document.getElementById('setting-fire-conf').value = settings.fire_conf_threshold !== undefined ? settings.fire_conf_threshold : 0.55;
             document.getElementById('setting-fire-buffer').value = settings.fire_frame_buffer !== undefined ? settings.fire_frame_buffer : 25;
+            document.getElementById('setting-fall-conf').value = settings.fall_conf_threshold !== undefined ? settings.fall_conf_threshold : 0.25;
+            document.getElementById('setting-fall-buffer').value = settings.fall_frame_buffer !== undefined ? settings.fall_frame_buffer : 6;
+            const smartEl = document.getElementById('setting-fall-smart-posture');
+            if (smartEl) smartEl.checked = settings.fall_smart_posture !== undefined ? !!settings.fall_smart_posture : true;
             document.getElementById('setting-light-auto-off').value = settings.light_auto_off_seconds !== undefined ? settings.light_auto_off_seconds : 30;
             document.getElementById('setting-light-trigger-mode').value = settings.light_trigger_mode || "always";
             document.getElementById('setting-light-schedule-start').value = settings.light_schedule_start || "18:00";
@@ -1375,6 +1396,9 @@
             face_log_cooldown: parseInt(document.getElementById('setting-face-cooldown').value),
             fire_conf_threshold: parseFloat(document.getElementById('setting-fire-conf').value),
             fire_frame_buffer: parseInt(document.getElementById('setting-fire-buffer').value),
+            fall_conf_threshold: parseFloat(document.getElementById('setting-fall-conf').value),
+            fall_frame_buffer: parseInt(document.getElementById('setting-fall-buffer').value),
+            fall_smart_posture: document.getElementById('setting-fall-smart-posture') ? document.getElementById('setting-fall-smart-posture').checked : true,
             unmutable_alerts: unmutableAlerts,
             light_auto_off_seconds: parseInt(document.getElementById('setting-light-auto-off').value),
             light_trigger_mode: document.getElementById('setting-light-trigger-mode').value,
