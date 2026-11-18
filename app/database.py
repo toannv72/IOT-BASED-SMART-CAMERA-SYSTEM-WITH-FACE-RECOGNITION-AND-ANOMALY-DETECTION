@@ -37,6 +37,7 @@ class SystemEventLog(Base):
     image_path = Column(String, nullable=True)  # Đường dẫn ảnh cảnh báo
     video_path = Column(String, nullable=True)  # Đường dẫn clip sự cố (mới)
     face_name = Column(String, nullable=True)   # Tên khuôn mặt nhận diện (mới)
+    drive_link = Column(String, nullable=True)  # Đường dẫn lưu trữ trên Google Drive
     timestamp = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 # Tạo toàn bộ các bảng trong SQLite nếu chưa tồn tại
@@ -75,6 +76,28 @@ except Exception:
 try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE system_events ADD COLUMN face_name VARCHAR(100)"))
+        conn.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE system_events ADD COLUMN drive_link VARCHAR(500)"))
+        conn.commit()
+except Exception:
+    pass
+
+# Tối ưu hiệu năng SQLite & tạo chỉ mục (Index) phục vụ tìm kiếm/phân trang tới 1.000.000+ bản ghi
+try:
+    with engine.connect() as conn:
+        conn.execute(text("PRAGMA journal_mode=WAL"))
+        conn.execute(text("PRAGMA synchronous=NORMAL"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_system_events_timestamp ON system_events(timestamp)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_system_events_event_type ON system_events(event_type)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_system_events_camera_id ON system_events(camera_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_faces_name ON faces(name)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_faces_created_at ON faces(created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)"))
         conn.commit()
 except Exception:
     pass

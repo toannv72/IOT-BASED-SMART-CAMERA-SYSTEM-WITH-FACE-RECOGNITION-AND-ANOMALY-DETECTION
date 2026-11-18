@@ -1,6 +1,15 @@
 import os
 import sys
 
+# Khống chế số luồng OpenMP / MKL / OpenBLAS trước khi nạp NumPy / PyTorch / OpenCV
+os.environ.setdefault("OMP_NUM_THREADS", "2")
+os.environ.setdefault("MKL_NUM_THREADS", "2")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "2")
+os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "2")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "2")
+os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
+os.environ.setdefault("KMP_BLOCKTIME", "0")
+
 # Khắc phục lỗi UnicodeEncodeError khi in tiếng Việt/ký tự lạ ra cửa sổ terminal Windows
 if hasattr(sys.stdout, 'reconfigure'):
     try:
@@ -27,8 +36,30 @@ os.makedirs("static/alerts", exist_ok=True)
 # Khởi tạo ứng dụng FastAPI
 app = FastAPI(title="Unified Smart Surveillance Dashboard")
 
-# Cấu hình Secret Key dùng để ký và xác thực cookie tránh giả mạo
-SECRET_KEY = b"MSE_SMART_CAMERA_SECRET_KEY_2026_FPT"
+# Cấu hình Secret Key động dùng để ký và xác thực cookie tránh giả mạo
+import secrets as _secrets
+def _load_or_create_secret_key() -> bytes:
+    env_key = os.environ.get("SMARTCAM_SECRET_KEY", "").strip()
+    if env_key:
+        return env_key.encode("utf-8")
+    key_file = ".secret_key"
+    if os.path.exists(key_file):
+        try:
+            with open(key_file, "rb") as kf:
+                data = kf.read().strip()
+                if len(data) >= 32:
+                    return data
+        except Exception:
+            pass
+    new_key = _secrets.token_hex(32).encode("utf-8")
+    try:
+        with open(key_file, "wb") as kf:
+            kf.write(new_key)
+    except Exception:
+        pass
+    return new_key
+
+SECRET_KEY = _load_or_create_secret_key()
 COOKIE_NAME = "surveillance_session"
 MAX_AGE = 14400  # 4 tiếng (14400 giây)
 
@@ -93,6 +124,25 @@ class HMACSessionMiddleware:
         # Gán session vào scope để FastAPI Request có thể truy cập qua request.session
         scope["session"] = session_data
 
+        # Chặn truy cập ẩn danh vào ảnh cảnh báo & video lưu trữ trong /static/alerts và /static/recordings
+        req_path = scope.get("path", "")
+        if (req_path.startswith("/static/alerts/") or req_path.startswith("/static/recordings/")) and not session_data.get("user_id"):
+            await send({
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [(b"content-type", b"text/plain; charset=utf-8")],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": b"Unauthorized",
+            })
+            return
+
+        is_https = (scope.get("scheme") == "https") or (
+            headers.get(b"x-forwarded-proto", b"").decode("utf-8", "ignore").lower() == "https"
+        )
+        secure_attr = "; Secure" if is_https else ""
+
         # 3. Tạo một send wrapper để kiểm tra sự thay đổi của session và thiết lập cookie phản hồi
         async def send_wrapper(message):
             if message["type"] == "http.response.start":
@@ -106,12 +156,12 @@ class HMACSessionMiddleware:
                     if current_session_json != initial_session_str:
                         new_b64 = base64.b64encode(current_session_json.encode('utf-8')).decode('utf-8')
                         new_cookie_val = sign_data_with_key(new_b64, SECRET_KEY)
-                        cookie_str = f"{COOKIE_NAME}={new_cookie_val}; Path=/; Max-Age={MAX_AGE}; HttpOnly; SameSite=Lax"
+                        cookie_str = f"{COOKIE_NAME}={new_cookie_val}; Path=/; Max-Age={MAX_AGE}; HttpOnly; SameSite=Lax{secure_attr}"
                         resp_headers.append("Set-Cookie", cookie_str)
                 else:
                     # Nếu session bị xóa trống (khi đăng xuất), thực hiện xóa cookie ở client
                     if cookie_val:
-                        cookie_str = f"{COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
+                        cookie_str = f"{COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax{secure_attr}"
                         resp_headers.append("Set-Cookie", cookie_str)
 
             await send(message)
@@ -134,4 +184,15 @@ start_cleanup_thread()
 # Khởi chạy luồng xử lý camera chạy ngầm 24/7
 from app.processors import start_all_camera_threads
 start_all_camera_threads()
+
+# Tự động mở đường hầm truy cập từ xa (4G/Internet) nếu được bật trong cấu hình
+import app.config as _cfg
+if _cfg.settings.get("remote_access_auto_start", False):
+    import threading as _th
+    def _auto_remote():
+        import time as _t
+        _t.sleep(4)
+        from app.remote_access import start_remote_tunnel
+        start_remote_tunnel(port=8000, notify_telegram=True)
+    _th.Thread(target=_auto_remote, daemon=True, name="AutoRemoteTunnel").start()
 

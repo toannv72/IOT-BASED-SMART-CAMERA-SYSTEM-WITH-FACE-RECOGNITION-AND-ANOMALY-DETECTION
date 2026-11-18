@@ -20,6 +20,7 @@ class TelemetryTracker:
     
     # Camera frame times
     _camera_frame_times = {} # camera_id: [samples]
+    _warmup_counts = {}      # camera_id: int (Bỏ qua 5 frame khởi động đầu tiên khi nạp mô hình từ ổ cứng)
     
     # Stream freeze detection (max frame interval in seconds during alerts)
     _max_freeze_during_alert = 0.0
@@ -69,6 +70,10 @@ class TelemetryTracker:
     @classmethod
     def record_frame_time(cls, camera_id, duration):
         with cls._lock:
+            w_cnt = cls._warmup_counts.get(camera_id, 0)
+            if w_cnt < 5:
+                cls._warmup_counts[camera_id] = w_cnt + 1
+                return
             if camera_id not in cls._camera_frame_times:
                 cls._camera_frame_times[camera_id] = []
             cls._camera_frame_times[camera_id].append(duration)
@@ -76,7 +81,7 @@ class TelemetryTracker:
                 cls._camera_frame_times[camera_id].pop(0)
             
             # Nếu đang có gửi cảnh báo và thời gian xử lý khung hình tăng đột biến, ghi nhận độ đóng băng
-            if duration > 0.2:
+            if duration > 0.25:
                 if duration > cls._max_freeze_during_alert:
                     cls._max_freeze_during_alert = duration
 

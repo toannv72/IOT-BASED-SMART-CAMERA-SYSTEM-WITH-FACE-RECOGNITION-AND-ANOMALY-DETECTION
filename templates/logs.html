@@ -8,23 +8,30 @@
     <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
         <i class="fa-solid fa-clock-rotate-left"></i> Nhật Ký Cảnh Báo & Ảnh Sự Kiện Lưu Trữ
     </h3>
-    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-        <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
-            <input type="text" id="log-search" class="form-input" placeholder="Tìm kiếm chi tiết sự kiện..."
-                oninput="filterHistoryLogs()">
+    <div class="table-toolbar">
+        <div class="search-input-wrap">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="log-search" class="form-input" placeholder="Tìm sự kiện, camera"
+                oninput="onLogSearchInput()">
+            <span id="log-search-clear" class="search-clear-btn" onclick="clearLogSearch()">&times;</span>
         </div>
-        <div class="form-group" style="width: 200px; margin-bottom: 0;">
-            <select id="log-filter-type" class="form-input" onchange="filterHistoryLogs()"
-                style="background: rgba(255,255,255,0.03); color: #fff;">
-                <option value="" style="color: #000000;">Tất cả sự kiện</option>
-                <option value="intrusion" style="color: #000000;">Xâm nhập vùng cấm (ROI)</option>
-                <option value="fall" style="color: #000000;">Phát hiện người ngã</option>
-                <option value="face" style="color: #000000;">Nhận diện khuôn mặt lạ</option>
-
+        <div class="form-group" style="width: 210px; margin-bottom: 0;">
+            <select id="log-filter-type" class="form-input" onchange="onLogFilterChange()" style="height: 36px;">
+                <option value="">Tất cả loại sự kiện</option>
+                <option value="intrusion">Xâm nhập vùng cấm (ROI)</option>
+                <option value="fall">Phát hiện người ngã</option>
+                <option value="fire">Cảnh báo cháy nổ</option>
+                <option value="gas">Rò rỉ khí ga</option>
+                <option value="face">Nhận diện khuôn mặt</option>
             </select>
         </div>
-        <button class="btn btn-primary" onclick="loadHistoryLogs()">
-            <i class="fa-solid fa-arrows-rotate"></i> Làm Mới Dữ Liệu
+        <div class="form-group" style="width: 170px; margin-bottom: 0;">
+            <select id="log-filter-camera" class="form-input" onchange="onLogFilterChange()" style="height: 36px;">
+                <option value="">Tất cả camera</option>
+            </select>
+        </div>
+        <button class="btn btn-primary" onclick="loadHistoryLogs(logsPageState.page, logsPageState.page_size)">
+            <i class="fa-solid fa-arrows-rotate"></i> Làm mới
         </button>
     </div>
     <div class="faces-table-container">
@@ -32,11 +39,12 @@
             <thead>
                 <tr>
                     <th>Thời Gian</th>
-                    <th>Camera ID</th>
-                    <th>Loại Sự Kiện</th>
+                    <th>Cam</th>
+                    <th>Loại</th>
                     <th>Chi Tiết</th>
-                    <th style="text-align: right;">Ảnh Chụp</th>
-                    <th style="text-align: right;">Video</th>
+                    <th style="text-align: right;">Ảnh</th>
+                    <th style="text-align: right;">Clip</th>
+                    <th style="text-align: right;">Drive</th>
                 </tr>
             </thead>
             <tbody id="history-logs-tbody">
@@ -44,6 +52,7 @@
             </tbody>
         </table>
     </div>
+    <div id="logs-pagination"></div>
 </div>
 
 <!-- Lightbox Modal Xem Ảnh Sự Kiện Cảnh Báo -->
@@ -76,58 +85,103 @@
 
 {% block scripts %}
 <script>
-    let historyLogs = [];
+    let logsPageState = { page: 1, page_size: 20, total: 0, total_pages: 1 };
 
     window.addEventListener('DOMContentLoaded', () => {
-        loadHistoryLogs();
+        loadHistoryLogs(1, 20);
     });
 
-    async function loadHistoryLogs() {
-        try {
-            const response = await fetch('/api/logs');
-            historyLogs = await response.json();
-            filterHistoryLogs();
-        } catch (err) {
-            console.error("Lỗi khi tải nhật ký:", err);
-        }
+    function onCamerasLoaded() {
+        const sel = document.getElementById('log-filter-camera');
+        if (!sel || !Array.isArray(activeCameras)) return;
+        const current = sel.value;
+        sel.innerHTML = '<option value="">Tất cả camera</option>' +
+            activeCameras.map(c => `<option value="${c.camera_id}">Camera ${c.camera_id}</option>`).join('');
+        if (current) sel.value = current;
     }
 
-    function filterHistoryLogs() {
-        const search = document.getElementById('log-search').value.toLowerCase();
-        const typeFilter = document.getElementById('log-filter-type').value;
-        const tbody = document.getElementById('history-logs-tbody');
+    const debouncedLoadLogs = debounce(() => loadHistoryLogs(1, logsPageState.page_size), 300);
 
-        const filtered = historyLogs.filter(log => {
-            const matchSearch = log.message.toLowerCase().includes(search) || log.camera_id.toLowerCase().includes(search);
-            const matchType = typeFilter === "" || log.event_type === typeFilter;
-            return matchSearch && matchType;
+    function onLogSearchInput() {
+        const input = document.getElementById('log-search');
+        const clearBtn = document.getElementById('log-search-clear');
+        if (clearBtn) clearBtn.style.display = input.value.trim() ? 'block' : 'none';
+        debouncedLoadLogs();
+    }
+
+    function clearLogSearch() {
+        const input = document.getElementById('log-search');
+        const clearBtn = document.getElementById('log-search-clear');
+        if (input) input.value = '';
+        if (clearBtn) clearBtn.style.display = 'none';
+        loadHistoryLogs(1, logsPageState.page_size);
+    }
+
+    function onLogFilterChange() {
+        loadHistoryLogs(1, logsPageState.page_size);
+    }
+
+    async function loadHistoryLogs(page = 1, pageSize = 20) {
+        const tbody = document.getElementById('history-logs-tbody');
+        const q = (document.getElementById('log-search')?.value || '').trim();
+        const eventType = document.getElementById('log-filter-type')?.value || '';
+        const cameraId = document.getElementById('log-filter-camera')?.value || '';
+
+        const params = new URLSearchParams({
+            page: String(page),
+            page_size: String(pageSize),
+            q,
+            event_type: eventType,
+            camera_id: cameraId
         });
 
-        if (filtered.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Không tìm thấy sự kiện nào tương ứng.</td></tr>';
-            return;
-        }
+        try {
+            const response = await fetch(`/api/logs?${params.toString()}`);
+            const data = await response.json();
+            const items = Array.isArray(data) ? data : (data.items || []);
+            logsPageState = Array.isArray(data)
+                ? { page: 1, page_size: pageSize, total: items.length, total_pages: 1 }
+                : { page: data.page, page_size: data.page_size, total: data.total, total_pages: data.total_pages };
 
-        tbody.innerHTML = filtered.map(log => `
-            <tr>
-                <td>${log.timestamp}</td>
-                <td><strong>${log.camera_id}</strong></td>
-                <td><span class="badge" style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; font-size: 11px;">${log.event_type}</span></td>
-                <td>${log.message}</td>
-                <td style="text-align: right;">
-                    ${log.image_path ? `
-                        <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="openImageModal('${log.image_path}', '${log.message}')">Xem Ảnh</button>
-                    ` : '<span style="color: var(--text-muted); font-size: 11px;">Không có</span>'}
-                </td>
-                <td style="text-align: right;">
-                    ${log.video_path ? `
-                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="openVideoModal('${log.video_path}', '${log.message}')">
-                            <i class="fa-solid fa-play"></i> Xem Clip
-                        </button>
-                    ` : '<span style="color: var(--text-muted); font-size: 11px;">Không có</span>'}
-                </td>
-            </tr>
-        `).join('');
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Không tìm thấy sự kiện nào tương ứng.</td></tr>';
+            } else {
+                tbody.innerHTML = items.map(log => `
+                    <tr>
+                        <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); white-space: nowrap;">${escapeHtml(log.timestamp)}</td>
+                        <td><strong>${escapeHtml(log.camera_id)}</strong></td>
+                        <td><span class="badge" style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; font-size: 11px; white-space: nowrap;">${escapeHtml(log.event_type)}</span></td>
+                        <td>${escapeHtml(log.message)}</td>
+                        <td style="text-align: right; white-space: nowrap;">
+                            ${log.image_path ? `
+                                <button class="btn" style="height: 28px; padding: 0 10px; font-size: 11px;" onclick="openImageModal('${escapeHtml(log.image_path)}', '${escapeHtml(log.message)}')">Xem Ảnh</button>
+                            ` : '<span style="color: var(--text-muted); font-size: 11px;">Không có</span>'}
+                        </td>
+                        <td style="text-align: right; white-space: nowrap;">
+                            ${log.video_path ? `
+                                <button class="btn btn-primary" style="height: 28px; padding: 0 10px; font-size: 11px;" onclick="openVideoModal('${escapeHtml(log.video_path)}', '${escapeHtml(log.message)}')">
+                                    <i class="fa-solid fa-play"></i> Xem Clip
+                                </button>
+                            ` : '<span style="color: var(--text-muted); font-size: 11px;">Không có</span>'}
+                        </td>
+                        <td style="text-align: right; white-space: nowrap;">
+                            ${log.drive_link ? `
+                                <a href="${escapeHtml(log.drive_link)}" target="_blank" rel="noopener noreferrer" class="btn btn-success" style="height: 28px; padding: 0 10px; font-size: 11px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                                    <i class="fa-brands fa-google-drive"></i> Mở Drive
+                                </a>
+                            ` : '<span style="color: var(--text-muted); font-size: 11px;">Cục bộ</span>'}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            renderTablePagination('logs-pagination', logsPageState, (nextPage, nextSize) => {
+                loadHistoryLogs(nextPage, nextSize);
+            });
+        } catch (err) {
+            console.error("Lỗi khi tải nhật ký:", err);
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger);">Lỗi tải dữ liệu nhật ký.</td></tr>';
+        }
     }
 
     function openImageModal(src, caption) {

@@ -43,8 +43,8 @@ def perform_cleanup():
         for event in old_events:
             # Xóa ảnh
             if event.image_path:
-                local_path = event.image_path.lstrip('/')
-                if os.path.exists(local_path):
+                local_path = config.resolve_web_path_to_local(event.image_path)
+                if local_path and os.path.exists(local_path):
                     try:
                         os.remove(local_path)
                         deleted_file_count += 1
@@ -53,8 +53,8 @@ def perform_cleanup():
             
             # Xóa video
             if event.video_path:
-                local_path = event.video_path.lstrip('/')
-                if os.path.exists(local_path):
+                local_path = config.resolve_web_path_to_local(event.video_path)
+                if local_path and os.path.exists(local_path):
                     try:
                         os.remove(local_path)
                         deleted_file_count += 1
@@ -76,8 +76,8 @@ def perform_cleanup():
     finally:
         db.close()
         
-    # 1.5 Dọn dẹp tệp tin video ghi hình liên tục trong static/recordings/
-    recordings_dir = os.path.join("static", "recordings")
+    # 1.5 Dọn dẹp tệp tin video ghi hình liên tục trong thư mục recordings
+    recordings_dir = config.get_recordings_storage_dir()
     if os.path.exists(recordings_dir):
         try:
             deleted_rec_count = 0
@@ -98,7 +98,7 @@ def perform_cleanup():
             print(f"[CLEANUP] Lỗi khi dọn dẹp thư mục recordings: {e}")
         
     # 2. Dọn dẹp theo dung lượng tối đa (cleanup_max_size_gb)
-    alerts_dir = os.path.join("static", "alerts")
+    alerts_dir = config.get_alerts_storage_dir()
     max_bytes = cleanup_max_size_gb * 1024 * 1024 * 1024
     
     if os.path.exists(alerts_dir):
@@ -124,9 +124,14 @@ def perform_cleanup():
                             break
                             
                         # Đổi đường dẫn tệp cục bộ sang đường dẫn web để xóa trong DB
-                        web_path = "/" + fp.replace("\\", "/")
+                        fname = os.path.basename(fp)
+                        web_static = f"/static/alerts/{fname}"
+                        web_api = f"/api/storage/alerts/{fname}"
                         event = db.query(SystemEventLog).filter(
-                            (SystemEventLog.image_path == web_path) | (SystemEventLog.video_path == web_path)
+                            (SystemEventLog.image_path == web_static) |
+                            (SystemEventLog.video_path == web_static) |
+                            (SystemEventLog.image_path == web_api) |
+                            (SystemEventLog.video_path == web_api)
                         ).first()
                         
                         if event:
@@ -153,7 +158,7 @@ def perform_cleanup():
             print(f"[CLEANUP] Lỗi quét thư mục alerts: {e}")
 
 def cleanup_loop():
-    """Vòng lặp chạy ngầm thực hiện dọn dẹp định kỳ"""
+    """Vòng lặp chạy ngầm thực hiện dọn dẹp định kỳ cục bộ và trên Google Drive"""
     print("[CLEANUP] Đã khởi chạy tiến trình dọn dẹp tự động chạy ngầm.")
     # Đợi 10 giây sau khi khởi động hệ thống rồi chạy lần đầu tiên
     time.sleep(10)
@@ -161,7 +166,12 @@ def cleanup_loop():
         try:
             perform_cleanup()
         except Exception as e:
-            print(f"[CLEANUP] Lỗi trong luồng chạy ngầm: {e}")
+            print(f"[CLEANUP] Lỗi trong luồng dọn dẹp cục bộ: {e}")
+        try:
+            from app.gdrive import perform_gdrive_periodic_tasks
+            perform_gdrive_periodic_tasks()
+        except Exception as gd_err:
+            print(f"[CLEANUP] Lỗi trong luồng đồng bộ/dọn dẹp Google Drive: {gd_err}")
         # Chạy lại sau mỗi 5 phút (300 giây)
         time.sleep(300)
 

@@ -993,14 +993,13 @@
                     </div>
 
                     <!-- Dropdown chọn nguồn camera -->
-                    <div style="display: flex; gap: 8px;">
-                        <select id="cam-source-select" class="form-input" onchange="onCameraSourceSelectChange()" style="flex: 1; background: #1e293b; color: #fff; font-size: 13px;">
-                            <option value="">-- Đang quét thiết bị camera... --</option>
-                        </select>
-                        <button type="button" id="btn-preview-cam" onclick="toggleCameraPreview()" style="padding: 0 12px; font-size: 12px; border-radius: 6px; white-space: nowrap; display: flex; align-items: center; gap: 4px; background: #3b82f6; color: #fff; border: none; cursor: pointer;">
-                            👁️ Xem thử
-                        </button>
-                    </div>
+                    <select id="cam-source-select" class="form-input" onchange="onCameraSourceSelectChange()" style="width: 100%; min-width: 0; background: #1e293b; color: #fff; font-size: 13px;">
+                        <option value="">-- Đang quét thiết bị camera... --</option>
+                    </select>
+                    <!-- Nút xem thử đặt riêng một hàng bên dưới để không bị che -->
+                    <button type="button" id="btn-preview-cam" onclick="toggleCameraPreview()" style="width: 100%; margin-top: 8px; padding: 8px 12px; font-size: 12px; border-radius: 6px; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 4px; background: #3b82f6; color: #fff; border: none; cursor: pointer;">
+                        👁️ Xem thử
+                    </button>
 
                     <!-- Hộp cảnh báo khi cổng camera đã có camera khác sử dụng -->
                     <div id="cam-source-warning" style="display: none; margin-top: 6px; padding: 6px 10px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; color: #fca5a5; font-size: 12px; align-items: center; gap: 6px;">

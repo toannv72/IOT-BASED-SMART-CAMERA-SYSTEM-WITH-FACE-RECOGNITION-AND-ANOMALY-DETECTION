@@ -49,12 +49,12 @@ if ai_device.type == 'cuda':
     YOLO_IMGSZ = 640
     print("[PROCESSORS] CUDA detected: Set optimized default intervals (YOLO=1, Face=3, Fall=2, Fire=2, YOLO_IMGSZ=640)")
 else:
-    YOLO_INTERVAL = 3
-    FACE_INTERVAL = 20
-    FALL_INTERVAL = 10
-    FIRE_INTERVAL = 12
+    YOLO_INTERVAL = 5
+    FACE_INTERVAL = 24
+    FALL_INTERVAL = 15
+    FIRE_INTERVAL = 18
     YOLO_IMGSZ = 320
-    print("[PROCESSORS] CPU mode (Pi4 optimized): Set lightweight intervals (YOLO=3, Face=20, Fall=10, Fire=12, YOLO_IMGSZ=320)")
+    print("[PROCESSORS] CPU mode (Pi4 optimized): Set lightweight intervals (YOLO=5, Face=24, Fall=15, Fire=18, YOLO_IMGSZ=320)")
 
 # Khóa Lock dùng chung toàn cục để đồng bộ suy luận trên thiết bị biên CPU/GPU (Tránh xung đột/Nghẽn cổ chai)
 gpu_lock = threading.Lock()
@@ -328,14 +328,16 @@ def gen_fall_stream():
                     cls_id = int(box.cls[0].cpu().item())
                     conf = float(box.conf[0].cpu().item())
                     
-                    if conf > conf_thr:
+                    if conf > max(conf_thr, 0.40):
                         x1, y1, x2, y2 = [int(b) for b in box.xyxy[0].cpu().numpy()[:4]]
+                        cls_name = str(yolov8_fall_model.names.get(cls_id, "")).lower()
+                        is_fall_cls = ("fall" in cls_name) if cls_name else (cls_id == 1)
                         
-                        if cls_id == 0:  # Lớp 0: Người bị Ngã
+                        if is_fall_cls:
                             color = (0, 0, 255)
                             label = f"FALL ({conf:.2f})"
                             fall_in_frame = True
-                        else:  # Lớp 1: Bình thường
+                        else:
                             color = (0, 255, 0)
                             label = f"Normal ({conf:.2f})"
                             
@@ -537,7 +539,8 @@ def owned_camera_frame(raw):
 
 def _open_record_writer(camera_id, fps):
     """Mở file ghi hình. avc1 để trình duyệt phát được, rồi mới tới codec dự phòng."""
-    os.makedirs("static/recordings", exist_ok=True)
+    rec_dir = config.get_recordings_storage_dir()
+    os.makedirs(rec_dir, exist_ok=True)
     from datetime import datetime
     from app.alerts import sanitize_filename_component
     sanitized_cam = sanitize_filename_component(camera_id)
@@ -549,37 +552,61 @@ def _open_record_writer(camera_id, fps):
         (f"recording_{sanitized_cam}_{timestamp_str}.avi", "MJPG"),
     ]
     for filename, codec in candidates:
-        filepath = os.path.join("static", "recordings", filename)
-        writer = cv2.VideoWriter(filepath, cv2.VideoWriter_fourcc(*codec), fps, (640, 360))
+        filepath = os.path.join(rec_dir, filename)
+        if sys.platform.startswith("win") and codec == "avc1":
+            writer = cv2.VideoWriter(filepath, cv2.CAP_MSMF, cv2.VideoWriter_fourcc(*codec), fps, (640, 360))
+        else:
+            writer = cv2.VideoWriter(filepath, cv2.VideoWriter_fourcc(*codec), fps, (640, 360))
         if writer.isOpened():
-            print(f"[RECORDING] Ghi {fps:.0f} FPS bằng {codec}: {filename}")
+            print(f"[RECORDING] Ghi {fps:.0f} FPS bằng {codec} tại {filepath}")
             return writer
         writer.release()
     print(f"[RECORDING] [ERROR] Không thể khởi tạo codec cho camera '{camera_id}'")
     return None
+
+def _is_continuous_recording_enabled(state) -> bool:
+    """
+    Kiểm tra chế độ ghi hình liên tục của riêng từng camera:
+    - 'continuous': Luôn ghi liên tục 24/7 cho camera này.
+    - 'none': Không bao giờ ghi video.
+    - 'alerts_only' (mặc định): Chỉ ghi liên tục nếu bật ép buộc toàn hệ thống 'record_full_video'.
+    """
+    cam_mode = getattr(state, "recording_mode", "alerts_only")
+    if cam_mode == "continuous":
+        return True
+    if cam_mode == "none":
+        return False
+    return bool(config.settings.get("record_full_video", False))
 
 def _preview_worker(state, threaded_cam, stop_event):
     """Phát hình theo nhịp đồng hồ, không chờ mô hình AI xử lý xong."""
     interval = 1.0 / 12.0
     next_tick = time.perf_counter()
     tick_i = 0
+    last_raw_id = -1
+    last_ops_ref = None
     while not stop_event.is_set():
         viewers = state.active_stream_clients > 0
-        recording = bool(config.settings.get("record_full_video", False))
+        recording = _is_continuous_recording_enabled(state)
         step = interval if (viewers or recording) else 0.5
         now = time.perf_counter()
         if now < next_tick:
-            time.sleep(min(0.01, next_tick - now))
+            time.sleep(min(0.02, next_tick - now))
             continue
         if now - next_tick > step:
             next_tick = now
         next_tick += step
         tick_i += 1
+        cur_raw_id = getattr(threaded_cam, "frame_id", -1)
+        ops = state.overlay_ops
+        if cur_raw_id == last_raw_id and ops is last_ops_ref and state.last_jpeg_frame is not None:
+            continue
         ret, raw = threaded_cam.read()
         if not ret or raw is None:
             continue
+        last_raw_id = cur_raw_id
+        last_ops_ref = ops
         frame = owned_camera_frame(raw)
-        ops = state.overlay_ops
         if ops:
             apply_overlay(frame, ops)
         state.paced_frame = frame
@@ -598,7 +625,7 @@ def _record_worker(camera_id, state, stop_event):
     frames_written = 0
     next_tick = time.perf_counter()
     while not stop_event.is_set():
-        record_on = bool(config.settings.get("record_full_video", False))
+        record_on = _is_continuous_recording_enabled(state)
         if not record_on:
             if writer is not None:
                 writer.release()
@@ -656,6 +683,57 @@ def cached_roi_polygons(state, cfg):
     state._roi_cache_cfg = cfg
     state._roi_polys = polys
     return polys
+
+def verify_human_in_frame(frame, min_conf=0.45, roi_polys=None):
+    """
+    Xác minh lại bằng mô hình phát hiện người ở độ phân giải cao hơn (imgsz=480)
+    trước khi phát cảnh báo/gửi Telegram, giúp loại bỏ hoàn toàn cảnh báo giả
+    do đồ vật (ghế, rèm, gối, ánh sáng...) gây ra.
+    """
+    if frame is None:
+        return False
+    try:
+        from app.ai import yolov8_model
+        h, w = frame.shape[:2]
+        frame_area = float(h * w)
+        with gpu_lock:
+            with torch.no_grad():
+                results = yolov8_model(frame, conf=min_conf, classes=[0], imgsz=480, verbose=False, device=device)
+        if not results or results[0].boxes is None or len(results[0].boxes) == 0:
+            return False
+
+        for box in results[0].boxes:
+            conf = float(box.conf[0].cpu().item())
+            x1, y1, x2, y2 = [float(v) for v in box.xyxy[0].cpu().numpy()[:4]]
+            bw = max(0.0, x2 - x1)
+            bh = max(0.0, y2 - y1)
+            area = bw * bh
+            if bw < 24 or bh < 32 or area < frame_area * 0.005:
+                continue
+            if area > frame_area * 0.92 and conf < 0.70:
+                continue
+
+            if roi_polys:
+                check_pts = [
+                    (int((x1 + x2) / 2), int(y2)),
+                    (int((x1 + x2) / 2), int((y1 + y2) / 2))
+                ]
+                in_roi = False
+                for pts in roi_polys:
+                    for cp in check_pts:
+                        if cv2.pointPolygonTest(pts, cp, False) >= 0:
+                            in_roi = True
+                            break
+                    if in_roi:
+                        break
+                if not in_roi:
+                    continue
+
+            return True
+        return False
+    except Exception as e:
+        print(f"[HUMAN VERIFY] Lỗi xác minh người trong khung hình: {e}")
+        return True
 
 import threading
 
@@ -872,6 +950,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
     if camera_id not in camera_states:
         camera_states[camera_id] = CameraState()
     state = camera_states[camera_id]
+    state.recording_mode = cfg.get("recording_mode", "alerts_only")
 
     source = cfg["source"]
     if isinstance(source, str) and source.isdigit():
@@ -922,10 +1001,16 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         preview_thread.join(timeout=1.0)
         record_thread.join(timeout=1.5)
 
+    last_ai_frame_id = -1
     while True:
         if stop_event is not None and stop_event.is_set():
             print(f"[PROCESSORS] Luồng camera '{camera_id}' nhận tín hiệu dừng (stop_event). Thoát vòng lặp...")
             break
+        cur_cam_fid = getattr(threaded_cam, "frame_id", 0)
+        if cur_cam_fid == last_ai_frame_id and cur_cam_fid > 0:
+            time.sleep(0.025)
+            continue
+        last_ai_frame_id = cur_cam_fid
         t_start = time.time()
         current_time = t_start
         ret, frame = threaded_cam.read()
@@ -956,6 +1041,7 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     threaded_cam = ThreadedCamera(source, width=640, height=480, fps=25).start()
                     state.threaded_cam = threaded_cam
                 cfg = new_cfg
+                state.recording_mode = cfg.get("recording_mode", "alerts_only")
             
             if "face_id" in cfg.get("features", []) or "abnormal_behavior" in cfg.get("features", []):
                 db = SessionLocal()
@@ -1012,15 +1098,18 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             state.fire_active = False
 
         detections = None
+        yolo_ran_this_frame = False
         if run_yolo:
             if not hasattr(state, "last_detections"):
                 state.last_detections = None
             if state.frame_index % YOLO_INTERVAL == 0 or state.last_detections is None:
                 from app.ai import yolov8_model
+                yolo_ran_this_frame = True
+                person_conf_thr = max(conf_thr, 0.38)
                 t_yolo_start = time.time()
                 with gpu_lock:
                     with torch.no_grad():
-                        results = yolov8_model.track(frame, persist=True, tracker="custom_bytetrack.yaml", conf=conf_thr, classes=[0], verbose=False, device=device, imgsz=YOLO_IMGSZ)
+                        results = yolov8_model.track(frame, persist=True, tracker="custom_bytetrack.yaml", conf=person_conf_thr, classes=[0], verbose=False, device=device, imgsz=YOLO_IMGSZ)
                 t_yolo_end = time.time()
                 TelemetryTracker.record_yolo_intrusion(t_yolo_end - t_yolo_start)
                 detections = sv.Detections.from_ultralytics(results[0])
@@ -1092,34 +1181,55 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         
                         if "abnormal_behavior" not in features:
                             if alerts_enabled and alert_allowed_by_schedule and not is_paused:
-                                SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện lảng vảng ID #{tid} quá {loitering_threshold} giây!", "danger")
-                                send_telegram_alert(
-                                    message=f"⚠️ [{camera_id}] Phát hiện người lảng vảng ID #{tid} ở lại vùng cấm {int(elapsed)} giây!",
-                                    frame=frame,
-                                    alert_type="intrusion",
-                                    camera_id=camera_id,
-                                    frame_buffer=list(state.frame_buffer)
-                                )
+                                if verify_human_in_frame(frame, min_conf=0.45, roi_polys=roi_polys):
+                                    SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện lảng vảng ID #{tid} quá {loitering_threshold} giây!", "danger")
+                                    send_telegram_alert(
+                                        message=f"⚠️ [{camera_id}] Phát hiện người lảng vảng ID #{tid} ở lại vùng cấm {int(elapsed)} giây!",
+                                        frame=frame,
+                                        alert_type="intrusion",
+                                        camera_id=camera_id,
+                                        frame_buffer=list(state.frame_buffer)
+                                    )
+                                else:
+                                    print(f"[HUMAN VERIFY] [{camera_id}] Bỏ qua cảnh báo lảng vảng giả (không xác nhận được con người).")
 
             for tid in list(state.intrusion_entry_times.keys()):
                 if tid not in active_tids_in_roi:
                     state.intrusion_entry_times.pop(tid, None)
 
-            if person_in_roi:
-                if "abnormal_behavior" not in features:
-                    state.intrusion_active = True
-                if not loitering_detected:
-                    blit_text(annotated_frame, overlay_ops, "CANH BAO XAM NHAP!", (10, 60), 0.6, (0, 0, 255), 2)
+            if not hasattr(state, "intrusion_confirm_count"):
+                state.intrusion_confirm_count = 0
+            if yolo_ran_this_frame:
+                if person_in_roi:
+                    state.intrusion_confirm_count = min(5, state.intrusion_confirm_count + 1)
+                else:
+                    state.intrusion_confirm_count = 0
+
+            if state.intrusion_confirm_count >= 2:
+                human_verified = True
+                if "abnormal_behavior" not in features and yolo_ran_this_frame:
+                    human_verified = verify_human_in_frame(frame, min_conf=0.45, roi_polys=roi_polys)
+                    if not human_verified:
+                        state.intrusion_confirm_count = 0
+                        state.intrusion_active = False
+                        reset_alert_incident("intrusion", camera_id)
+                        print(f"[HUMAN VERIFY] [{camera_id}] Bỏ qua cảnh báo xâm nhập giả (ảnh không xác nhận được con người).")
+
+                if human_verified:
                     if "abnormal_behavior" not in features:
-                        if alerts_enabled and alert_allowed_by_schedule and not is_paused:
-                            SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện xâm nhập vùng cấm!", "danger")
-                            send_telegram_alert(
-                                message=f"⚠️ [{camera_id}] Phát hiện người xâm nhập vùng cấm!",
-                                frame=frame,
-                                alert_type="intrusion",
-                                camera_id=camera_id,
-                                frame_buffer=list(state.frame_buffer)
-                            )
+                        state.intrusion_active = True
+                    if not loitering_detected:
+                        blit_text(annotated_frame, overlay_ops, "CANH BAO XAM NHAP!", (10, 60), 0.6, (0, 0, 255), 2)
+                        if "abnormal_behavior" not in features and yolo_ran_this_frame:
+                            if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                                SystemStatus.add_log(f"⚠️ {camera_id}: Phát hiện xâm nhập vùng cấm!", "danger")
+                                send_telegram_alert(
+                                    message=f"⚠️ [{camera_id}] Phát hiện người xâm nhập vùng cấm!",
+                                    frame=frame,
+                                    alert_type="intrusion",
+                                    camera_id=camera_id,
+                                    frame_buffer=list(state.frame_buffer)
+                                )
             else:
                 if "abnormal_behavior" not in features:
                     state.intrusion_active = False
@@ -1128,18 +1238,23 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
         if run_face:
             # Kiểm tra xem có cần quét khuôn mặt không (nếu tất cả mọi người đã được định danh thì bỏ qua)
             need_face_recognition = True
-            if detections is not None and detections.tracker_id is not None:
-                unrecognized_people = False
-                for tid in detections.tracker_id:
-                    face_name = state.track_face_status.get(tid)
-                    if face_name is None or face_name == "Unknown":
-                        unrecognized_people = True
-                        break
-                if not unrecognized_people:
-                    need_face_recognition = False
+            effective_face_interval = FACE_INTERVAL
+            if detections is not None:
+                if len(detections) == 0:
+                    # Khi không phát hiện thân người trong khung hình, giãn chu kỳ quét mặt ra gấp đôi để tiết kiệm CPU
+                    effective_face_interval = FACE_INTERVAL * 2
+                elif detections.tracker_id is not None:
+                    unrecognized_people = False
+                    for tid in detections.tracker_id:
+                        face_name = state.track_face_status.get(tid)
+                        if face_name is None or face_name == "Unknown":
+                            unrecognized_people = True
+                            break
+                    if not unrecognized_people:
+                        need_face_recognition = False
 
-            # Thực hiện quét mặt theo chu kỳ FACE_INTERVAL (Giảm độ phân giải khi detect để siêu nhẹ trên CPU Pi)
-            if need_face_recognition and (state.frame_index % FACE_INTERVAL == 0):
+            # Thực hiện quét mặt theo chu kỳ effective_face_interval (Lệch pha +4 để tránh trùng nhịp với YOLO/Fall/Fire)
+            if need_face_recognition and ((state.frame_index + 4) % effective_face_interval == 0):
                 from app.ai import mtcnn_multi, resnet
                 # 1. Thu nhỏ ảnh đi 2 lần (320x180) để chạy detect MTCNN cực nhanh
                 small_frame = cv2.resize(frame, (320, 180))
@@ -1518,19 +1633,22 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                             telegram_cooldown = config.settings.get("telegram_cooldown", 15)
                             
                             if current_time - last_alert_t > telegram_cooldown:
-                                state.behavior_alert_cooldowns[tid] = current_time
-                                
-                                log_msg = f"⚠️ CẢNH BÁO: Phát hiện hành vi đột nhập bất thường từ ID #{tid} (Rủi ro: {score}). Chi tiết: {', '.join(reasons)}."
-                                SystemStatus.add_log(log_msg, "danger")
-                                
-                                if alerts_enabled and alert_allowed_by_schedule and not is_paused:
-                                    send_telegram_alert(
-                                        message=f"🚨 [CẢNH BÁO ĐỘT NHẬP] Phát hiện hành vi bất thường từ đối tượng ID #{tid}!\n\nĐiểm rủi ro: {score} / 100\nChi tiết vi phạm: {', '.join(reasons)}",
-                                        frame=frame,
-                                        alert_type="intrusion",
-                                        camera_id=camera_id,
-                                        frame_buffer=list(state.frame_buffer)
-                                    )
+                                if verify_human_in_frame(frame, min_conf=0.45):
+                                    state.behavior_alert_cooldowns[tid] = current_time
+                                    
+                                    log_msg = f"⚠️ CẢNH BÁO: Phát hiện hành vi đột nhập bất thường từ ID #{tid} (Rủi ro: {score}). Chi tiết: {', '.join(reasons)}."
+                                    SystemStatus.add_log(log_msg, "danger")
+                                    
+                                    if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                                        send_telegram_alert(
+                                            message=f"🚨 [CẢNH BÁO ĐỘT NHẬP] Phát hiện hành vi bất thường từ đối tượng ID #{tid}!\n\nĐiểm rủi ro: {score} / 100\nChi tiết vi phạm: {', '.join(reasons)}",
+                                            frame=frame,
+                                            alert_type="intrusion",
+                                            camera_id=camera_id,
+                                            frame_buffer=list(state.frame_buffer)
+                                        )
+                                else:
+                                    print(f"[HUMAN VERIFY] [{camera_id}] Bỏ qua cảnh báo hành vi bất thường giả (không xác nhận được con người).")
                     else:
                         state.track_high_risk_start_times.pop(tid, None)
                                 
@@ -1544,9 +1662,11 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
 
         if run_fall:
             fall_in_frame = False
+            fall_ran_this_frame = ((state.frame_index + 1) % FALL_INTERVAL == 0)
+            fall_conf_thr = max(conf_thr, 0.40)
             
-            # Thực hiện phát hiện ngã theo chu kỳ FALL_INTERVAL
-            if state.frame_index % FALL_INTERVAL == 0:
+            # Thực hiện phát hiện ngã theo chu kỳ FALL_INTERVAL (Lệch pha +1)
+            if fall_ran_this_frame:
                 from app.ai import yolov8_fall_model, yolov8_pose_model
                 
                 # Ưu tiên mô hình ngã chuyên biệt tự huấn luyện
@@ -1563,13 +1683,16 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                         for box in boxes:
                             cls_id = int(box.cls[0].cpu().item())
                             conf = float(box.conf[0].cpu().item())
-                            if conf > conf_thr:
+                            if conf > fall_conf_thr:
                                 x_1, y_1, x_2, y_2 = [int(b) for b in box.xyxy[0].cpu().numpy()[:4]]
-                                if cls_id == 0:
+                                cls_name = str(yolov8_fall_model.names.get(cls_id, "")).lower()
+                                is_fall_cls = ("fall" in cls_name) if cls_name else (cls_id == 1)
+                                if is_fall_cls:
                                     fall_in_frame = True
-                                detected_boxes.append((x_1, y_1, x_2, y_2, cls_id, conf))
+                                detected_boxes.append((x_1, y_1, x_2, y_2, is_fall_cls, conf))
                     state.last_fall_boxes = detected_boxes
                     state.last_fall_in_frame = fall_in_frame
+                    state.using_custom_fall_model = True
                 else:
                     # Thuật toán dự phòng dựa trên tư thế
                     with gpu_lock:
@@ -1612,15 +1735,15 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                             detected_pose_falls.append((x_1, y_1, x_2, y_2, is_fall))
                     state.last_fall_boxes = detected_pose_falls
                     state.last_fall_in_frame = fall_in_frame
+                    state.using_custom_fall_model = False
             else:
                 fall_in_frame = getattr(state, "last_fall_in_frame", False)
 
             # Vẽ UI dựa trên bộ nhớ đệm
             fall_boxes = getattr(state, "last_fall_boxes", [])
-            from app.ai import yolov8_fall_model
-            if yolov8_fall_model is not None:
-                for x_1, y_1, x_2, y_2, cls_id, conf in fall_boxes:
-                    if cls_id == 0:
+            if getattr(state, "using_custom_fall_model", True):
+                for x_1, y_1, x_2, y_2, is_fall_cls, conf in fall_boxes:
+                    if is_fall_cls:
                         color = (0, 0, 255)
                         label = f"FALL ({conf:.2f})"
                     else:
@@ -1639,12 +1762,27 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                     blit_rect(annotated_frame, overlay_ops, (x_1, y_1), (x_2, y_2), color, 2)
                     blit_text(annotated_frame, overlay_ops, label, (x_1, y_1 - 10), 0.5, color, 1)
 
-            if fall_in_frame:
-                state.fall_counter += 1
-                if state.fall_counter >= 12:
+            # Chỉ cập nhật bộ đếm xác nhận ngã khi có lượt suy luận mới (tránh cộng dồn từ frame cache)
+            fall_confirm_thr = 2 if FALL_INTERVAL > 3 else 12
+            if fall_ran_this_frame:
+                if fall_in_frame:
+                    state.fall_counter = min(fall_confirm_thr + 2, state.fall_counter + 1)
+                else:
+                    state.fall_counter = max(0, state.fall_counter - 1)
+
+            if state.fall_counter >= fall_confirm_thr:
+                human_verified_fall = True
+                if fall_ran_this_frame:
+                    human_verified_fall = verify_human_in_frame(frame, min_conf=0.40)
+                    if not human_verified_fall:
+                        state.fall_counter = 0
+                        state.fall_active = False
+                        print(f"[HUMAN VERIFY] [{camera_id}] Bỏ qua cảnh báo té ngã giả (không xác nhận được con người trong khung hình).")
+
+                if human_verified_fall:
                     state.fall_active = True
                     blit_text(annotated_frame, overlay_ops, "CANH BAO: NGUOI NGA!", (10, 90), 0.6, (0, 0, 255), 2)
-                    if alerts_enabled and alert_allowed_by_schedule and not is_paused:
+                    if fall_ran_this_frame and alerts_enabled and alert_allowed_by_schedule and not is_paused:
                         SystemStatus.add_log(f"🚨 {camera_id}: Phát hiện người bị ngã!", "danger")
                         send_telegram_alert(
                             message=f"🚨 [{camera_id}] Phát hiện có người bị ngã!",
@@ -1653,16 +1791,14 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
                             camera_id=camera_id,
                             frame_buffer=list(state.frame_buffer)
                         )
-            else:
-                state.fall_counter = max(0, state.fall_counter - 1)
-                if state.fall_counter == 0:
-                    state.fall_active = False
+            elif state.fall_counter == 0:
+                state.fall_active = False
 
         if run_fire:
             fire_in_frame = False
             
-            # Thực hiện phát hiện cháy nổ theo chu kỳ FIRE_INTERVAL
-            if state.frame_index % FIRE_INTERVAL == 0:
+            # Thực hiện phát hiện cháy nổ theo chu kỳ FIRE_INTERVAL (Lệch pha +2)
+            if (state.frame_index + 2) % FIRE_INTERVAL == 0:
                 from app.ai import yolov8_fire_model
                 detected_fires = []
                 if yolov8_fire_model is not None:
@@ -1747,19 +1883,21 @@ def run_camera_processing_loop(camera_id: str, stop_event=None):
             state.threaded_cam = None
             raise
 
-        t_end = time.time()
-        fps = 1.0 / (t_end - t_start + 1e-6)
-        camera_fps[camera_id] = round(fps, 1)
-        TelemetryTracker.record_frame_time(camera_id, t_end - t_start)
+        t_ai_end = time.time()
+        ai_elapsed = t_ai_end - t_start
 
         if stop_event is not None:
             if stop_event.is_set():
                 break
             # Giới hạn tốc độ xử lý AI. Hình xem trực tiếp do luồng preview phát riêng, không bị khóa bởi nhịp này.
-            elapsed = t_end - t_start
-            target_fps_delay = 0.07 if ai_device.type != 'cuda' else 0.04
-            delay = max(0.005, target_fps_delay - elapsed)
+            target_fps_delay = 0.085 if ai_device.type != 'cuda' else 0.04
+            delay = max(0.01, target_fps_delay - ai_elapsed)
             time.sleep(delay)
+
+        t_end = time.time()
+        fps = min(30.0, 1.0 / max(t_end - t_start, 0.033))
+        camera_fps[camera_id] = round(fps, 1)
+        TelemetryTracker.record_frame_time(camera_id, t_end - t_start)
 
     stop_output_threads()
     threaded_cam.release()

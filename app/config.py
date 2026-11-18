@@ -61,11 +61,161 @@ DEFAULT_SETTINGS = {
     "light_trigger_mode": "always",
     "light_schedule_start": "18:00",
     "light_schedule_end": "06:00",
-    "light_brightness_threshold": 60
+    "light_brightness_threshold": 60,
+    "gdrive_enabled": False,
+    "gdrive_webhook_url": "",
+    "gdrive_folder_id": "",
+    "gdrive_retention_days": 30,
+    "gdrive_auto_cleanup": True,
+    "gdrive_sync_alerts": True,
+    "gdrive_sync_recordings": False,
+    "gdrive_sync_db": True,
+    "gdrive_organize_by_date": True,
+    "gdrive_target_mode": "auto_folder",
+    "gdrive_folder_name": "SmartCamera_Cloud_Backup",
+    "gdrive_backup_links": [],
+    "gdrive_min_free_mb": 100,
+    "local_storage_path": "",
+    "local_backup_storage_path": "",
+    "local_min_free_gb": 1.0,
+    "remote_access_auto_start": False
 }
 
 # Tải cài đặt lúc khởi chạy
 settings = DEFAULT_SETTINGS.copy()
+_last_active_local_tier = "primary"
+
+def _check_dir_writable_and_space(path_str: str, min_free_gb: float = 0.0) -> tuple:
+    """
+    Kiểm tra xem thư mục có thể tạo/ghi được không và còn đủ dung lượng trống (>= min_free_gb) hay không.
+    Trả về (ok: bool, free_gb: float, reason: str)
+    """
+    try:
+        import shutil
+        os.makedirs(path_str, exist_ok=True)
+        total, used, free = shutil.disk_usage(os.path.abspath(path_str))
+        free_gb = free / (1024 ** 3)
+        if min_free_gb > 0 and free_gb < min_free_gb:
+            return False, round(free_gb, 2), f"Dung lượng trống ({free_gb:.2f} GB) thấp hơn ngưỡng an toàn ({min_free_gb:.2f} GB)"
+        return True, round(free_gb, 2), "OK"
+    except Exception as e:
+        return False, 0.0, str(e)
+
+def get_storage_base_dir() -> str:
+    """
+    Trả về đường dẫn thư mục gốc dùng để lưu trữ cục bộ theo chuỗi dự phòng (Failover):
+    1. Ưu tiên Ổ đĩa chính (`local_storage_path`, hoặc `static` nếu để trống).
+    2. Nếu Ổ đĩa chính bị đầy (còn trống < `local_min_free_gb`) hoặc lỗi ghi, tự động chuyển sang
+       Ổ đĩa dự phòng (`local_backup_storage_path`).
+    3. Nếu cả hai đều lỗi, fallback an toàn về `static`.
+    """
+    global _last_active_local_tier
+    primary_raw = str(settings.get("local_storage_path", "") or "").strip()
+    backup_raw = str(settings.get("local_backup_storage_path", "") or "").strip()
+    min_free_gb = float(settings.get("local_min_free_gb", 1.0) or 0.0)
+
+    primary_target = primary_raw if primary_raw else "static"
+    # Nếu chưa cấu hình ổ dự phòng thì không chặn ngưỡng min_free_gb ở ổ chính để vẫn cố ghi được tới khi đầy thật
+    effective_min_gb = min_free_gb if backup_raw else 0.05
+
+    ok_pri, free_pri, reason_pri = _check_dir_writable_and_space(primary_target, effective_min_gb)
+    if ok_pri:
+        _last_active_local_tier = "primary"
+        return primary_target
+
+    # Nếu ổ chính không đủ dung lượng hoặc lỗi -> Chuyển tiếp sang Ổ cứng dự phòng (Backup Disk)
+    if backup_raw:
+        ok_bak, free_bak, reason_bak = _check_dir_writable_and_space(backup_raw, 0.05)
+        if ok_bak:
+            if _last_active_local_tier != "backup":
+                _last_active_local_tier = "backup"
+                print(f"[STORAGE FAILOVER] ⚠️ Ổ lưu trữ chính '{primary_target}' không đủ chỗ ({reason_pri}). Đã tự động chuyển sang Ổ cứng dự phòng: '{backup_raw}' (Trống {free_bak} GB)!")
+            return backup_raw
+
+    # Fallback cuối cùng
+    os.makedirs("static", exist_ok=True)
+    return "static"
+
+def get_all_candidate_storage_dirs(subfolder: str) -> list:
+    """
+    Trả về danh sách tất cả các thư mục có thể chứa tệp (Cả ổ chính, ổ dự phòng và static)
+    để phục vụ việc đọc/phát lại video hoặc xem ảnh không bị mất dấu khi chuyển ổ.
+    """
+    dirs = []
+    for base in [
+        get_storage_base_dir(),
+        str(settings.get("local_storage_path", "") or "").strip(),
+        str(settings.get("local_backup_storage_path", "") or "").strip(),
+        "static"
+    ]:
+        if not base:
+            continue
+        d = os.path.join(base, subfolder)
+        abs_d = os.path.abspath(d)
+        if abs_d not in [os.path.abspath(x) for x in dirs]:
+            dirs.append(d)
+    return dirs
+
+def get_alerts_storage_dir() -> str:
+    base = get_storage_base_dir()
+    d = os.path.join(base, "alerts")
+    try:
+        os.makedirs(d, exist_ok=True)
+    except Exception:
+        d = os.path.join("static", "alerts")
+        os.makedirs(d, exist_ok=True)
+    return d
+
+def get_recordings_storage_dir() -> str:
+    base = get_storage_base_dir()
+    d = os.path.join(base, "recordings")
+    try:
+        os.makedirs(d, exist_ok=True)
+    except Exception:
+        d = os.path.join("static", "recordings")
+        os.makedirs(d, exist_ok=True)
+    return d
+
+def get_media_web_path(subfolder: str, filename: str) -> str:
+    """
+    Trả về đường dẫn URL để trình duyệt tải ảnh/video.
+    Nếu đang lưu ở thư mục mặc định 'static' thì trả về '/static/<subfolder>/<filename>',
+    nếu lưu ở ổ đĩa chính hoặc ổ đĩa dự phòng khác thì trả về '/api/storage/<subfolder>/<filename>'.
+    """
+    active_base = get_storage_base_dir()
+    if os.path.abspath(active_base) != os.path.abspath("static"):
+        return f"/api/storage/{subfolder}/{filename}"
+    return f"/static/{subfolder}/{filename}"
+
+def resolve_web_path_to_local(web_path: str) -> str:
+    """
+    Chuyển đổi đường dẫn web ('/static/alerts/...' hoặc '/api/storage/alerts/...')
+    thành đường dẫn tệp vật lý thực tế trên ổ cứng (tự động tìm trên cả ổ chính, ổ dự phòng và static).
+    """
+    if not web_path:
+        return ""
+    clean = web_path.lstrip("/")
+    subfolder = None
+    fname = None
+    if clean.startswith("api/storage/"):
+        parts = clean.split("/")
+        if len(parts) >= 4:
+            subfolder = parts[2]
+            fname = "/".join(parts[3:])
+    elif clean.startswith("static/alerts/"):
+        subfolder = "alerts"
+        fname = clean.split("static/alerts/", 1)[1]
+    elif clean.startswith("static/recordings/"):
+        subfolder = "recordings"
+        fname = clean.split("static/recordings/", 1)[1]
+
+    if subfolder and fname:
+        for cand_dir in get_all_candidate_storage_dirs(subfolder):
+            p = os.path.join(cand_dir, fname)
+            if os.path.exists(p):
+                return p
+        return os.path.join("static", subfolder, fname)
+    return clean
 
 def load_settings():
     global settings
@@ -106,11 +256,17 @@ def get_cameras_config():
                     return copy.deepcopy(_cameras_cache)
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 cams = json.load(f)
-                # Đảm bảo mỗi camera đều có map_id
+                # Đảm bảo mỗi camera đều có map_id, recording_mode và gdrive_sync
                 updated = False
                 for cam in cams:
                     if "map_id" not in cam:
                         cam["map_id"] = "khu_a_tang_1"
+                        updated = True
+                    if "recording_mode" not in cam:
+                        cam["recording_mode"] = "alerts_only"
+                        updated = True
+                    if "gdrive_sync" not in cam:
+                        cam["gdrive_sync"] = True
                         updated = True
                 if updated:
                     save_full_cameras_config(cams)

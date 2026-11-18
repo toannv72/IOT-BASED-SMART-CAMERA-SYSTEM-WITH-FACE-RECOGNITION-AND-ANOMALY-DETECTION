@@ -3,6 +3,7 @@
         "camera_id": "1",
         "source": "0",
         "features": [
+            "intrusion_roi",
             "face_id",
             "fall_detection",
             "fire_detection"
@@ -35,24 +36,80 @@
                 300
             ]
         ],
-        "schedule_enabled": true,
-        "schedule_start": "01:00",
-        "schedule_end": "14:00",
+        "schedule_enabled": false,
+        "schedule_start": "23:00",
+        "schedule_end": "06:00",
         "low_light_enhance": false,
-        "enhance_clip_limit": 8.5,
+        "enhance_clip_limit": 2,
         "map_id": "khu_a_tang_2",
-        "map_x": 20.97,
-        "map_y": 77.56,
+        "map_x": 25,
+        "map_y": 40,
         "in_direction": "down",
-        "trigger_alarm": false,
-        "enabled": true
+        "trigger_alarm": true,
+        "enabled": true,
+        "recording_mode": "alerts_only",
+        "gdrive_sync": true
     },
     {
         "camera_id": "2",
         "source": "1",
         "features": [
-            "face_id"
+            "intrusion_roi",
+            "face_id",
+            "fall_detection",
+            "fire_detection"
         ],
+        "line": [
+            [
+                100,
+                180
+            ],
+            [
+                540,
+                180
+            ]
+        ],
+        "roi": [
+            [
+                100,
+                100
+            ],
+            [
+                540,
+                100
+            ],
+            [
+                540,
+                300
+            ],
+            [
+                100,
+                300
+            ]
+        ],
+        "schedule_enabled": false,
+        "schedule_start": "23:00",
+        "schedule_end": "06:00",
+        "low_light_enhance": false,
+        "enhance_clip_limit": 2.0,
+        "map_id": "khu_a_tang_1",
+        "map_x": 75.0,
+        "map_y": 60.0,
+        "in_direction": "down",
+        "trigger_alarm": true,
+        "enabled": true,
+        "recording_mode": "alerts_only",
+        "gdrive_sync": true
+    },
+    {
+        "camera_id": "demo",
+        "source": "ArcSpec Fall Detection Video software demonstration.mp4",
+        "features": [
+            "fall_detection"
+        ],
+        "enabled": true,
+        "recording_mode": "alerts_only",
+        "gdrive_sync": true,
         "line": [
             [
                 100,
@@ -87,56 +144,9 @@
         "low_light_enhance": false,
         "enhance_clip_limit": 2,
         "map_id": "khu_a_tang_2",
-        "map_x": 50.69,
-        "map_y": 30.39,
+        "map_x": 50,
+        "map_y": 50,
         "in_direction": "down",
-        "trigger_alarm": false,
-        "enabled": false
-    },
-    {
-        "camera_id": "3",
-        "source": "2",
-        "features": [
-            "face_id"
-        ],
-        "line": [
-            [
-                100,
-                180
-            ],
-            [
-                540,
-                180
-            ]
-        ],
-        "roi": [
-            [
-                100,
-                100
-            ],
-            [
-                540,
-                100
-            ],
-            [
-                540,
-                300
-            ],
-            [
-                100,
-                300
-            ]
-        ],
-        "schedule_enabled": false,
-        "schedule_start": "23:00",
-        "schedule_end": "06:00",
-        "low_light_enhance": false,
-        "enhance_clip_limit": 2,
-        "map_id": "khu_a_tang_3",
-        "map_x": 52.33,
-        "map_y": 31.32,
-        "in_direction": "down",
-        "trigger_alarm": false,
-        "enabled": false
+        "trigger_alarm": false
     }
 ]

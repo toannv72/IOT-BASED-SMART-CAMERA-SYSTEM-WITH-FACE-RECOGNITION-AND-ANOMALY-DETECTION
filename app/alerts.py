@@ -94,6 +94,11 @@ def get_alert_keyboard(chat_id, camera_id=None, is_paused=False):
         {"text": "📹 Danh Sách Camera", "callback_data": "open_cam_menu"},
         {"text": "📊 Trạng Thái Hệ Thống", "callback_data": "system_status_info"}
     ])
+
+    # Dòng 7: Xem Camera Trực Tiếp Từ Xa (4G / Khác Mạng Wi-Fi)
+    keyboard.append([
+        {"text": "🌐 Link Xem Camera Trực Tiếp Từ Xa (4G/Web)", "callback_data": "tg_get_live_link"}
+    ])
     
     return {"inline_keyboard": keyboard}
 
@@ -196,38 +201,63 @@ def send_telegram_alert(message, frame=None, alert_type="intrusion", camera_id="
                 clip_fps = (len(times) - 1) / (times[-1] - times[0])
             clip_fps = float(min(12.0, max(4.0, clip_fps)))
 
+    # Kiểm tra chế độ ghi hình riêng của camera này (recording_mode: 'alerts_only', 'continuous', 'none')
+    import app.config as config
+    cam_recording_mode = "alerts_only"
+    cam_gdrive_sync = True
+    try:
+        cams = config.get_cameras_config()
+        cam_cfg = next((c for c in cams if c["camera_id"] == camera_id), None)
+        if cam_cfg:
+            cam_recording_mode = cam_cfg.get("recording_mode", "alerts_only")
+            cam_gdrive_sync = cam_cfg.get("gdrive_sync", True) is not False
+    except Exception:
+        pass
+
+    # Nếu camera đặt ở chế độ 'none' (Không ghi video, chỉ xem live & chụp ảnh), bỏ qua ghi clip sự cố
+    if cam_recording_mode == "none":
+        frames_for_clip = None
+
     # Tạo bản sao sâu của frame_buffer nếu có
     buffer_copy = [f.copy() for f in frames_for_clip] if frames_for_clip else None
     
     def send_worker():
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
         sanitized_cam = sanitize_filename_component(camera_id)
+        alerts_dir = config.get_alerts_storage_dir()
         
         img_web_path = None
+        img_local_path = None
         # 1. Lưu ảnh chụp sự kiện cục bộ (nếu có frame)
         if frame_copy is not None:
             img_filename = f"alert_{alert_type}_{sanitized_cam}_{timestamp_str}.jpg"
-            img_local_path = os.path.join("static", "alerts", img_filename)
-            img_web_path = f"/static/alerts/{img_filename}"
+            img_local_path = os.path.join(alerts_dir, img_filename)
+            img_web_path = config.get_media_web_path("alerts", img_filename)
             try:
                 cv2.imwrite(img_local_path, frame_copy)
                 print(f"[ALERTS] Đã lưu ảnh chụp sự kiện cục bộ tại: {img_local_path}")
             except Exception as e:
                 print(f"[ALERTS] Lỗi lưu ảnh chụp sự kiện: {e}")
                 img_web_path = None
+                img_local_path = None
  
         # 2. Ghi video sự cố bất đồng bộ nếu có frame_buffer
         video_web_path = None
+        video_local_path = None
         if buffer_copy and len(buffer_copy) > 0:
             video_filename = f"alert_{alert_type}_{sanitized_cam}_{timestamp_str}.mp4"
-            video_local_path = os.path.join("static", "alerts", video_filename)
-            video_web_path = f"/static/alerts/{video_filename}"
+            video_local_path = os.path.join(alerts_dir, video_filename)
+            video_web_path = config.get_media_web_path("alerts", video_filename)
             
             try:
                 # Thiết lập VideoWriter (640x360, 15 FPS)
                 # Thử mã hóa H.264 (avc1) trước để phát trực tiếp được trên các trình duyệt web
+                import sys
                 fourcc = cv2.VideoWriter_fourcc(*'avc1')
-                out = cv2.VideoWriter(video_local_path, fourcc, clip_fps, (640, 360))
+                if sys.platform.startswith("win"):
+                    out = cv2.VideoWriter(video_local_path, cv2.CAP_MSMF, fourcc, clip_fps, (640, 360))
+                else:
+                    out = cv2.VideoWriter(video_local_path, fourcc, clip_fps, (640, 360))
                 
                 # Nếu avc1 không được hỗ trợ (do thiếu codec trên HĐH), fallback về mp4v chuẩn
                 if not out.isOpened():
@@ -242,8 +272,10 @@ def send_telegram_alert(message, frame=None, alert_type="intrusion", camera_id="
             except Exception as e:
                 print(f"[ALERTS] Lỗi ghi video sự cố: {e}")
                 video_web_path = None
+                video_local_path = None
             
         # 3. Ghi sự kiện cùng đường dẫn ảnh và video vào cơ sở dữ liệu SQLite
+        event_id = None
         db = SessionLocal()
         try:
             log_entry = SystemEventLog(
@@ -256,12 +288,28 @@ def send_telegram_alert(message, frame=None, alert_type="intrusion", camera_id="
             )
             db.add(log_entry)
             db.commit()
+            db.refresh(log_entry)
+            event_id = log_entry.id
             print(f"[ALERTS] Đã lưu sự kiện '{alert_type}' của '{camera_id}' vào SQLite (Có ảnh: {img_web_path is not None}, Có video: {video_web_path is not None}).")
         except Exception as e:
             db.rollback()
             print(f"[ALERTS] Lỗi lưu log vào cơ sở dữ liệu: {e}")
         finally:
             db.close()
+
+        # 3.5. Tự động đẩy dữ liệu sự cố lên Google Drive chạy ngầm (nếu được bật trong Cài đặt và Camera cho phép)
+        if cam_gdrive_sync:
+            try:
+                from app.gdrive import sync_alert_event_to_gdrive
+                sync_alert_event_to_gdrive(
+                    event_id=event_id,
+                    img_local_path=img_local_path,
+                    video_local_path=video_local_path,
+                    camera_id=camera_id,
+                    alert_type=alert_type
+                )
+            except Exception as gd_err:
+                print(f"[ALERTS] Lỗi kích hoạt đồng bộ Google Drive: {gd_err}")
             
         # 4. Tiến hành gọi API Telegram để gửi tin nhắn kèm hình ảnh/văn bản và nút bấm tương tác
         token = settings.get("telegram_token")
@@ -329,7 +377,12 @@ def send_camera_menu(token, chat_id, message_id=None):
     from app.config import get_cameras_config
     cameras = get_cameras_config()
     
-    text = "🎥 *DANH SÁCH CAMERA AN NÌNH*\n\nChọn một camera dưới đây để Bật/Tắt (Arm/Disarm) cảnh báo an ninh của camera đó:"
+    text = (
+        "🎥 *DANH SÁCH & XEM TRỰC TIẾP CAMERA TỪ XA (4G/INTERNET)*\n\n"
+        "• Bấm vào tên Camera để *Bật/Tắt cảnh báo*.\n"
+        "• Bấm *📸 Chụp Ảnh* hoặc *🎬 Video 5s* để xem trực tiếp ngay trong Telegram.\n"
+        "• Bấm *🌐 Lấy Link Web Live* để mở giao diện xem toàn màn hình trên điện thoại:"
+    )
     keyboard = []
     
     for cam in cameras:
@@ -337,10 +390,15 @@ def send_camera_menu(token, chat_id, message_id=None):
         cam_name = cam.get("name", cam_id)
         is_armed = cam.get("alerts_enabled", True)
         
-        status_str = "🟢 Đang bật" if is_armed else "🔴 Đang tắt"
-        button_text = f"{cam_name}: {status_str}"
+        status_str = "🟢 Cảnh báo: Bật" if is_armed else "🔴 Cảnh báo: Tắt"
+        button_text = f"📹 {cam_name} ({status_str})"
         keyboard.append([{"text": button_text, "callback_data": f"tg_cam_{cam_id}"}])
+        keyboard.append([
+            {"text": f"📸 Chụp Ảnh ({cam_id})", "callback_data": f"tg_snap_{cam_id}"},
+            {"text": f"🎬 Xem Video 5s ({cam_id})", "callback_data": f"tg_clip_{cam_id}"}
+        ])
         
+    keyboard.append([{"text": "🌐 Lấy Link Web Xem Live Toàn Màn Hình (4G)", "callback_data": "tg_get_live_link"}])
     keyboard.append([{"text": "🔄 Làm mới danh sách", "callback_data": "refresh_cam_menu"}])
     
     payload = {
@@ -438,7 +496,8 @@ def telegram_polling_loop():
                                     "👋 *XIN CHÀO! ĐÂY LÀ HỆ THỐNG SMART CAMERA AN NINH*\n\n"
                                     "Bạn có thể điều khiển hệ thống bằng các nút bên dưới hoặc gửi tin nhắn lệnh:\n"
                                     "• `/unlock` hoặc `mở cửa`: Mở khóa cửa điện từ 3 giây\n"
-                                    "• `/cameras` hoặc `cam`: Xem & Bật/Tắt cảnh báo từng camera\n"
+                                    "• `/live` hoặc `xem cam`: Lấy link xem trực tiếp trên điện thoại (4G/khác mạng)\n"
+                                    "• `/cameras` hoặc `cam`: Xem trực tiếp & Bật/Tắt từng camera\n"
                                     "• `/status` hoặc `status`: Báo cáo trạng thái hệ thống\n"
                                     "• `/light_on` hoặc `bật đèn`: Bật đèn chiếu sáng\n"
                                     "• `/light_off` hoặc `tắt đèn`: Tắt đèn chiếu sáng\n"
@@ -477,6 +536,29 @@ def telegram_polling_loop():
 
                             elif txt in ("/cameras", "/cam", "/danh_sach_cam", "cameras", "cam"):
                                 send_camera_menu(token, chat_id)
+
+                            elif txt in ("/live", "/xem_cam", "/link", "live", "xem cam", "xem trực tiếp", "link"):
+                                requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={
+                                    "chat_id": chat_id,
+                                    "text": "🌐 Đang khởi tạo / lấy đường link xem Camera trực tiếp từ xa (4G/Internet)... Vui lòng đợi vài giây!"
+                                }, timeout=5)
+                                from app.remote_access import start_remote_tunnel
+                                st = start_remote_tunnel(port=8000, notify_telegram=False)
+                                if st.get("public_url"):
+                                    pub_url = st["public_url"]
+                                    requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={
+                                        "chat_id": chat_id,
+                                        "text": f"✅ *LINK XEM CAMERA TRỰC TIẾP TỪ XA (4G / KHÁC MẠNG):*\n\n🔗 {pub_url}\n\n👉 Bấm nút bên dưới để mở xem trực tiếp tất cả Camera trên điện thoại:",
+                                        "parse_mode": "Markdown",
+                                        "reply_markup": json.dumps({
+                                            "inline_keyboard": [
+                                                [{"text": "📱 Mở Web Xem Camera Trực Tiếp (Live)", "url": pub_url}],
+                                                [{"text": "📹 Chụp Ảnh / Quay Video Từng Cam", "callback_data": "open_cam_menu"}]
+                                            ]
+                                        })
+                                    }, timeout=8)
+                                else:
+                                    send_camera_menu(token, chat_id)
 
                             elif txt in ("/mute", "/tat_bao_dong", "tat bao dong", "tat_bao_dong", "tắt báo động"):
                                 from app.config import save_settings
@@ -671,6 +753,59 @@ def telegram_polling_loop():
                                 except Exception:
                                     pass
                                 send_camera_menu(token, chat_id)
+                                continue
+
+                            elif cb_data.startswith("tg_snap_"):
+                                cam_id = cb_data.split("tg_snap_")[-1]
+                                try:
+                                    requests.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery",
+                                                  json={"callback_query_id": cb_id, "text": f"📸 Đang chụp ảnh trực tiếp từ {cam_id}..."}, timeout=5)
+                                except Exception:
+                                    pass
+                                from app.remote_access import send_live_camera_snapshot_to_telegram
+                                threading.Thread(target=send_live_camera_snapshot_to_telegram, args=(token, chat_id, cam_id), daemon=True).start()
+                                continue
+
+                            elif cb_data.startswith("tg_clip_"):
+                                cam_id = cb_data.split("tg_clip_")[-1]
+                                try:
+                                    requests.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery",
+                                                  json={"callback_query_id": cb_id, "text": f"🎬 Đang thu video trực tiếp 5s từ {cam_id}..."}, timeout=5)
+                                except Exception:
+                                    pass
+                                from app.remote_access import send_live_camera_clip_to_telegram
+                                send_live_camera_clip_to_telegram(token, chat_id, cam_id, duration_sec=5)
+                                continue
+
+                            elif cb_data == "tg_get_live_link":
+                                try:
+                                    requests.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery",
+                                                  json={"callback_query_id": cb_id, "text": "🌐 Đang lấy đường link xem trực tiếp từ xa..."}, timeout=5)
+                                except Exception:
+                                    pass
+                                def _send_live_link_worker():
+                                    from app.remote_access import start_remote_tunnel
+                                    st = start_remote_tunnel(port=8000, notify_telegram=False)
+                                    if st.get("public_url"):
+                                        pub_url = st["public_url"]
+                                        requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={
+                                            "chat_id": chat_id,
+                                            "text": f"🌐 *LINK XEM CAMERA TRỰC TIẾP TỪ XA (4G / KHÁC MẠNG WI-FI):*\n\n🔗 {pub_url}\n\n👉 Bấm nút bên dưới để mở xem trực tiếp trên điện thoại của bạn:",
+                                            "parse_mode": "Markdown",
+                                            "reply_markup": json.dumps({
+                                                "inline_keyboard": [
+                                                    [{"text": "📱 Mở Web Xem Camera Trực Tiếp (Live)", "url": pub_url}],
+                                                    [{"text": "📹 Chụp Ảnh / Quay Video Từng Cam", "callback_data": "open_cam_menu"}]
+                                                ]
+                                            })
+                                        }, timeout=8)
+                                    else:
+                                        requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={
+                                            "chat_id": chat_id,
+                                            "text": f"⚠️ Chưa thể mở đường hầm Web ({st.get('last_error', 'Lỗi mạng')}). Bạn vẫn có thể xem trực tiếp từng camera bằng nút 📸 Chụp Ảnh và 🎬 Xem Video 5s bên dưới!"
+                                        }, timeout=8)
+                                        send_camera_menu(token, chat_id)
+                                threading.Thread(target=_send_live_link_worker, daemon=True).start()
                                 continue
 
                             elif cb_data == "system_status_info":

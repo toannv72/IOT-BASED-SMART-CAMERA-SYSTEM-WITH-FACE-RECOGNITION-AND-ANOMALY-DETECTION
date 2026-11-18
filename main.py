@@ -1,3 +1,14 @@
+import os
+# Khống chế số luồng OpenMP / MKL / OpenBLAS ngay từ đầu để ngăn chặn hiện tượng
+# bùng nổ hàng trăm luồng (Thread Explosion / Busy-Spin 100% CPU) trên Windows & Raspberry Pi
+os.environ.setdefault("OMP_NUM_THREADS", "2")
+os.environ.setdefault("MKL_NUM_THREADS", "2")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "2")
+os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "2")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "2")
+os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
+os.environ.setdefault("KMP_BLOCKTIME", "0")
+
 import sys
 import uvicorn
 import threading

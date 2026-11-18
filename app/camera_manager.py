@@ -57,6 +57,7 @@ class ThreadedCamera:
         self.cap = None
         self.latest_frame = None
         self.latest_frame_time = 0.0
+        self.frame_id = 0
         self.is_running = False
         self.stopped = threading.Event()
         self.lock = threading.Lock()
@@ -69,9 +70,12 @@ class ThreadedCamera:
         if self.cap.isOpened():
             ret, frame = self.cap.read()
             if ret and frame is not None:
+                if frame.shape[0] != 360 or frame.shape[1] != 640:
+                    frame = cv2.resize(frame, (640, 360))
                 with self.lock:
                     self.latest_frame = frame
                     self.latest_frame_time = time.time()
+                    self.frame_id += 1
 
     def start(self):
         if self.is_running:
@@ -89,7 +93,9 @@ class ThreadedCamera:
 
     def _capture_worker(self):
         consecutive_failures = 0
-        frame_interval = 1.0 / max(10, self.fps)
+        # Giới hạn tốc độ lấy mẫu phần cứng ở ~20 FPS để tránh vòng lặp quay rỗng (busy loop) gây tốn CPU
+        target_cap_fps = max(10, min(20, self.fps))
+        frame_interval = 1.0 / target_cap_fps
         
         while not self.stopped.is_set():
             if self.cap is None or not self.cap.isOpened():
@@ -101,17 +107,18 @@ class ThreadedCamera:
             ret, frame = self.cap.read()
             if ret and frame is not None:
                 consecutive_failures = 0
+                # Chuẩn hóa kích thước 16:9 (640x360) ngay tại luồng đọc 1 lần duy nhất
+                # giúp luồng Preview và luồng AI không phải resize lặp lại trên từng vòng lặp
+                if frame.shape[0] != 360 or frame.shape[1] != 640:
+                    frame = cv2.resize(frame, (640, 360))
                 with self.lock:
                     self.latest_frame = frame
                     self.latest_frame_time = time.time()
+                    self.frame_id += 1
                 
-                if self.is_file:
-                    elapsed = time.time() - t_cycle_start
-                    delay = max(0.005, frame_interval - elapsed)
-                    time.sleep(delay)
-                else:
-                    # Nhường một phần microsecond cho các luồng AI/Web
-                    time.sleep(0.003)
+                elapsed = time.time() - t_cycle_start
+                delay = max(0.015, frame_interval - elapsed)
+                time.sleep(delay)
             else:
                 consecutive_failures += 1
                 if self.is_file:

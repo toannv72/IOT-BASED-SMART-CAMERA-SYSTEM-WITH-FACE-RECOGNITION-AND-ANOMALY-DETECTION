@@ -66,14 +66,41 @@ def get_login(request: Request):
         return RedirectResponse(url="/")
     return templates.TemplateResponse(request, "login.html", {"error": "", "success": ""})
 
+# Giới hạn chống brute-force đăng nhập (tối đa 5 lần sai / 5 phút)
+_LOGIN_FAILED_ATTEMPTS = {}
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_LOCK_SECONDS = 300
+
 @app.post("/login", response_class=HTMLResponse)
 def post_login(request: Request, username: str = Form(...), password: str = Form(...)):
+    client_ip = request.client.host if request.client else "unknown"
+    attempt_key = f"{client_ip}:{username.strip().lower()}"
+    now_ts = time.time()
+    rec = _LOGIN_FAILED_ATTEMPTS.get(attempt_key)
+    if rec and rec.get("locked_until", 0) > now_ts:
+        remain = int(rec["locked_until"] - now_ts)
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {"error": f"Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau {remain} giây.", "success": ""},
+            status_code=429
+        )
+
     db = SessionLocal()
     user = db.query(User).filter(User.username == username).first()
     db.close()
     
     if not user or not verify_password(password, user.password_hash):
+        if not rec or (now_ts - rec.get("first_ts", 0) > _LOGIN_LOCK_SECONDS):
+            rec = {"count": 1, "first_ts": now_ts, "locked_until": 0}
+        else:
+            rec["count"] += 1
+        if rec["count"] >= _LOGIN_MAX_ATTEMPTS:
+            rec["locked_until"] = now_ts + _LOGIN_LOCK_SECONDS
+        _LOGIN_FAILED_ATTEMPTS[attempt_key] = rec
         return templates.TemplateResponse(request, "login.html", {"error": "Sai tài khoản hoặc mật khẩu!", "success": ""})
+
+    _LOGIN_FAILED_ATTEMPTS.pop(attempt_key, None)
         
     # Tạo phiên đăng nhập (Lưu ID và vai trò vào session cookie đã được mã hóa ký tên)
     request.session["user_id"] = user.id
@@ -86,19 +113,37 @@ def post_login(request: Request, username: str = Form(...), password: str = Form
 def get_register(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse(url="/")
+    db = SessionLocal()
+    has_users = db.query(User).count() > 0
+    db.close()
+    if has_users:
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {"error": "Tự đăng ký công khai đã bị tắt để bảo vệ hệ thống. Vui lòng liên hệ Quản trị viên.", "success": ""},
+            status_code=403
+        )
     return templates.TemplateResponse(request, "register.html", {"error": "", "success": ""})
 
 @app.post("/register", response_class=HTMLResponse)
 def post_register(request: Request, username: str = Form(...), password: str = Form(...)):
     db = SessionLocal()
+    if db.query(User).count() > 0:
+        db.close()
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {"error": "Tự đăng ký công khai đã bị tắt để bảo vệ hệ thống. Vui lòng liên hệ Quản trị viên.", "success": ""},
+            status_code=403
+        )
     existing_user = db.query(User).filter(User.username == username).first()
     
     if existing_user:
         db.close()
         return templates.TemplateResponse(request, "register.html", {"error": "Tài khoản này đã tồn tại trên hệ thống!", "success": ""})
         
-    # Đăng ký tài khoản mới và băm mật khẩu, mặc định là admin nếu là tài khoản đăng ký công khai
-    new_user = User(username=username, password_hash=hash_password(password), role="admin")
+    # Không bao giờ cấp quyền admin từ route đăng ký công khai
+    new_user = User(username=username, password_hash=hash_password(password), role="operator")
     try:
         db.add(new_user)
         db.commit()
@@ -144,6 +189,12 @@ def get_settings_page(request: Request):
     if not request.session.get("user_id"):
         return RedirectResponse(url="/login")
     return templates.TemplateResponse(request, "settings.html", {"active_page": "settings"})
+
+@app.get("/cameras", response_class=HTMLResponse)
+def get_cameras_page(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "cameras.html", {"active_page": "cameras"})
 
 @app.get("/users", response_class=HTMLResponse)
 def get_users_page(request: Request):
@@ -215,11 +266,11 @@ async def update_settings_route(request: Request):
     for k, v in payload.items():
         if k in config.DEFAULT_SETTINGS:
             # Chuyển đổi kiểu dữ liệu phù hợp
-            if k in ["conf_threshold", "fire_conf_threshold", "face_threshold"]:
+            if k in ["conf_threshold", "fire_conf_threshold", "face_threshold", "local_min_free_gb"]:
                 config.settings[k] = float(v)
-            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer", "light_auto_off_seconds", "light_brightness_threshold"]:
+            elif k in ["counter_cooldown", "telegram_cooldown", "cleanup_older_than_days", "loitering_threshold", "face_log_cooldown", "fire_frame_buffer", "light_auto_off_seconds", "light_brightness_threshold", "gdrive_retention_days", "gdrive_min_free_mb"]:
                 config.settings[k] = int(v)
-            elif k in ["alerts_enabled", "tts_enabled", "auto_cleanup_enabled", "record_full_video"]:
+            elif k in ["alerts_enabled", "tts_enabled", "auto_cleanup_enabled", "record_full_video", "gdrive_enabled", "gdrive_auto_cleanup", "gdrive_sync_alerts", "gdrive_sync_recordings", "gdrive_sync_db", "gdrive_organize_by_date", "remote_access_auto_start"]:
                 config.settings[k] = bool(v)
             elif k == "cleanup_max_size_gb":
                 config.settings[k] = float(v)
@@ -264,6 +315,330 @@ async def test_telegram_route(request: Request):
     
     send_telegram_alert(message, test_frame, alert_type="intrusion", camera_id="Cam_Test")
     return {"message": "Đã gửi yêu cầu test đến Telegram Bot. Vui lòng kiểm tra chat Telegram!"}
+
+# =========================================================================
+# API ĐỒNG BỘ & DỌN DẸP TỰ ĐỘNG TRÊN GOOGLE DRIVE (CLOUD STORAGE ENDPOINTS)
+# =========================================================================
+@app.get("/api/gdrive/status")
+def get_gdrive_status_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    from app.gdrive import gdrive_runtime_status, extract_folder_id
+    folder_id = extract_folder_id(config.settings.get("gdrive_folder_id", ""))
+    return {
+        **gdrive_runtime_status,
+        "extracted_folder_id": folder_id,
+        "gdrive_enabled": config.settings.get("gdrive_enabled", False)
+    }
+
+@app.post("/api/settings/test_gdrive")
+async def test_gdrive_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+
+    webhook_url = config.settings.get("gdrive_webhook_url", "").strip()
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Vui lòng dán đường dẫn Google Apps Script Webhook URL trước khi thử nghiệm!")
+
+    import cv2
+    from datetime import datetime
+    from app.gdrive import upload_bytes_to_gdrive
+
+    # Tạo ảnh thử nghiệm đẩy lên Google Drive
+    test_frame = np.zeros((360, 640, 3), dtype=np.uint8)
+    cv2.putText(test_frame, "GOOGLE DRIVE SYNC OK", (95, 165), cv2.FONT_HERSHEY_SIMPLEX, 1.15, (16, 185, 129), 3)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cv2.putText(test_frame, f"Smart Camera Cloud Backup - {now_str}", (85, 215), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+    cv2.rectangle(test_frame, (40, 40), (600, 320), (59, 130, 246), 2)
+
+    ret, buf = cv2.imencode(".jpg", test_frame)
+    if not ret:
+        raise HTTPException(status_code=500, detail="Không thể tạo ảnh thử nghiệm!")
+
+    filename = f"test_gdrive_smartcamera_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+    subfolder = datetime.now().strftime("%Y-%m-%d") if config.settings.get("gdrive_organize_by_date", True) else ""
+    ok, file_url, msg = upload_bytes_to_gdrive(buf.tobytes(), filename, mime_type="image/jpeg", subfolder=subfolder)
+
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+
+    SystemStatus.add_log("☁️ Google Drive: Đẩy tệp thử nghiệm lên đám mây thành công!", "success")
+    return {
+        "message": msg,
+        "file_url": file_url,
+        "filename": filename
+    }
+
+@app.post("/api/settings/cleanup_gdrive")
+async def cleanup_gdrive_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+
+    webhook_url = config.settings.get("gdrive_webhook_url", "").strip()
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Vui lòng cấu hình Google Apps Script Webhook URL trước khi dọn dẹp!")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    retention_days = int(payload.get("retention_days", config.settings.get("gdrive_retention_days", 30)))
+    from app.gdrive import cleanup_gdrive_expired_files
+    ok, deleted_count, msg = cleanup_gdrive_expired_files(retention_days)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+
+    return {
+        "message": msg,
+        "deleted_count": deleted_count
+    }
+
+@app.post("/api/settings/backup_db_gdrive")
+async def backup_db_gdrive_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+
+    webhook_url = config.settings.get("gdrive_webhook_url", "").strip()
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Vui lòng cấu hình Google Apps Script Webhook URL trước khi sao lưu!")
+
+    from app.gdrive import backup_database_to_gdrive
+    ok, file_url, msg = backup_database_to_gdrive(force=True)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+
+    return {
+        "message": "Đã sao lưu cơ sở dữ liệu (faces.db) lên thư mục 'Database_Backup' trên Google Drive thành công!",
+        "file_url": file_url
+    }
+
+@app.post("/api/settings/check_gdrive_folder")
+async def check_gdrive_folder_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+
+    webhook_url = config.settings.get("gdrive_webhook_url", "").strip()
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="Vui lòng dán đường dẫn Google Apps Script Webhook URL trước khi kiểm tra thư mục!")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    from app.gdrive import check_gdrive_folder_permission
+    res = check_gdrive_folder_permission(
+        folder_input=payload.get("folder_id"),
+        folder_name=payload.get("folder_name"),
+        target_mode=payload.get("target_mode")
+    )
+    if res.get("status") != "ok":
+        raise HTTPException(status_code=400, detail=res.get("message", "Không thể kiểm tra thư mục Google Drive!"))
+    return res
+
+@app.post("/api/settings/test_failover_chain")
+async def test_failover_chain_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+    from app.gdrive import test_failover_chain
+    return test_failover_chain()
+
+# =========================================================================
+# API TRUY CẬP XEM CAMERA TRỰC TIẾP TỪ XA TRÊN ĐIỆN THOẠI (4G / INTERNET)
+# =========================================================================
+@app.get("/api/remote_access/status")
+def get_remote_access_status_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    from app.remote_access import get_remote_tunnel_status
+    st = get_remote_tunnel_status()
+    st["auto_start"] = config.settings.get("remote_access_auto_start", False)
+    return st
+
+@app.post("/api/remote_access/start")
+async def start_remote_access_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+    from app.remote_access import start_remote_tunnel
+    st = start_remote_tunnel(port=8000, notify_telegram=True)
+    if not st.get("active") and not st.get("public_url"):
+        raise HTTPException(status_code=400, detail=st.get("last_error", "Không thể khởi tạo đường hầm truy cập từ xa!"))
+    return st
+
+@app.post("/api/remote_access/stop")
+async def stop_remote_access_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+    from app.remote_access import stop_remote_tunnel
+    return stop_remote_tunnel()
+
+@app.post("/api/remote_access/send_telegram")
+async def send_remote_url_telegram_route(request: Request):
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+    from app.remote_access import get_remote_tunnel_status, notify_remote_url_to_telegram
+    st = get_remote_tunnel_status()
+    if not st.get("public_url"):
+        raise HTTPException(status_code=400, detail="Đường hầm từ xa chưa bật! Hãy bấm 'Bật Xem Từ Xa (4G)' trước.")
+    notify_remote_url_to_telegram(st["public_url"])
+    return {"message": "Đã gửi đường link xem Camera trực tiếp từ xa về Telegram trên điện thoại của bạn!"}
+
+# =========================================================================
+# API QUẢN LÝ NƠI LƯU TRỮ CỤC BỘ & KIỂM TRA QUYỀN GHI Ổ ĐĨA (LOCAL STORAGE)
+# =========================================================================
+@app.get("/api/storage/disks")
+def get_storage_disks_route(request: Request):
+    """
+    Quét danh sách tất cả các ổ đĩa / phân vùng (C:\\, D:\\, E:\\ trên Windows hoặc /, /media/... trên Raspberry Pi)
+    để người dùng dễ dàng chọn ổ đĩa lưu trữ ảnh cảnh báo và video ghi hình.
+    """
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+
+    disks = []
+    # Mục mặc định trong thư mục dự án
+    try:
+        proj_abs = os.path.abspath("static")
+        usage = psutil.disk_usage(proj_abs)
+        disks.append({
+            "label": f"📁 Thư mục mặc định của dự án ({proj_abs}) — Trống {round(usage.free / (1024**3), 1)} GB / {round(usage.total / (1024**3), 1)} GB",
+            "path": "",
+            "mountpoint": proj_abs,
+            "free_gb": round(usage.free / (1024**3), 2),
+            "total_gb": round(usage.total / (1024**3), 2),
+            "used_percent": usage.percent
+        })
+    except Exception:
+        disks.append({
+            "label": "📁 Thư mục mặc định của dự án (static/)",
+            "path": "",
+            "mountpoint": "static",
+            "free_gb": 0,
+            "total_gb": 0,
+            "used_percent": 0
+        })
+
+    try:
+        for part in psutil.disk_partitions(all=False):
+            mp = part.mountpoint
+            if not mp:
+                continue
+            try:
+                usage = psutil.disk_usage(mp)
+                free_gb = round(usage.free / (1024**3), 2)
+                total_gb = round(usage.total / (1024**3), 2)
+                clean_mp = mp.rstrip("\\/")
+                suggested = f"{clean_mp}/SmartCamera_Storage" if clean_mp else "/SmartCamera_Storage"
+                disks.append({
+                    "label": f"💾 Ổ đĩa {mp} ({part.fstype or 'Disk'}) — Còn trống {free_gb} GB / {total_gb} GB (Đã dùng {usage.percent}%) -> Lưu tại: {suggested}",
+                    "path": suggested,
+                    "mountpoint": mp,
+                    "free_gb": free_gb,
+                    "total_gb": total_gb,
+                    "used_percent": usage.percent
+                })
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"[STORAGE] Lỗi quét ổ đĩa: {e}")
+
+    return {
+        "current_path": config.settings.get("local_storage_path", ""),
+        "resolved_alerts_dir": os.path.abspath(config.get_alerts_storage_dir()),
+        "resolved_recordings_dir": os.path.abspath(config.get_recordings_storage_dir()),
+        "disks": disks
+    }
+
+@app.post("/api/storage/check_path")
+async def check_storage_path_route(request: Request):
+    """
+    Kiểm tra đường dẫn lưu trữ cục bộ do người dùng chỉ định:
+    1. Thử tạo thư mục gốc + thư mục con 'alerts' và 'recordings'.
+    2. Thử ghi và xóa 1 tệp kiểm tra quyền (.perm_test) để xác nhận quyền Đọc/Ghi/Xóa.
+    3. Đo dung lượng trống thực tế của ổ đĩa chứa đường dẫn đó.
+    """
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    check_admin(request)
+
+    payload = await request.json()
+    raw_path = str(payload.get("path", "") or "").strip()
+    target_base = raw_path if raw_path else "static"
+    abs_base = os.path.abspath(target_base)
+
+    try:
+        alerts_dir = os.path.join(abs_base, "alerts")
+        rec_dir = os.path.join(abs_base, "recordings")
+        os.makedirs(alerts_dir, exist_ok=True)
+        os.makedirs(rec_dir, exist_ok=True)
+
+        # Kiểm tra thực tế quyền ghi và xóa tệp
+        test_file = os.path.join(abs_base, ".smartcamera_write_test.tmp")
+        with open(test_file, "w", encoding="utf-8") as f:
+            f.write("write_permission_ok")
+        os.remove(test_file)
+
+        usage = psutil.disk_usage(abs_base)
+        free_gb = round(usage.free / (1024**3), 2)
+        total_gb = round(usage.total / (1024**3), 2)
+
+        return {
+            "ok": True,
+            "can_write": True,
+            "resolved_path": abs_base,
+            "alerts_dir": alerts_dir,
+            "recordings_dir": rec_dir,
+            "free_gb": free_gb,
+            "total_gb": total_gb,
+            "used_percent": usage.percent,
+            "message": f"✅ Đường dẫn hợp lệ và có đầy đủ quyền Tạo/Ghi/Xóa! (Thư mục: {abs_base} | Dung lượng trống: {free_gb} GB / {total_gb} GB)"
+        }
+    except PermissionError as pe:
+        import sys
+        if sys.platform.startswith("win"):
+            fix_hint = "Trên Windows: Không chọn các thư mục hệ thống (như C:\\Windows, C:\\Program Files) hoặc hãy chạy Terminal với quyền Run as Administrator."
+        else:
+            fix_hint = f"Trên Linux / Raspberry Pi: Chạy lệnh cấp quyền trên Terminal: sudo mkdir -p '{abs_base}' && sudo chown -R $USER:$USER '{abs_base}' && sudo chmod -R 775 '{abs_base}'"
+        raise HTTPException(
+            status_code=400,
+            detail=f"❌ Không có quyền Ghi/Tạo tệp tại '{abs_base}' ({pe}).\n💡 Cách mở quyền: {fix_hint}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"❌ Đường dẫn '{raw_path}' không hợp lệ hoặc ổ đĩa không tồn tại: {e}"
+        )
+
+@app.get("/api/storage/{subfolder}/{filename}")
+def serve_custom_storage_file(subfolder: str, filename: str, request: Request):
+    """
+    Phục vụ tệp ảnh chụp cảnh báo ('alerts') và video ghi hình ('recordings') khi người dùng lưu ở ổ đĩa tùy chỉnh.
+    """
+    if not request.session.get("user_id"):
+        raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
+    if subfolder not in ("alerts", "recordings") or ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Đường dẫn tệp không hợp lệ!")
+
+    fpath = ""
+    for cand_dir in config.get_all_candidate_storage_dirs(subfolder):
+        p = os.path.join(cand_dir, filename)
+        if os.path.exists(p):
+            fpath = p
+            break
+    if not fpath or not os.path.exists(fpath):
+        raise HTTPException(status_code=404, detail="Không tìm thấy tệp!")
+
+    from fastapi.responses import FileResponse
+    return FileResponse(fpath)
 
 # API Quy định an ninh hệ thống
 @app.get("/api/regulations")
@@ -453,9 +828,20 @@ async def set_emap_image_url(map_id: str, request: Request):
         
     try:
         import urllib.request
+        import urllib.parse
+        import socket
+        import ipaddress
         from io import BytesIO
         from PIL import Image
-        
+
+        parsed = urllib.parse.urlparse(image_url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise HTTPException(status_code=400, detail="Chỉ hỗ trợ đường dẫn http:// hoặc https:// hợp lệ!")
+        for res_info in socket.getaddrinfo(parsed.hostname, None):
+            ip_obj = ipaddress.ip_address(res_info[4][0])
+            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_multicast or ip_obj.is_reserved:
+                raise HTTPException(status_code=400, detail="Không cho phép tải ảnh từ địa chỉ mạng nội bộ hoặc loopback!")
+
         req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = resp.read()
@@ -481,6 +867,8 @@ async def set_emap_image_url(map_id: str, request: Request):
         config.save_maps_config(maps)
         SystemStatus.add_log(f"Đã cập nhật ảnh mặt bằng cho '{map_id}' từ link bên ngoài.", "success")
         return {"message": "Tải ảnh từ link bên ngoài thành công!", "path": f"/static/emap_{map_id}.png"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Không thể tải ảnh từ URL: {e}")
 
@@ -612,20 +1000,51 @@ async def register_face(request: Request, name: str = Form(...), file: UploadFil
     return {"message": "Đăng ký thành công!", "id": new_face.id, "name": new_face.name}
 
 @app.get("/faces")
-def get_all_faces(request: Request):
+def get_all_faces(request: Request, page: int = None, page_size: int = 20, q: str = ""):
     if not request.session.get("user_id"):
         raise HTTPException(status_code=401)
     db = SessionLocal()
-    faces = db.query(FaceRecord).all()
-    db.close()
-    return [
-        {
-            "id": f.id, 
-            "name": f.name,
-            "created_at": f.created_at or "Không rõ",
-            "created_by": f.created_by or "Không rõ"
-        } for f in faces
-    ]
+    try:
+        query = db.query(FaceRecord)
+        if q and q.strip():
+            like_q = f"%{q.strip()}%"
+            query = query.filter(
+                (FaceRecord.name.ilike(like_q)) | (FaceRecord.created_by.ilike(like_q))
+            )
+
+        if page is not None:
+            import math
+            page_size = max(1, min(200, int(page_size)))
+            total = query.count()
+            total_pages = max(1, math.ceil(total / page_size))
+            page = max(1, min(int(page), total_pages))
+            faces = query.order_by(FaceRecord.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+            return {
+                "items": [
+                    {
+                        "id": f.id,
+                        "name": f.name,
+                        "created_at": f.created_at or "Không rõ",
+                        "created_by": f.created_by or "Không rõ"
+                    } for f in faces
+                ],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages
+            }
+
+        faces = query.order_by(FaceRecord.id.desc()).all()
+        return [
+            {
+                "id": f.id,
+                "name": f.name,
+                "created_at": f.created_at or "Không rõ",
+                "created_by": f.created_by or "Không rõ"
+            } for f in faces
+        ]
+    finally:
+        db.close()
 
 @app.put("/faces/{face_id}")
 async def update_face_name(face_id: int, request: Request):
@@ -723,17 +1142,58 @@ def get_system_health(request: Request):
     }
 
 @app.get("/api/logs")
-def get_system_logs(request: Request):
+def get_system_logs(request: Request, page: int = None, page_size: int = 20, q: str = "", event_type: str = "", camera_id: str = ""):
     """
-    Trả về lịch sử toàn bộ sự kiện cảnh báo được lưu trữ trong SQLite.
+    Trả về lịch sử sự kiện cảnh báo trong SQLite.
+    Hỗ trợ phân trang server-side + tìm kiếm có chỉ mục cho quy mô 1.000.000+ bản ghi.
     """
     if not request.session.get("user_id"):
         raise HTTPException(status_code=401)
-        
+
     db = SessionLocal()
     try:
-        # Lấy 100 sự kiện mới nhất
-        logs = db.query(SystemEventLog).order_by(SystemEventLog.id.desc()).limit(100).all()
+        query = db.query(SystemEventLog)
+        if event_type and event_type.strip():
+            query = query.filter(SystemEventLog.event_type == event_type.strip())
+        if camera_id and camera_id.strip():
+            query = query.filter(SystemEventLog.camera_id == camera_id.strip())
+        if q and q.strip():
+            like_q = f"%{q.strip()}%"
+            query = query.filter(
+                (SystemEventLog.message.ilike(like_q)) |
+                (SystemEventLog.camera_id.ilike(like_q)) |
+                (SystemEventLog.timestamp.ilike(like_q)) |
+                (SystemEventLog.face_name.ilike(like_q))
+            )
+
+        if page is not None:
+            import math
+            page_size = max(1, min(200, int(page_size)))
+            total = query.count()
+            total_pages = max(1, math.ceil(total / page_size))
+            page = max(1, min(int(page), total_pages))
+            logs = query.order_by(SystemEventLog.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+            return {
+                "items": [
+                    {
+                        "id": log.id,
+                        "event_type": log.event_type,
+                        "message": log.message,
+                        "camera_id": log.camera_id,
+                        "image_path": log.image_path,
+                        "video_path": log.video_path,
+                        "drive_link": getattr(log, "drive_link", None),
+                        "timestamp": log.timestamp
+                    } for log in logs
+                ],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages
+            }
+
+        # Tương thích ngược: lấy 100 sự kiện mới nhất nếu không truyền page
+        logs = query.order_by(SystemEventLog.id.desc()).limit(100).all()
         return [
             {
                 "id": log.id,
@@ -742,11 +1202,14 @@ def get_system_logs(request: Request):
                 "camera_id": log.camera_id,
                 "image_path": log.image_path,
                 "video_path": log.video_path,
+                "drive_link": getattr(log, "drive_link", None),
                 "timestamp": log.timestamp
             } for log in logs
         ]
     except Exception as e:
         print(f"[ROUTES] [ERROR] Lỗi truy xuất cơ sở dữ liệu: {e}")
+        if page is not None:
+            return {"items": [], "total": 0, "page": 1, "page_size": page_size, "total_pages": 1}
         return []
     finally:
         db.close()
@@ -772,13 +1235,37 @@ def capture_camera_frame(camera_id: str, request: Request):
 # API QUẢN LÝ TÀI KHOẢN (USER MANAGEMENT ENDPOINTS)
 # =========================================================================
 @app.get("/api/users")
-def get_users(request: Request):
+def get_users(request: Request, page: int = None, page_size: int = 20, q: str = "", role: str = ""):
     if not request.session.get("user_id"):
         raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
     db = SessionLocal()
-    users = db.query(User).all()
-    db.close()
-    return [{"id": u.id, "username": u.username, "role": u.role or "admin"} for u in users]
+    try:
+        query = db.query(User)
+        if q and q.strip():
+            like_q = f"%{q.strip()}%"
+            query = query.filter(User.username.ilike(like_q))
+        if role and role.strip():
+            query = query.filter(User.role == role.strip())
+
+        if page is not None:
+            import math
+            page_size = max(1, min(200, int(page_size)))
+            total = query.count()
+            total_pages = max(1, math.ceil(total / page_size))
+            page = max(1, min(int(page), total_pages))
+            users = query.order_by(User.id.asc()).offset((page - 1) * page_size).limit(page_size).all()
+            return {
+                "items": [{"id": u.id, "username": u.username, "role": u.role or "admin"} for u in users],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages
+            }
+
+        users = query.order_by(User.id.asc()).all()
+        return [{"id": u.id, "username": u.username, "role": u.role or "admin"} for u in users]
+    finally:
+        db.close()
 
 @app.post("/api/users")
 def create_user(request: Request, username: str = Form(...), password: str = Form(...), role: str = Form("operator")):
@@ -939,6 +1426,8 @@ async def add_camera(request: Request):
     if "map_id" not in new_cam: new_cam["map_id"] = "khu_a_tang_1"
     if "trigger_alarm" not in new_cam: new_cam["trigger_alarm"] = False
     if "enabled" not in new_cam: new_cam["enabled"] = True
+    if "recording_mode" not in new_cam: new_cam["recording_mode"] = "alerts_only"
+    if "gdrive_sync" not in new_cam: new_cam["gdrive_sync"] = True
 
     # Kiểm tra chống trùng nguồn webcam phần cứng
     source = str(new_cam.get("source", "")).strip()
@@ -1058,39 +1547,101 @@ def get_recordings_page(request: Request):
     return templates.TemplateResponse(request, "recordings.html", {"active_page": "recordings"})
 
 @app.get("/api/recordings")
-def get_recordings_api(request: Request):
+def get_recordings_api(
+    request: Request,
+    page: int = None,
+    page_size: int = 20,
+    q: str = "",
+    camera_id: str = "",
+    start_time: str = "",
+    end_time: str = ""
+):
     if not request.session.get("user_id"):
         raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
     
-    recordings_dir = os.path.join("static", "recordings")
-    os.makedirs(recordings_dir, exist_ok=True)
+    # Quét toàn bộ các thư mục lưu trữ (Ổ chính, Ổ dự phòng và static/recordings mặc định)
+    default_rec_dir = os.path.join("static", "recordings")
+    os.makedirs(default_rec_dir, exist_ok=True)
+    dirs_to_scan = config.get_all_candidate_storage_dirs("recordings")
     
     from datetime import datetime
     recordings = []
-    for f in os.listdir(recordings_dir):
-        fp = os.path.join(recordings_dir, f)
-        if os.path.isfile(fp) and (f.endswith(".mp4") or f.endswith(".avi")):
-            mtime = os.path.getmtime(fp)
-            size_bytes = os.path.getsize(fp)
-            size_mb = round(size_bytes / (1024 * 1024), 2)
-            
-            timestamp = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
-            camera_id = "unknown"
-            
-            if f.startswith("recording_"):
-                parts = f.split("_")
-                if len(parts) >= 4:
-                    camera_id = "_".join(parts[1:-2])
-            
-            recordings.append({
-                "filename": f,
-                "camera_id": camera_id,
-                "timestamp": timestamp,
-                "size_mb": size_mb,
-                "video_path": f"/static/recordings/{f}"
-            })
+    seen_files = set()
+    unique_cameras = set()
+    for rec_dir in dirs_to_scan:
+        if not os.path.exists(rec_dir):
+            continue
+        is_custom_dir = os.path.abspath(rec_dir) != os.path.abspath(default_rec_dir)
+        for f in os.listdir(rec_dir):
+            if f in seen_files:
+                continue
+            fp = os.path.join(rec_dir, f)
+            if os.path.isfile(fp) and (f.endswith(".mp4") or f.endswith(".avi")):
+                seen_files.add(f)
+                mtime = os.path.getmtime(fp)
+                size_bytes = os.path.getsize(fp)
+                size_mb = round(size_bytes / (1024 * 1024), 2)
+                
+                timestamp = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+                rec_cam_id = "unknown"
+                
+                if f.startswith("recording_"):
+                    parts = f.split("_")
+                    if len(parts) >= 4:
+                        rec_cam_id = "_".join(parts[1:-2])
+
+                if rec_cam_id and rec_cam_id != "unknown":
+                    unique_cameras.add(rec_cam_id)
+                
+                web_path = f"/api/storage/recordings/{f}" if is_custom_dir else f"/static/recordings/{f}"
+                recordings.append({
+                    "filename": f,
+                    "camera_id": rec_cam_id,
+                    "timestamp": timestamp,
+                    "size_mb": size_mb,
+                    "storage_location": rec_dir,
+                    "video_path": web_path
+                })
             
     recordings.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    if page is not None:
+        import math
+        q_lower = q.strip().lower() if q else ""
+        cam_filter = camera_id.strip() if camera_id else ""
+        start_norm = start_time.replace("T", " ").strip() if start_time else ""
+        end_norm = end_time.replace("T", " ").strip() if end_time else ""
+        if len(start_norm) == 16:
+            start_norm += ":00"
+        if len(end_norm) == 16:
+            end_norm += ":59"
+
+        filtered = []
+        for rec in recordings:
+            if cam_filter and cam_filter != "all" and rec["camera_id"] != cam_filter:
+                continue
+            if q_lower and (q_lower not in rec["filename"].lower() and q_lower not in rec["camera_id"].lower()):
+                continue
+            if start_norm and rec["timestamp"] < start_norm:
+                continue
+            if end_norm and rec["timestamp"] > end_norm:
+                continue
+            filtered.append(rec)
+
+        page_size = max(1, min(200, int(page_size)))
+        total = len(filtered)
+        total_pages = max(1, math.ceil(total / page_size))
+        page = max(1, min(int(page), total_pages))
+        start_idx = (page - 1) * page_size
+        return {
+            "items": filtered[start_idx:start_idx + page_size],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "cameras": sorted(unique_cameras)
+        }
+
     return recordings
 
 @app.delete("/api/recordings/{filename}")
@@ -1102,7 +1653,9 @@ def delete_recording_api(filename: str, request: Request):
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Tên tệp không hợp lệ!")
         
-    fp = os.path.join("static", "recordings", filename)
+    fp = os.path.join(config.get_recordings_storage_dir(), filename)
+    if not os.path.exists(fp):
+        fp = os.path.join("static", "recordings", filename)
     if os.path.exists(fp):
         try:
             os.remove(fp)
@@ -1196,12 +1749,13 @@ def play_recording_stream(filepath: str, request: Request):
     if not request.session.get("user_id"):
         raise HTTPException(status_code=401, detail="Chưa đăng nhập!")
         
-    # Chuẩn hóa đường dẫn bằng cách loại bỏ dấu gạch chéo đầu tiên
-    path_to_open = filepath.lstrip('/')
-    if not (path_to_open.startswith("static/recordings") or path_to_open.startswith("static/alerts")):
+    # Chuẩn hóa đường dẫn (hỗ trợ cả /static/... và /api/storage/...)
+    clean_fp = filepath.lstrip('/')
+    if not (clean_fp.startswith("static/recordings") or clean_fp.startswith("static/alerts") or clean_fp.startswith("api/storage/recordings") or clean_fp.startswith("api/storage/alerts")):
         raise HTTPException(status_code=403, detail="Không có quyền truy cập thư mục này!")
         
-    if not os.path.exists(path_to_open):
+    path_to_open = config.resolve_web_path_to_local(filepath)
+    if not path_to_open or not os.path.exists(path_to_open):
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp video!")
         
     from fastapi.responses import StreamingResponse

@@ -10,6 +10,24 @@
         <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px;">
             <i class="fa-solid fa-user-shield"></i> Danh Sách Tài Khoản Hệ Thống
         </h3>
+        <div class="table-toolbar">
+            <div class="search-input-wrap">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="users-search" class="form-input" placeholder="Tìm theo tên tài khoản" oninput="onUsersSearchInput()">
+                <span id="users-search-clear" class="search-clear-btn" onclick="clearUsersSearch()">&times;</span>
+            </div>
+            <div class="form-group" style="width: 170px; margin-bottom: 0;">
+                <select id="users-filter-role" class="form-input" onchange="loadUsers(1, usersPageState.page_size)" style="height: 36px;">
+                    <option value="">Tất cả vai trò</option>
+                    <option value="superadmin">Super Admin</option>
+                    <option value="admin">Administrator</option>
+                    <option value="operator">Operator</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="loadUsers(usersPageState.page, usersPageState.page_size)">
+                <i class="fa-solid fa-arrows-rotate"></i> Làm mới
+            </button>
+        </div>
         <div class="faces-table-container">
             <table class="faces-table">
                 <thead>
@@ -28,6 +46,7 @@
                 </tbody>
             </table>
         </div>
+        <div id="users-pagination"></div>
     </div>
 
     <!-- Tạo tài khoản mới -->
@@ -45,10 +64,10 @@
         </div>
         <div class="form-group">
             <label class="form-label">Vai Trò (Role)</label>
-            <select id="new-user-role" class="form-input" style="background: rgba(255,255,255,0.03); color: #000000;">
-                <option style="color: #000000;" value="operator">Operator (Chỉ xem live & sơ đồ)</option>
-                <option style="color: #000000;" value="admin">Administrator (Toàn quyền hệ thống)</option>
-                <option style="color: #000000;" value="superadmin">Super Admin (Quản trị tối cao - Không thể xóa)</option>
+            <select id="new-user-role" class="form-input">
+                <option value="operator">Operator (Chỉ xem live & sơ đồ)</option>
+                <option value="admin">Administrator (Toàn quyền hệ thống)</option>
+                <option value="superadmin">Super Admin (Quản trị tối cao - Không thể xóa)</option>
             </select>
         </div>
         <div style="margin-top: 20px;">
@@ -83,60 +102,96 @@
         }
     }
 
-    async function loadUsers() {
+    let usersPageState = { page: 1, page_size: 20, total: 0, total_pages: 1 };
+    const debouncedLoadUsers = debounce(() => loadUsers(1, usersPageState.page_size), 300);
+
+    function onUsersSearchInput() {
+        const input = document.getElementById('users-search');
+        const clearBtn = document.getElementById('users-search-clear');
+        if (clearBtn) clearBtn.style.display = input.value.trim() ? 'block' : 'none';
+        debouncedLoadUsers();
+    }
+
+    function clearUsersSearch() {
+        const input = document.getElementById('users-search');
+        const clearBtn = document.getElementById('users-search-clear');
+        if (input) input.value = '';
+        if (clearBtn) clearBtn.style.display = 'none';
+        loadUsers(1, usersPageState.page_size);
+    }
+
+    async function loadUsers(page = 1, pageSize = 20) {
         const tbody = document.getElementById('users-list-tbody');
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Đang tải danh sách tài khoản...</td></tr>';
+        const q = (document.getElementById('users-search')?.value || '').trim();
+        const roleFilter = document.getElementById('users-filter-role')?.value || '';
+        const params = new URLSearchParams({
+            page: String(page),
+            page_size: String(pageSize),
+            q,
+            role: roleFilter
+        });
         try {
-            const response = await fetch('/api/users');
-            const users = await response.json();
+            const response = await fetch(`/api/users?${params.toString()}`);
+            const data = await response.json();
+            const users = Array.isArray(data) ? data : (data.items || []);
+            usersPageState = Array.isArray(data)
+                ? { page: 1, page_size: pageSize, total: users.length, total_pages: 1 }
+                : { page: data.page, page_size: data.page_size, total: data.total, total_pages: data.total_pages };
+
             tbody.innerHTML = '';
 
             if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Không có tài khoản nào.</td></tr>';
-                return;
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Không tìm thấy tài khoản nào.</td></tr>';
+            } else {
+                users.forEach(u => {
+                    const tr = document.createElement('tr');
+                    const isSuper = (u.role === 'superadmin' || u.username === 'superadmin');
+                    
+                    let roleLabel = '';
+                    if (isSuper) {
+                        roleLabel = `<span class="badge" style="background: rgba(168, 85, 247, 0.15); border: 1px solid #a855f7; color: #c084fc; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap;"><i class="fa-solid fa-crown" style="color: #eab308; margin-right: 4px;"></i>Super Admin</span>`;
+                    } else if (u.role === 'admin') {
+                        roleLabel = `<span class="badge" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 3px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap;">Administrator</span>`;
+                    } else {
+                        roleLabel = `<span class="badge" style="background: rgba(156, 163, 175, 0.1); border: 1px solid var(--text-muted); color: var(--text-muted); padding: 3px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap;">Operator</span>`;
+                    }
+
+                    let deleteBtnHtml = '';
+                    if (isSuper) {
+                        deleteBtnHtml = `<span style="color: #a855f7; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;" title="Tài khoản Quản trị tối cao tuyệt đối không thể xóa"><i class="fa-solid fa-shield-halved"></i> Không thể xóa</span>`;
+                    } else {
+                        deleteBtnHtml = `<button class="btn btn-danger" style="height: 28px; padding: 0 10px; font-size: 11px;" onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')"><i class="fa-solid fa-trash"></i> Xóa</button>`;
+                    }
+
+                    let actionsHtml = '';
+                    if (userRole === 'admin' || userRole === 'superadmin') {
+                        actionsHtml = `
+                            <td style="text-align: right;">
+                                <div class="table-actions">
+                                    <button class="btn btn-primary" style="height: 28px; padding: 0 10px; font-size: 11px;" onclick="promptChangePassword(${u.id}, '${escapeHtml(u.username)}')">
+                                        <i class="fa-solid fa-key"></i> Đổi Pass
+                                    </button>
+                                    ${deleteBtnHtml}
+                                </div>
+                            </td>
+                        `;
+                    } else {
+                        actionsHtml = ''; // Ẩn hoàn toàn cột thao tác đối với operator
+                    }
+
+                    tr.innerHTML = `
+                        <td style="font-family: var(--font-mono);">${u.id}</td>
+                        <td><strong>${escapeHtml(u.username)}</strong></td>
+                        <td>${roleLabel}</td>
+                        ${actionsHtml}
+                    `;
+                    tbody.appendChild(tr);
+                });
             }
 
-            users.forEach(u => {
-                const tr = document.createElement('tr');
-                const isSuper = (u.role === 'superadmin' || u.username === 'superadmin');
-                
-                let roleLabel = '';
-                if (isSuper) {
-                    roleLabel = `<span class="badge" style="background: rgba(168, 85, 247, 0.15); border: 1px solid #a855f7; color: #c084fc; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;"><i class="fa-solid fa-crown" style="color: #eab308; margin-right: 4px;"></i>Super Admin</span>`;
-                } else if (u.role === 'admin') {
-                    roleLabel = `<span class="badge" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 11px;">Administrator</span>`;
-                } else {
-                    roleLabel = `<span class="badge" style="background: rgba(156, 163, 175, 0.1); border: 1px solid var(--text-muted); color: var(--text-muted); padding: 2px 6px; border-radius: 4px; font-size: 11px;">Operator</span>`;
-                }
-
-                let deleteBtnHtml = '';
-                if (isSuper) {
-                    deleteBtnHtml = `<span style="color: #a855f7; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" title="Tài khoản Quản trị tối cao tuyệt đối không thể xóa"><i class="fa-solid fa-shield-halved"></i> Không thể xóa</span>`;
-                } else {
-                    deleteBtnHtml = `<button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteUser(${u.id}, '${u.username}')"><i class="fa-solid fa-trash"></i> Xóa</button>`;
-                }
-
-                let actionsHtml = '';
-                if (userRole === 'admin' || userRole === 'superadmin') {
-                    actionsHtml = `
-                        <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
-                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="promptChangePassword(${u.id}, '${u.username}')">
-                                <i class="fa-solid fa-key"></i> Đổi Pass
-                            </button>
-                            ${deleteBtnHtml}
-                        </td>
-                    `;
-                } else {
-                    actionsHtml = ''; // Ẩn hoàn toàn cột thao tác đối với operator
-                }
-
-                tr.innerHTML = `
-                    <td>${u.id}</td>
-                    <td><strong>${u.username}</strong></td>
-                    <td>${roleLabel}</td>
-                    ${actionsHtml}
-                `;
-                tbody.appendChild(tr);
+            renderTablePagination('users-pagination', usersPageState, (nextPage, nextSize) => {
+                loadUsers(nextPage, nextSize);
             });
         } catch (err) {
             tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger);">Lỗi tải danh sách người dùng.</td></tr>';

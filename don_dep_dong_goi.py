@@ -84,7 +84,9 @@ def package_project():
         "cac_lenh.txt",
         "quy_dinh.txt",
         "hanhvibatthuong.txt",
-        "doc_api.md"
+        "doc_api.md",
+        "cloudflared.exe",
+        "cloudflared"
     }
 
     print(f"[PACKAGING] Starting package build for: {project_dir}")

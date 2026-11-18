@@ -53,84 +53,84 @@
         color: #bfdbfe;
     }
 </style>
-<!-- Thanh Bộ Lọc & Tìm Kiếm Camera Hiện Đại -->
-<div class="glass-card" style="margin-bottom: 16px; padding: 12px 18px; border: 1px solid rgba(255,255,255,0.08);">
+<!-- Thanh Bộ Lọc & Tìm Kiếm Camera -->
+<div class="glass-card" style="position: relative; z-index: 50; margin-bottom: 16px; padding: 12px 16px;">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
         
         <!-- Nhóm điều khiển Lọc: Tìm kiếm + Chọn nhiều tầng -->
-        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 320px;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 320px;">
             
             <!-- 1. Ô tìm kiếm theo tên / ID camera -->
-            <div style="position: relative; width: 260px;">
+            <div style="position: relative; width: 240px;">
                 <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 13px; pointer-events: none;"></i>
-                <input type="text" id="camera-search-input" class="form-input" placeholder="Tìm camera theo tên, ID..." oninput="onSearchInput(this.value)" style="padding-left: 34px; padding-right: 28px; height: 36px; font-size: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; width: 100%;">
-                <span id="camera-search-clear" onclick="clearSearchInput()" style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #94a3b8; font-size: 16px; font-weight: bold;">&times;</span>
+                <input type="text" id="camera-search-input" class="form-input" placeholder="Tìm camera theo tên hoặc ID" oninput="onSearchInput(this.value)" style="padding-left: 36px; padding-right: 28px; height: 36px; font-size: 13px; width: 100%;">
+                <span id="camera-search-clear" onclick="clearSearchInput()" style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--text-muted); font-size: 16px; font-weight: 500;">&times;</span>
             </div>
 
             <!-- 2. Dropdown Input chọn nhiều tầng (Multi-Select Floor Filter) -->
             <div style="position: relative;" id="floor-dropdown-wrapper">
-                <button type="button" id="btn-floor-dropdown" onclick="toggleFloorDropdown(event)" class="form-input" style="height: 36px; min-width: 220px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; cursor: pointer; color: #fff;">
-                    <span id="floor-dropdown-label" style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        <i class="fa-solid fa-layer-group" style="color: var(--primary);"></i>
+                <button type="button" id="btn-floor-dropdown" onclick="toggleFloorDropdown(event)" class="form-input" style="height: 36px; min-width: 220px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 13px; cursor: pointer;">
+                    <span id="floor-dropdown-label" style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <i class="fa-solid fa-layer-group" style="color: var(--primary); font-size: 13px;"></i>
                         <span id="floor-dropdown-text">Tất cả các tầng</span>
                     </span>
-                    <i class="fa-solid fa-chevron-down" id="floor-dropdown-arrow" style="font-size: 10px; color: var(--text-muted); margin-left: 8px; transition: transform 0.2s;"></i>
+                    <i class="fa-solid fa-chevron-down" id="floor-dropdown-arrow" style="font-size: 11px; color: var(--text-muted); margin-left: 8px; transition: transform 160ms var(--ease-out);"></i>
                 </button>
 
                 <!-- Menu Dropdown chọn tầng -->
-                <div id="floor-dropdown-menu" style="display: none; position: absolute; top: calc(100% + 6px); left: 0; min-width: 260px; max-height: 300px; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; box-shadow: 0 12px 28px rgba(0,0,0,0.7); z-index: 1050; padding: 6px 0; overflow-y: auto;">
+                <div id="floor-dropdown-menu" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; min-width: 260px; max-height: 300px; background: var(--surface-raised); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,0.55); z-index: 1050; padding: 6px 0; overflow-y: auto;">
                     <!-- Nội dung checkbox render qua JS -->
                 </div>
             </div>
 
             <!-- 3. Nút đặt lại bộ lọc -->
-            <button id="btn-reset-filters" class="btn" onclick="resetAllFilters()" style="display: none; height: 36px; padding: 0 10px; font-size: 11px; background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); border-radius: 6px; cursor: pointer; align-items: center; gap: 5px;">
+            <button id="btn-reset-filters" class="btn" onclick="resetAllFilters()" style="display: none; height: 36px; padding: 0 12px; font-size: 12px; background: rgba(229,72,77,0.12); color: #fca5a5; border-color: rgba(229,72,77,0.28);">
                 <i class="fa-solid fa-rotate-left"></i> Đặt lại
             </button>
         </div>
 
         <!-- Bên phải: cỡ lưới camera và thống kê -->
-        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <div id="camera-layout-controls" style="display: flex; align-items: center; gap: 6px;">
-                <button type="button" id="btn-layout-overview" class="btn layout-btn" onclick="setCameraLayout('overview')" title="Thu nhỏ để nhìn nhiều camera" style="height: 36px; padding: 0 10px; font-size: 11px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div id="camera-layout-controls" style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" id="btn-layout-overview" class="btn layout-btn" onclick="setCameraLayout('overview')" title="Thu nhỏ để nhìn nhiều camera" style="height: 36px; padding: 0 12px; font-size: 12px;">
                     <i class="fa-solid fa-compress"></i> Thu nhỏ
                 </button>
-                <button type="button" id="btn-layout-normal" class="btn layout-btn" onclick="setCameraLayout('normal')" title="Cỡ vừa, 2 camera một hàng" style="height: 36px; padding: 0 10px; font-size: 11px;">
+                <button type="button" id="btn-layout-normal" class="btn layout-btn" onclick="setCameraLayout('normal')" title="Cỡ vừa, 2 camera một hàng" style="height: 36px; padding: 0 12px; font-size: 12px;">
                     <i class="fa-solid fa-table-cells-large"></i> Vừa
                 </button>
-                <button type="button" id="btn-layout-back" class="btn" onclick="exitCameraFocus()" style="display: none; height: 36px; padding: 0 10px; font-size: 11px; background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.35);">
+                <button type="button" id="btn-layout-back" class="btn" onclick="exitCameraFocus()" style="display: none; height: 36px; padding: 0 12px; font-size: 12px; background: rgba(59,130,246,0.15); color: #93c5fd; border-color: rgba(59,130,246,0.35);">
                     <i class="fa-solid fa-border-all"></i> Xem tất cả
                 </button>
             </div>
-            <span id="camera-layout-hint" style="font-size: 11px; color: var(--text-muted);">Bấm đúp một camera để xem chi tiết</span>
-            <span id="camera-filter-stat" style="font-size: 12px; color: var(--text-muted);">
+            <span id="camera-layout-hint" style="font-size: 12px; color: var(--text-muted);">Bấm đúp một camera để xem chi tiết</span>
+            <span id="camera-filter-stat" style="font-size: 12px; font-family: var(--font-mono); color: var(--text-muted); font-variant-numeric: tabular-nums;">
                 <!-- Thống kê camera -->
             </span>
         </div>
     </div>
 
     <!-- Dòng hiển thị các Chip Tag các tầng đang được chọn -->
-    <div id="selected-floor-tags-container" style="display: none; margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.08); gap: 6px; flex-wrap: wrap; align-items: center;">
-        <span style="font-size: 11px; color: var(--text-muted); margin-right: 4px;">Tầng đang chọn:</span>
-        <div id="selected-floor-tags" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+    <div id="selected-floor-tags-container" style="display: none; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-color); gap: 8px; flex-wrap: wrap; align-items: center;">
+        <span style="font-size: 12px; color: var(--text-muted); margin-right: 4px;">Tầng đang chọn:</span>
+        <div id="selected-floor-tags" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
     </div>
 </div>
 
 <!-- Lưới Camera Live -->
-<div class="camera-grid" id="camera-streams-grid">
+<div class="camera-grid" id="camera-streams-grid" style="position: relative; z-index: 1;">
     <!-- Sinh tự động qua JavaScript -->
 </div>
 
 <!-- Nhật ký sự kiện trực tuyến -->
 <div class="glass-card" style="margin-top: 24px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h3 style="font-size: 16px; font-weight: 600;"><i class="fa-solid fa-list-ul"></i> Nhật Ký Sự Kiện Hệ Thống Trực Tuyến</h3>
-        <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="clearLogs()">Xóa Nhật Ký</button>
+        <h3 style="font-size: 16px; font-weight: 500; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-list-ul" style="color: var(--text-muted);"></i> Nhật ký sự kiện trực tuyến</h3>
+        <button class="btn" style="height: 32px; padding: 0 12px; font-size: 12px;" onclick="clearLogs()">Xóa nhật ký</button>
     </div>
     <div class="log-container" id="log-list">
         <div class="log-item success">
-            <span>Khởi động hệ thống AI thành công. Sẵn sàng giám sát.</span>
-            <span class="log-time">Vừa xong</span>
+            <span>Hệ thống AI đã sẵn sàng giám sát</span>
+            <span class="log-time" style="font-family: var(--font-mono);">Vừa xong</span>
         </div>
     </div>
 </div>
